@@ -1169,6 +1169,154 @@ textarea{resize:vertical;min-height:75px;}
 </div>
 
 <script>
+// ══════════════ SUPABASE LAYER ══════════════
+const SB_URL='https://wjmalzbdxbtnkyngaccw.supabase.co';
+const SB_KEY='sb_publishable_8BI2HQ9f0_jTnUR7Q1-B7Q_xflM7k7Q';
+
+const _sbH={'apikey':SB_KEY,'Authorization':`Bearer ${SB_KEY}`,'Content-Type':'application/json'};
+const _sbHR={..._sbH,'Prefer':'return=representation'};
+
+async function _sbGet(t,q=''){
+  const r=await fetch(`${SB_URL}/rest/v1/${t}${q}`,{headers:_sbH});
+  if(!r.ok)throw new Error(`GET ${t}: ${await r.text()}`);
+  return r.json();
+}
+async function _sbPost(t,d){
+  const r=await fetch(`${SB_URL}/rest/v1/${t}`,{method:'POST',headers:_sbHR,body:JSON.stringify(d)});
+  if(!r.ok)throw new Error(`POST ${t}: ${await r.text()}`);
+  return r.json();
+}
+async function _sbPatch(t,id,d){
+  const r=await fetch(`${SB_URL}/rest/v1/${t}?id=eq.${id}`,{method:'PATCH',headers:_sbHR,body:JSON.stringify(d)});
+  if(!r.ok)throw new Error(`PATCH ${t}: ${await r.text()}`);
+  return r.json();
+}
+async function _sbUpsert(t,d,conflict){
+  const r=await fetch(`${SB_URL}/rest/v1/${t}?on_conflict=${conflict}`,{method:'POST',headers:{..._sbHR,'Prefer':'return=representation,resolution=merge-duplicates'},body:JSON.stringify(d)});
+  if(!r.ok)throw new Error(`UPSERT ${t}: ${await r.text()}`);
+  return r.json();
+}
+
+// ── DATA MAPPERS ──────────────────────────────
+function _mapAcc(r){return{id:r.id,name:r.name,status:r.status||'lead',sector:r.sector||'',seg:r.segment||'',web:r.website||'',li:r.linkedin||'',phone:r.phone||'',kvk:r.kvk||'',addr:r.address||'',pipe:r.pipeline_stage||'Nieuw',val:r.value?String(r.value):'',owner:r.owner||'MA',note:r.note||'',color:r.color_index||0,added:r.added_date||'',cf:r.contact_first||'',cl:r.contact_last||'',cr:r.contact_role||'',cp:r.contact_phone||'',ce:r.contact_email||'',contacts:[],deals:[],proposals:[],notes:[],docs:[],clientLinks:{}};}
+function _mapTodo(r){return{id:r.id,title:r.title,done:r.done||false,prio:r.priority||'medium',due:r.due_date||'',acc:r.account_id||null,owner:r.owner||'MA',auto:r.is_auto||false,ruleId:r.rule_id||null,clientId:r.client_id||null,doneDate:r.done_date||null};}
+function _mapEv(r){return{id:r.id,title:r.title,type:r.type||'Kennismaking',date:r.event_date,time:r.start_time||'',dur:r.duration_minutes||60,loc:r.location||'',acc:r.account_id||null,owner:r.owner||'MA',note:r.note||'',contactName:r.contact_name||'',contactEmail:r.contact_email||''};}
+function _mapClient(r){return{id:r.id,name:r.name,sector:r.sector||'',contact:r.contact_person||'',email:r.email||'',color:r.color||'#0d1f3c',note:r.note||''};}
+function _mapTpl(r){return{id:r.id,name:r.name,subj:r.subject||'',body:r.body||''};}
+function _mapAct(r){return{text:r.text,time:new Date(r.created_at).toLocaleDateString('nl-NL',{day:'numeric',month:'short'}),ico:r.icon||'◈',bg:r.bg_color||'#e8f0fb',clientId:r.client_id||null};}
+function _mapNote(r){return{id:r.id,text:r.text,type:r.type||'notitie',by:r.created_by||'MA',time:new Date(r.created_at).toLocaleDateString('nl-NL',{day:'numeric',month:'short',year:'numeric'})};}
+function _mapContact(r){return{id:r.id,first:r.first_name||'',last:r.last_name||'',role:r.role||'',dept:r.department||'',email:r.email||'',phone:r.phone||'',li:r.linkedin||'',note:r.note||''};}
+function _mapDeal(r){return{id:r.id,name:r.name,val:r.value?String(r.value):'',prob:String(r.probability||50),stage:r.stage||'',close:r.close_date||'',note:r.note||''};}
+function _mapProp(r){return{id:r.id,title:r.title,val:r.value?String(r.value):'',stat:r.status||'concept',date:r.sent_date||'',exp:r.expiry_date||'',desc:r.description||''};}
+
+// ── LOADING SCREEN ────────────────────────────
+function _showLoad(msg){
+  let el=document.getElementById('_sb_load');
+  if(!el){
+    el=document.createElement('div');el.id='_sb_load';
+    el.innerHTML=`<style>@keyframes _lb{0%{width:0;margin-left:0}50%{width:60%;margin-left:20%}100%{width:0;margin-left:100%}}</style>
+      <div style="position:fixed;inset:0;background:#0d1f3c;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;">
+        <div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:700;color:#fff;letter-spacing:-.5px;margin-bottom:6px;">Intersect <span style="color:rgba(255,255,255,.35);font-weight:400">CRM</span></div>
+        <div id="_sb_msg" style="font-size:13px;color:rgba(255,255,255,.45);margin-bottom:24px;">${msg}</div>
+        <div style="width:180px;height:2px;background:rgba(255,255,255,.1);border-radius:2px;overflow:hidden;">
+          <div style="height:100%;background:#c9a84c;border-radius:2px;animation:_lb 1.4s ease-in-out infinite;"></div>
+        </div>
+      </div>`;
+    document.body.appendChild(el);
+  }else{document.getElementById('_sb_msg').textContent=msg;}
+}
+function _hideLoad(){
+  const el=document.getElementById('_sb_load');
+  if(el){el.style.opacity='0';el.style.transition='opacity .4s';setTimeout(()=>el.remove(),400);}
+}
+
+// ── MAIN DATA LOADER ──────────────────────────
+async function _loadFromSupabase(){
+  try{
+    _showLoad('Data laden…');
+    const [accR,todoR,evR,clientR,tplR,actR,noteR,conR,dealR,propR,linkR]=await Promise.all([
+      _sbGet('accounts','?select=*&order=created_at.desc'),
+      _sbGet('todos','?select=*&order=created_at.desc'),
+      _sbGet('events','?select=*&order=event_date.asc'),
+      _sbGet('clients','?select=*&order=id.asc'),
+      _sbGet('email_templates','?select=*'),
+      _sbGet('activity_log','?select=*&order=created_at.desc&limit=50'),
+      _sbGet('notes','?select=*&order=created_at.desc'),
+      _sbGet('contacts','?select=*'),
+      _sbGet('deals','?select=*'),
+      _sbGet('proposals','?select=*'),
+      _sbGet('account_client_links','?select=*'),
+    ]);
+    accs=accR.map(_mapAcc);
+    noteR.forEach(n=>{const a=accs.find(x=>x.id===n.account_id);if(a)a.notes.push(_mapNote(n));});
+    conR.forEach(c=>{const a=accs.find(x=>x.id===c.account_id);if(a)a.contacts.push(_mapContact(c));});
+    dealR.forEach(d=>{const a=accs.find(x=>x.id===d.account_id);if(a)a.deals.push(_mapDeal(d));});
+    propR.forEach(p=>{const a=accs.find(x=>x.id===p.account_id);if(a)a.proposals.push(_mapProp(p));});
+    linkR.forEach(l=>{const a=accs.find(x=>x.id===l.account_id);if(a)a.clientLinks[l.client_id]={status:l.status,pipe:l.pipeline_stage,val:l.value?String(l.value):'',note:l.note||''}});
+    todos=todoR.map(_mapTodo);
+    calEvents=evR.map(_mapEv);
+    clients=clientR.map(_mapClient);
+    templates=tplR.map(_mapTpl);
+    activity=actR.map(_mapAct);
+    _hideLoad();
+    return true;
+  }catch(e){
+    console.error('Supabase load failed:',e);
+    _hideLoad();
+    return false;
+  }
+}
+
+// ── SUPABASE SAVE HELPERS ─────────────────────
+async function _saveAcc(a){
+  const d={name:a.name,status:a.status,sector:a.sector||'',segment:a.seg||'',website:a.web||'',linkedin:a.li||'',phone:a.phone||'',kvk:a.kvk||'',address:a.addr||'',pipeline_stage:a.pipe||'Nieuw',value:parseFloat(a.val)||null,owner:a.owner||'MA',note:a.note||'',color_index:a.color||0,added_date:a.added||new Date().toISOString().split('T')[0],contact_first:a.cf||'',contact_last:a.cl||'',contact_role:a.cr||'',contact_phone:a.cp||'',contact_email:a.ce||''};
+  let id=a.id;
+  if(id&&typeof id==='number'&&id<2000000000){await _sbPatch('accounts',id,d);}
+  else{const[r]=await _sbPost('accounts',d);id=r.id;a.id=id;}
+  if(a.clientLinks){for(const[cid,lnk]of Object.entries(a.clientLinks)){await _sbUpsert('account_client_links',{account_id:id,client_id:parseInt(cid),status:lnk.status||'lead',pipeline_stage:lnk.pipe||'Nieuw',value:parseFloat(lnk.val)||null,note:lnk.note||''},'account_id,client_id');}}
+  return id;
+}
+async function _saveTodo(t){
+  const d={title:t.title,done:t.done||false,priority:t.prio||'medium',due_date:t.due||null,account_id:t.acc||null,client_id:t.clientId||null,owner:t.owner||'MA',is_auto:t.auto||false,rule_id:t.ruleId||null,done_date:t.doneDate||null};
+  if(t.id&&typeof t.id==='number'&&t.id<2000000000){await _sbPatch('todos',t.id,d);}
+  else{const[r]=await _sbPost('todos',d);t.id=r.id;}
+}
+async function _saveEvent(ev){
+  const d={title:ev.title,type:ev.type||'Kennismaking',event_date:ev.date,start_time:ev.time||null,duration_minutes:ev.dur||60,location:ev.loc||null,account_id:ev.acc||null,owner:ev.owner||'MA',note:ev.note||null,contact_name:ev.contactName||null,contact_email:ev.contactEmail||null};
+  const[r]=await _sbPost('events',d);ev.id=r.id;
+}
+async function _saveClient(c){
+  const d={name:c.name,sector:c.sector||'',contact_person:c.contact||'',email:c.email||'',color:c.color||'#0d1f3c',note:c.note||''};
+  if(c.id&&typeof c.id==='number'&&c.id<2000000000){await _sbPatch('clients',c.id,d);}
+  else{const[r]=await _sbPost('clients',d);c.id=r.id;}
+}
+async function _saveNote(accId,note){
+  const[r]=await _sbPost('notes',{account_id:accId,text:note.text,type:note.type||'notitie',created_by:note.by||'MA'});
+  note.id=r.id;
+}
+async function _saveContact(accId,c){
+  const[r]=await _sbPost('contacts',{account_id:accId,first_name:c.first||'',last_name:c.last||'',role:c.role||'',department:c.dept||'',email:c.email||'',phone:c.phone||'',linkedin:c.li||'',note:c.note||''});
+  c.id=r.id;
+}
+async function _saveDeal(accId,d){
+  const[r]=await _sbPost('deals',{account_id:accId,name:d.name,value:parseFloat(d.val)||null,probability:parseInt(d.prob)||50,stage:d.stage||'Verkenning',close_date:d.close||null,note:d.note||''});
+  d.id=r.id;
+}
+async function _saveProp(accId,p){
+  const[r]=await _sbPost('proposals',{account_id:accId,title:p.title,value:parseFloat(p.val)||null,status:p.stat||'concept',sent_date:p.date||null,expiry_date:p.exp||null,description:p.desc||''});
+  p.id=r.id;
+}
+async function _saveTemplate(t){
+  const d={name:t.name,subject:t.subj||'',body:t.body||''};
+  if(t.id&&typeof t.id==='number'&&t.id<2000000000){await _sbPatch('email_templates',t.id,d);}
+  else{const[r]=await _sbPost('email_templates',d);t.id=r.id;}
+}
+async function _logAct(text,ico,bg,clientId=null){
+  await _sbPost('activity_log',{text,icon:ico||'◈',bg_color:bg||'#e8f0fb',client_id:clientId||null,created_by:typeof CU!=='undefined'?CU:'MA'});
+}
+
+</script>
+<script>
 // ══════════════ STATE ══════════════
 let CU='MA';
 let editId=null;
@@ -1251,7 +1399,7 @@ if(!activity.length){
     {text:'<strong>Julian</strong> heeft <strong>Horeca Groep Zuid</strong> toegevoegd voor Groen Retail',time:'Gisteren',ico:'◈',bg:'#eaf7ef',clientId:102},
     {text:'<strong>Mees</strong> heeft <strong>Innovate Partners</strong> gekoppeld aan TechFlow',time:'2d geleden',ico:'⬡',bg:'#f0eefb',clientId:101},
     {text:'<strong>Julian</strong> heeft <strong>MediaHub Amsterdam</strong> toegevoegd',time:'10 mrt',ico:'◈',bg:'#e8f0fb',clientId:102}
-  ];ss('ix_act',activity);
+  ];ss('ix_act',activity);_logAct(text,ico,bg,clientId).catch(()=>{});
 }
 if(!templates.length){
   templates=[
@@ -2253,7 +2401,12 @@ function saveAcc(){
     accs.push(a);
     addActivity(`<strong>${user}</strong> heeft <strong>${name}</strong> toegevoegd als ${slbl(a.status)}`,'◈',CLRS[a.color%CLRS.length][0]);
   }
-  ss('ix_accs',accs);closeM('m-acc');nav('accounts');
+  ss('ix_accs',accs);
+  _saveAcc(a).then(()=>{
+    _logAct(`<strong>${CU==='MA'?'Mees':'Julian'}</strong> heeft <strong>${a.name}</strong> ${editId?'bijgewerkt':'toegevoegd als '+slbl(a.status)}`,'◈',CLRS[a.color%CLRS.length][0]).catch(()=>{});
+    activity.unshift({text:`<strong>${CU==='MA'?'Mees':'Julian'}</strong> heeft <strong>${a.name}</strong> ${editId?'bijgewerkt':'toegevoegd als '+slbl(a.status)}`,time:'Zojuist',ico:'◈',bg:CLRS[a.color%CLRS.length][0]});
+  }).catch(e=>console.error('Save acc:',e));
+  closeM('m-acc');nav('accounts');
 }
 
 function saveTodo(){
@@ -2272,8 +2425,9 @@ function saveNote(){
   curAcc.notes.push({id:Date.now(),text,type:document.getElementById('n-type').value,by:CU,time:new Date().toLocaleDateString('nl-NL',{day:'numeric',month:'short',year:'numeric'})});
   const idx=accs.findIndex(a=>a.id===curAcc.id);
   accs[idx]=curAcc;ss('ix_accs',accs);
+  _saveProp(curAcc.id,curAcc.proposals[curAcc.proposals.length-1]).catch(e=>console.warn('prop:',e));
   addActivity(`<strong>${CU==='MA'?'Mees':'Julian'}</strong> voegde een notitie toe bij <strong>${curAcc.name}</strong>`,'◈',CLRS[curAcc.color%CLRS.length][0]);
-  closeM('m-note');renderTab('activity');
+  _saveNote(curAcc.id,curAcc.notes[curAcc.notes.length-1]).catch(e=>console.warn('note:',e));closeM('m-note');renderTab('activity');
 }
 
 function saveContact(){
@@ -2296,6 +2450,7 @@ function saveDeal(){
   curAcc.deals.push({id:Date.now(),name,val:document.getElementById('d-val').value.trim(),prob:document.getElementById('d-prob').value.trim(),stage:document.getElementById('d-stage').value,close:document.getElementById('d-close').value.trim(),note:document.getElementById('d-note').value.trim()});
   const idx=accs.findIndex(a=>a.id===curAcc.id);
   accs[idx]=curAcc;ss('ix_accs',accs);
+  _saveDeal(curAcc.id,curAcc.deals[curAcc.deals.length-1]).catch(e=>console.warn('deal:',e));
   closeM('m-deal');renderTab('deals');
 }
 
@@ -2314,8 +2469,9 @@ function saveProposal(){
 function saveTemplate(){
   const name=document.getElementById('tpl-name').value.trim();
   if(!name)return;
-  templates.push({id:Date.now(),name,subj:document.getElementById('tpl-subj').value.trim(),body:document.getElementById('tpl-body').value.trim()});
-  ss('ix_tpl',templates);closeM('m-tpl');renderOutreach();
+  const _nt={id:Date.now(),name,subj:document.getElementById('tpl-subj').value.trim(),body:document.getElementById('tpl-body').value.trim()};templates.push(_nt);
+  ss('ix_tpl',templates);
+  _saveTemplate(_nt).catch(e=>console.warn('tpl:',e));closeM('m-tpl');renderOutreach();
 }
 
 // ══════════════ OPEN MODALS ══════════════
@@ -2409,7 +2565,7 @@ function doImport(){
 }
 
 // ══════════════ HELPERS ══════════════
-function toggleTodo(id){const t=todos.find(x=>x.id===id);if(t){t.done=!t.done;if(t.done)t.doneDate=localISO();if(t.auto&&t.done&&t.ruleId&&t.acc){const a=accs.find(x=>x.id===t.acc);if(a)recordLearnTrigger(t.ruleId,daysSince(lastActivityDate(a)));ss('ix_wflearn',wfLearning);}ss('ix_todos',todos);updateBadge();updateWfBadge();if(document.getElementById('p-todos').classList.contains('on'))renderTodos();if(document.getElementById('p-dashboard').classList.contains('on')){renderDash();}if(curAcc&&document.getElementById('p-detail').classList.contains('on'))renderTab(curTab);}}
+function toggleTodo(id){const t=todos.find(x=>x.id===id);if(t){t.done=!t.done;if(t.done)t.doneDate=localISO();if(t.auto&&t.done&&t.ruleId&&t.acc){const a=accs.find(x=>x.id===t.acc);if(a)recordLearnTrigger(t.ruleId,daysSince(lastActivityDate(a)));ss('ix_wflearn',wfLearning);}ss('ix_todos',todos);_saveTodo(t).catch(e=>console.warn('todo:',e));updateBadge();updateWfBadge();if(document.getElementById('p-todos').classList.contains('on'))renderTodos();if(document.getElementById('p-dashboard').classList.contains('on')){renderDash();}if(curAcc&&document.getElementById('p-detail').classList.contains('on'))renderTab(curTab);}}
 function updateBadge(){const n=todos.filter(t=>!t.done).length;const b=document.getElementById('todo-badge');b.textContent=n;b.style.display=n?'inline':'none';}
 function addActivity(text,ico,bg,clientId=null){activity.unshift({text,time:'Zojuist',ico,bg,clientId});if(activity.length>50)activity.pop();ss('ix_act',activity);}
 function updateCounts(){const base=clientAccs();['all','lead','qualified','prospect','klant','inactief'].forEach(f=>{const el=document.getElementById('fc-'+f);if(el)el.textContent=f==='all'?`(${base.length})`:`(${base.filter(a=>accClientStatus(a)===f).length})`;});}
@@ -2559,7 +2715,7 @@ function saveEvent(){
   const accId=parseInt(document.getElementById('ev-acc-id').value)||null;
   const contactName=document.getElementById('ev-contact-name').value;
   const ev={id:Date.now(),title,type,date:document.getElementById('ev-date').value,time:document.getElementById('ev-time').value,dur:parseInt(document.getElementById('ev-dur').value)||60,loc:document.getElementById('ev-loc').value.trim(),acc:accId,owner,note:document.getElementById('ev-note').value.trim(),contactName};
-  calEvents.push(ev);ss('ix_events',calEvents);
+  calEvents.push(ev);ss('ix_events',calEvents);_saveEvent(ev).catch(e=>console.warn('event:',e));
   const acc=accs.find(a=>a.id===accId);
   addActivity(`<strong>${CU==='MA'?'Mees':'Julian'}</strong> pland afspraak: <strong>${title}</strong>${acc?' · '+acc.name:''}`,'◈','#e8f0fb');
   if(sendConfirm){
@@ -2687,6 +2843,7 @@ function saveClient(){
   const c={id:Date.now(),name,sector:document.getElementById('cl-sector').value.trim(),contact:document.getElementById('cl-contact').value.trim(),email:document.getElementById('cl-email').value.trim(),color:selClientColor,note:document.getElementById('cl-note').value.trim()};
   clients.push(c);
   ss('ix_clients',clients);
+  _saveClient(c).catch(e=>console.warn('client:',e));
   closeM('m-client');
   renderClientBar();
   addActivity(`<strong>${CU==='MA'?'Mees':'Julian'}</strong> heeft opdrachtgever <strong>${name}</strong> toegevoegd`,'◈','#e8f0fb',null);
@@ -2739,14 +2896,15 @@ function toggleLink(accId,clientId){
   }
   const idx=accs.findIndex(x=>x.id===accId);
   accs[idx]=a;ss('ix_accs',accs);
-  openLinkModal(accId); // re-render modal
+  _saveContact(a.id,a.contacts[a.contacts.length-1]).catch(e=>console.warn('contact:',e));
+  openLinkModal(accId);
 }
 
 function updateLink(accId,clientId,field,val){
   const a=accs.find(x=>x.id===accId);if(!a||!a.clientLinks||!a.clientLinks[clientId])return;
   a.clientLinks[clientId][field]=val;
   const idx=accs.findIndex(x=>x.id===accId);
-  accs[idx]=a;ss('ix_accs',accs);
+  accs[idx]=a;ss('ix_accs',accs);_sbUpsert('account_client_links',{account_id:a.id,client_id:parseInt(clientId),status:a.clientLinks[clientId].status||'lead',pipeline_stage:a.clientLinks[clientId].pipe||'Nieuw',value:parseFloat(a.clientLinks[clientId].val)||null,note:a.clientLinks[clientId].note||''},'account_id,client_id').catch(()=>{});
 }
 
 // ── Client badges for account rows ──
@@ -3170,7 +3328,7 @@ function renderWatNu(){
 
 function quickDoneTask(id){
   const t=todos.find(x=>x.id===id);
-  if(t){t.done=true;t.doneDate=localISO();ss('ix_todos',todos);updateBadge();updateWfBadge();renderWatNu();
+  if(t){t.done=true;t.doneDate=localISO();ss('ix_todos',todos);_saveTodo(t).catch(()=>{});updateBadge();updateWfBadge();renderWatNu();
   // Record learning
   if(t.ruleId&&t.acc){
     const a=accs.find(x=>x.id===t.acc);
@@ -3196,9 +3354,18 @@ function editWfRule(id){
 }
 
 // ══════════════ INIT ══════════════
-calPerson=CU;renderDash();updateBadge();renderClientBar();
-// Run workflow engine silently on load
-setTimeout(()=>{runWorkflowEngine(false);updateWfBadge();renderWatNu();},300);
+// ── ASYNC INIT WITH SUPABASE ──
+(async()=>{
+  calPerson=CU;
+  const loaded=await _loadFromSupabase();
+  if(!loaded){
+    console.warn('Using localStorage fallback');
+  }
+  renderDash();
+  updateBadge();
+  renderClientBar();
+  setTimeout(()=>{runWorkflowEngine(false);updateWfBadge();renderWatNu();},600);
+})();
 </script>
 </body>
 </html>
