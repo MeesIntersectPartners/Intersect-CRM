@@ -452,7 +452,7 @@ textarea{resize:vertical;min-height:75px;}
   <div class="client-bar" id="client-bar">
     <button class="client-tab client-all on" data-cid="all" onclick="setClient('all')">Alle opdrachtgevers</button>
     <div id="client-tabs-inner"></div>
-    <button class="client-tab-add" onclick="openAddClient()" title="Opdrachtgever toevoegen">+</button>
+    <button class="client-tab-add" onclick="openAddClient()" title="Koppel een klant-account als opdrachtgever">+</button>
   </div>
 
   <div class="content">
@@ -794,21 +794,45 @@ textarea{resize:vertical;min-height:75px;}
 <!-- ADD OPDRACHTGEVER MODAL -->
 <div class="modal-bg" id="m-client">
   <div class="modal">
-    <div class="mh"><span class="mt" id="m-client-title">Opdrachtgever toevoegen</span><button class="btn sm ghost" onclick="closeM('m-client')">✕</button></div>
+    <div class="mh">
+      <div>
+        <div class="mt" id="m-client-title">Opdrachtgever toevoegen</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:2px;">Koppel een bestaand klant-account als opdrachtgever</div>
+      </div>
+      <button class="btn sm ghost" onclick="closeM('m-client')">✕</button>
+    </div>
     <div class="mb">
-      <div class="fg"><label class="fl">Naam opdrachtgever *</label><input type="text" id="cl-name" placeholder="bijv. TechFlow B.V."></div>
-      <div class="fg"><label class="fl">Sector</label><input type="text" id="cl-sector" placeholder="bijv. SaaS, Retail…"></div>
-      <div class="fg"><label class="fl">Contactpersoon bij opdrachtgever</label><input type="text" id="cl-contact" placeholder="Naam contactpersoon"></div>
-      <div class="fg"><label class="fl">E-mail</label><input type="email" id="cl-email" placeholder="naam@bedrijf.nl"></div>
+      <div class="fg">
+        <label class="fl">Selecteer account (alleen klanten)</label>
+        <div style="position:relative;">
+          <input type="text" id="cl-acc-search" placeholder="Zoek een klant-account…" oninput="filterClientAccSearch(this.value)">
+          <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:13px;color:var(--text3);">⌕</span>
+        </div>
+        <div id="cl-acc-results" style="display:none;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);max-height:200px;overflow-y:auto;margin-top:3px;"></div>
+        <div id="cl-acc-selected" style="display:none;margin-top:6px;"></div>
+        <input type="hidden" id="cl-acc-id" value="">
+        <div style="font-size:11.5px;color:var(--text3);margin-top:6px;">Staat het account er niet bij? Zet het eerst op status <strong>Klant</strong> en pipeline <strong>Gewonnen</strong>.</div>
+      </div>
       <div class="fg"><label class="fl">Kleur</label>
         <div style="display:flex;gap:8px;flex-wrap:wrap;" id="cl-color-picker">
-          ${['#0d1f3c','#1a5fb4','#1a7a3a','#8a6200','#c0392b','#7b3fa0','#0a7060'].map((c,i)=>`<div onclick="selectClientColor('${c}')" data-col="${c}" style="width:28px;height:28px;border-radius:50%;background:${c};cursor:pointer;border:2px solid transparent;transition:all .1s;"></div>`).join('')}
+          <div onclick="selectClientColor('#0d1f3c')" data-col="#0d1f3c" style="width:30px;height:30px;border-radius:50%;background:#0d1f3c;cursor:pointer;border:3px solid var(--gold);transition:all .12s;" title="Navy"></div>
+          <div onclick="selectClientColor('#1a5fb4')" data-col="#1a5fb4" style="width:30px;height:30px;border-radius:50%;background:#1a5fb4;cursor:pointer;border:2px solid transparent;transition:all .12s;" title="Blauw"></div>
+          <div onclick="selectClientColor('#1a7a3a')" data-col="#1a7a3a" style="width:30px;height:30px;border-radius:50%;background:#1a7a3a;cursor:pointer;border:2px solid transparent;transition:all .12s;" title="Groen"></div>
+          <div onclick="selectClientColor('#c0392b')" data-col="#c0392b" style="width:30px;height:30px;border-radius:50%;background:#c0392b;cursor:pointer;border:2px solid transparent;transition:all .12s;" title="Rood"></div>
+          <div onclick="selectClientColor('#8a6200')" data-col="#8a6200" style="width:30px;height:30px;border-radius:50%;background:#8a6200;cursor:pointer;border:2px solid transparent;transition:all .12s;" title="Amber"></div>
+          <div onclick="selectClientColor('#7b3fa0')" data-col="#7b3fa0" style="width:30px;height:30px;border-radius:50%;background:#7b3fa0;cursor:pointer;border:2px solid transparent;transition:all .12s;" title="Paars"></div>
+          <div onclick="selectClientColor('#0a7060')" data-col="#0a7060" style="width:30px;height:30px;border-radius:50%;background:#0a7060;cursor:pointer;border:2px solid transparent;transition:all .12s;" title="Teal"></div>
+          <div onclick="selectClientColor('#e67e22')" data-col="#e67e22" style="width:30px;height:30px;border-radius:50%;background:#e67e22;cursor:pointer;border:2px solid transparent;transition:all .12s;" title="Oranje"></div>
+          <div onclick="selectClientColor('#2c3e50')" data-col="#2c3e50" style="width:30px;height:30px;border-radius:50%;background:#2c3e50;cursor:pointer;border:2px solid transparent;transition:all .12s;" title="Donker"></div>
+          <div onclick="selectClientColor('#c9a84c')" data-col="#c9a84c" style="width:30px;height:30px;border-radius:50%;background:#c9a84c;cursor:pointer;border:2px solid transparent;transition:all .12s;" title="Goud"></div>
         </div>
       </div>
-      <div class="fg"><label class="fl">Notitie</label><textarea id="cl-note" style="min-height:60px;" placeholder="Context over de samenwerking…"></textarea></div>
+      <div class="fg"><label class="fl">Notitie</label><textarea id="cl-note" style="min-height:55px;" placeholder="Context over de samenwerking…"></textarea></div>
     </div>
     <div class="mf"><button class="btn ghost" onclick="closeM('m-client')">Annuleren</button><button class="btn pri" onclick="saveClient()">Opslaan</button></div>
   </div>
+</div>
+
 </div>
 
 <!-- LINK ACCOUNT TO CLIENT MODAL -->
@@ -1209,6 +1233,30 @@ function _mapContact(r){return{id:r.id,first:r.first_name||'',last:r.last_name||
 function _mapDeal(r){return{id:r.id,name:r.name,val:r.value?String(r.value):'',prob:String(r.probability||50),stage:r.stage||'',close:r.close_date||'',note:r.note||''};}
 function _mapProp(r){return{id:r.id,title:r.title,val:r.value?String(r.value):'',stat:r.status||'concept',date:r.sent_date||'',exp:r.expiry_date||'',desc:r.description||''};}
 
+
+// ── ONE-TIME DEMO DATA CLEANUP ──
+async function _cleanupDemoData(){
+  // Only run if localStorage flag not set
+  if(localStorage.getItem('_demo_cleaned'))return;
+  try{
+    // Delete any demo accounts by name
+    const demoNames=['TechFlow B.V.','BlueStar Logistics','Innovate Partners','MediaHub Amsterdam','Horeca Groep Zuid','Groen Retail Groep'];
+    for(const name of demoNames){
+      await fetch(`${SB_URL}/rest/v1/accounts?name=eq.${encodeURIComponent(name)}`,{
+        method:'DELETE',headers:_sbH
+      });
+    }
+    // Delete demo clients
+    await fetch(`${SB_URL}/rest/v1/clients?id=lt.200`,{method:'DELETE',headers:_sbH});
+    // Delete demo todos, events, activity
+    await fetch(`${SB_URL}/rest/v1/todos?id=lt.10`,{method:'DELETE',headers:_sbH});
+    await fetch(`${SB_URL}/rest/v1/events?id=lt.10`,{method:'DELETE',headers:_sbH});
+    await fetch(`${SB_URL}/rest/v1/activity_log?id=lt.20`,{method:'DELETE',headers:_sbH});
+    localStorage.setItem('_demo_cleaned','1');
+    console.log('✓ Demo data cleaned');
+  }catch(e){console.warn('Cleanup:',e);}
+}
+
 // ── LOADING SCREEN ────────────────────────────
 function _showLoad(msg){
   let el=document.getElementById('_sb_load');
@@ -1258,6 +1306,8 @@ async function _loadFromSupabase(){
     clients=clientR.map(_mapClient);
     templates=tplR.map(_mapTpl);
     activity=actR.map(_mapAct);
+    // Clean up any leftover demo data (accounts with old integer IDs < 10)
+    // Real data from migration will have Supabase bigserial IDs (large numbers)
     _hideLoad();
     return true;
   }catch(e){
@@ -1347,82 +1397,31 @@ let clients=ls('ix_clients')||[]; // opdrachtgevers
 
 // ── Seed opdrachtgevers ──
 if(!clients.length){
-  clients=[
-    {id:101,name:'TechFlow B.V.',sector:'SaaS / Technologie',contact:'Sophie van den Berg',email:'s.vandenberg@techflow.nl',color:'#1a5fb4',note:'Actieve opdrachtgever. Zoeken naar enterprise prospects in logistiek en retail.'},
-    {id:102,name:'Groen Retail Groep',sector:'Retail',contact:'Mark Groen',email:'m.groen@groenretail.nl',color:'#1a7a3a',note:'Nieuw. Willen B2B klanten aantrekken in de horeca sector.'},
-  ];
+  // No demo clients - start clean
   ss('ix_clients',clients);
 }
 
 // ── Seed accounts met client-koppelingen ──
 if(!accs.length){
-  accs=[
-    {id:1,name:'TechFlow B.V.',status:'klant',sector:'SaaS / Technologie',seg:'Scale-up',web:'https://techflow.nl',li:'',phone:'+31 20 123 4567',kvk:'78901234',addr:'Herengracht 420, Amsterdam',pipe:'Gewonnen 🎉',val:'12000',owner:'MA',note:'Actieve klant van Intersect zelf.',cf:'Sophie',cl:'van den Berg',cr:'Head of Growth',cp:'+31 6 10 20 30 40',ce:'s.vandenberg@techflow.nl',color:0,contacts:[],deals:[],proposals:[],notes:[{id:1,text:'Onboarding succesvol verlopen.',type:'notitie',by:'MA',time:'15 jan 2025'}],docs:[{name:'Raamovereenkomst 2025.pdf',type:'pdf',size:'340 KB',date:'15 jan'}],added:'2025-01-15',
-      clientLinks:{} // {clientId: {status, pipe, val, note}}
-    },
-    {id:2,name:'BlueStar Logistics',status:'prospect',sector:'Logistiek',seg:'MKB',web:'https://bluestar.nl',li:'',phone:'+31 70 111 2233',kvk:'44556677',addr:'Binckhorstlaan 30, Den Haag',pipe:'Kennismaking',val:'6000',owner:'BOTH',note:'Meerdere opdrachtgevers geïnteresseerd in dit account.',cf:'Anke',cl:'de Vries',cr:'Operations Manager',cp:'+31 6 77 88 99 00',ce:'a.devries@bluestar.nl',color:3,contacts:[{id:1,first:'Pieter',last:'van Dam',role:'CEO',dept:'Directie',email:'p.vandam@bluestar.nl',phone:'+31 6 11 22 33 44',li:'',note:''}],deals:[],proposals:[],notes:[{id:1,text:'Kennismakingsgesprek 28 mrt.',type:'gesprek',by:'MA',time:'15 mrt 2025'}],docs:[],added:'2025-03-01',
-      clientLinks:{
-        101:{status:'prospect',pipe:'Kennismaking',val:'8000',note:'TechFlow wil ze als distributiepartner benaderen.'},
-        102:{status:'lead',pipe:'Contact gelegd',val:'3500',note:'Groen Retail ziet kansen voor samenwerking in supply chain.'}
-      }
-    },
-    {id:3,name:'Innovate Partners',status:'lead',sector:'Consultancy',seg:'Enterprise',web:'',li:'linkedin.com/company/innovatepartners',phone:'',kvk:'',addr:'Zuidas, Amsterdam',pipe:'Contact gelegd',val:'20000',owner:'MA',note:'LinkedIn connectie gelegd.',cf:'Remy',cl:'Janssen',cr:'Partner',cp:'',ce:'r.janssen@innovatepartners.com',color:2,contacts:[],deals:[],proposals:[],notes:[],docs:[],added:'2025-02-20',
-      clientLinks:{
-        101:{status:'qualified',pipe:'Kennismaking',val:'15000',note:'Potentieel voor strategisch partnerschap met TechFlow.'}
-      }
-    },
-    {id:4,name:'MediaHub Amsterdam',status:'lead',sector:'Media & Marketing',seg:'Startup',web:'https://mediahub.amsterdam',li:'',phone:'',kvk:'',addr:'NDSM Werf, Amsterdam',pipe:'Nieuw',val:'3500',owner:'JK',note:'Evenement connectie.',cf:'Tijs',cl:'Bakker',cr:'Co-founder',cp:'+31 6 22 33 44 55',ce:'tijs@mediahub.amsterdam',color:4,contacts:[],deals:[],proposals:[],notes:[],docs:[],added:'2025-03-10',
-      clientLinks:{
-        102:{status:'lead',pipe:'Nieuw',val:'4000',note:'Groen Retail zoekt marketingpartner voor campagnes.'}
-      }
-    },
-    {id:5,name:'Horeca Groep Zuid',status:'lead',sector:'Horeca',seg:'MKB',web:'',li:'',phone:'+31 40 222 3344',kvk:'',addr:'Eindhoven',pipe:'Nieuw',val:'5000',owner:'JK',note:'Koud contact via beursgids.',cf:'Jan',cl:'Smeets',cr:'Eigenaar',cp:'+31 6 44 55 66 77',ce:'j.smeets@horecazuid.nl',color:5,contacts:[],deals:[],proposals:[],notes:[],docs:[],added:'2025-03-15',
-      clientLinks:{
-        102:{status:'lead',pipe:'Nieuw',val:'5000',note:'Primaire prospect voor Groen Retail — horeca sector.'}
-      }
-    },
-  ];
+  // No demo accounts - start clean
   ss('ix_accs',accs);
 }
 if(!todos.length){
-  todos=[
-    {id:1,title:'Follow-up voorstel BlueStar — TechFlow context',done:false,prio:'hoog',due:'Vandaag',acc:2,owner:'JK',clientId:101},
-    {id:2,title:'Kennismakingsgesprek BlueStar voorbereiden',done:false,prio:'hoog',due:'28 mrt',acc:2,owner:'MA',clientId:null},
-    {id:3,title:'LinkedIn bericht Innovate Partners',done:false,prio:'medium',due:'Deze week',acc:3,owner:'MA',clientId:101},
-    {id:4,title:'Eerste mail sturen Horeca Groep Zuid',done:false,prio:'medium',due:'Deze week',acc:5,owner:'JK',clientId:102},
-    {id:5,title:'Kwartaalcheck TechFlow B.V.',done:true,prio:'laag',due:'Afgerond',acc:1,owner:'MA',clientId:null}
-  ];ss('ix_todos',todos);
+  // No demo todos
+  ss('ix_todos',todos);
 }
 if(!activity.length){
-  activity=[
-    {text:'<strong>Mees</strong> heeft <strong>BlueStar Logistics</strong> gekoppeld aan TechFlow B.V.',time:'Vandaag',ico:'◈',bg:'#e8f0fb',clientId:101},
-    {text:'<strong>Julian</strong> heeft <strong>Horeca Groep Zuid</strong> toegevoegd voor Groen Retail',time:'Gisteren',ico:'◈',bg:'#eaf7ef',clientId:102},
-    {text:'<strong>Mees</strong> heeft <strong>Innovate Partners</strong> gekoppeld aan TechFlow',time:'2d geleden',ico:'⬡',bg:'#f0eefb',clientId:101},
-    {text:'<strong>Julian</strong> heeft <strong>MediaHub Amsterdam</strong> toegevoegd',time:'10 mrt',ico:'◈',bg:'#e8f0fb',clientId:102}
-  ];ss('ix_act',activity);_logAct(text,ico,bg,clientId).catch(()=>{});
+  // No demo activity
+  ss('ix_act',activity);
 }
 if(!templates.length){
-  templates=[
-    {id:1,name:'Koude outreach — intro',subj:'Kennismaking: Intersect x [bedrijf]',body:'Hoi [naam],\n\nMijn naam is '+((CU==='MA')?'Mees':'Julian')+' en ik werk bij Intersect. Wij helpen bedrijven zoals [bedrijf] bij het aantrekken van nieuwe klanten en het structureel uitbouwen van hun business.\n\nZou je open staan voor een kort kennismakingsgesprek van 20 minuten?\n\nMet vriendelijke groet,\n'+((CU==='MA')?'Mees Arentsen':'Julian Kanhai')+'\nIntersect'},
-    {id:2,name:'Follow-up na gesprek',subj:'Fijn om kennis te maken, [naam]!',body:'Hoi [naam],\n\nBedankt voor het gesprek eerder. Zoals besproken stuur ik je hierbij een korte samenvatting van wat we voor [bedrijf] kunnen betekenen.\n\nIk kijk uit naar je reactie!\n\nMet vriendelijke groet,\n'+((CU==='MA')?'Mees Arentsen':'Julian Kanhai')+'\nIntersect'},
-    {id:3,name:'Voorstel opvolging',subj:'Voorstel Intersect x [bedrijf] — status?',body:'Hoi [naam],\n\nIk wilde even opvolgen op het voorstel dat ik vorige week heb gestuurd. Heb je de kans gehad om er naar te kijken?\n\nLaat me weten als je vragen hebt of als je een call wil plannen.\n\nMet vriendelijke groet,\n'+((CU==='MA')?'Mees Arentsen':'Julian Kanhai')+'\nIntersect'}
-  ];ss('ix_tpl',templates);
+  // No demo templates
+  ss('ix_tpl',templates);
 }
 
 let calEvents=ls('ix_events')||[];
 if(!calEvents.length){
-  const now=new Date();
-  const fmt=d=>localISO(d);
-  const d0=new Date(now);
-  const d1=new Date(now);d1.setDate(d1.getDate()+2);
-  const d2=new Date(now);d2.setDate(d2.getDate()+7);
-  const d3=new Date(now);d3.setDate(d3.getDate()+10);
-  calEvents=[
-    {id:1,title:'Kennismakingsgesprek BlueStar Logistics',date:fmt(d1),time:'14:00',dur:60,loc:'Binckhorstlaan 30, Den Haag',acc:4,owner:'MA',note:'Agenda: introductie Intersect, behoeften BlueStar'},
-    {id:2,title:'Follow-up call Groen Retail Groep',date:fmt(d0),time:'10:30',dur:30,loc:'Telefoon',acc:2,owner:'JK',note:'Voorstel bespreken'},
-    {id:3,title:'Pitch Innovate Partners — event',date:fmt(d2),time:'16:00',dur:90,loc:'Amsterdam Zuidas',acc:3,owner:'BOTH',note:''},
-    {id:4,title:'Kwartaalcheck TechFlow B.V.',date:fmt(d3),time:'11:00',dur:60,loc:'Google Meet',acc:1,owner:'MA',note:'Q1 review'},
-  ];
+  // No demo events
   ss('ix_events',calEvents);
 }
 
@@ -2778,10 +2777,9 @@ function exportICS(){
 function renderClientBar(){
   const inner=document.getElementById('client-tabs-inner');
   inner.innerHTML=clients.map(c=>`
-    <button class="client-tab${curClient===c.id?' on':''}" data-cid="${c.id}" onclick="setClient(${c.id})">
-      <span class="client-dot" style="background:${c.color};"></span>${c.name}
+    <button class="client-tab${curClient===c.id?' on':''}" data-cid="${c.id}" onclick="setClient(${c.id})" style="${curClient===c.id?'border-bottom-color:'+c.color+';color:#fff;':''}" title="${c.name}">
+      <span class="client-dot" style="background:${c.color};width:10px;height:10px;border-radius:50%;flex-shrink:0;"></span>${c.name}
     </button>`).join('');
-  // sync all-tab
   document.querySelector('.client-all').classList.toggle('on', curClient==='all');
 }
 
@@ -2833,11 +2831,45 @@ function accClientNote(a){
 
 function openAddClient(){
   document.getElementById('m-client-title').textContent='Opdrachtgever toevoegen';
-  ['cl-name','cl-sector','cl-contact','cl-email','cl-note'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('cl-acc-search').value='';
+  document.getElementById('cl-acc-results').style.display='none';
+  document.getElementById('cl-acc-selected').style.display='none';
+  document.getElementById('cl-acc-id').value='';
+  document.getElementById('cl-note').value='';
   selClientColor='#0d1f3c';
-  document.querySelectorAll('#cl-color-picker div').forEach(d=>{d.style.borderColor='transparent';});
-  document.querySelector('#cl-color-picker div').style.borderColor='var(--gold)';
+  document.querySelectorAll('#cl-color-picker div').forEach((d,i)=>{d.style.border=i===0?'3px solid var(--gold)':'2px solid transparent';});
   document.getElementById('m-client').classList.add('on');
+}
+
+function filterClientAccSearch(q){
+  const res=document.getElementById('cl-acc-results');
+  // Only show accounts that are klant status
+  const eligible=accs.filter(a=>a.status==='klant'&&!clients.some(c=>c.id===a.id));
+  const matches=q.trim()?eligible.filter(a=>a.name.toLowerCase().includes(q.toLowerCase())):eligible;
+  if(!matches.length){res.style.display='none';return;}
+  res.style.display='block';
+  res.innerHTML=matches.map(a=>{
+    const[bg,fg]=CLRS[a.color%CLRS.length];
+    return`<div onclick="selectClientAcc(${a.id})" style="display:flex;align-items:center;gap:9px;padding:9px 11px;cursor:pointer;border-bottom:1px solid var(--border);" onmouseover="this.style.background='var(--navy-fade)'" onmouseout="this.style.background=''">
+      <div style="width:26px;height:26px;border-radius:6px;background:${bg};color:${fg};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;">${initials(a.name)}</div>
+      <div><div style="font-size:13px;font-weight:500;">${a.name}</div><div style="font-size:11px;color:var(--text3);">${a.sector||''}</div></div>
+    </div>`;
+  }).join('');
+}
+
+function selectClientAcc(id){
+  const a=accs.find(x=>x.id===id);if(!a)return;
+  document.getElementById('cl-acc-id').value=id;
+  document.getElementById('cl-acc-search').value='';
+  document.getElementById('cl-acc-results').style.display='none';
+  const[bg,fg]=CLRS[a.color%CLRS.length];
+  const sel=document.getElementById('cl-acc-selected');
+  sel.style.display='block';
+  sel.innerHTML=`<div style="display:flex;align-items:center;gap:9px;padding:8px 12px;background:var(--navy-fade);border:1px solid var(--border);border-radius:var(--r);">
+    <div style="width:26px;height:26px;border-radius:6px;background:${bg};color:${fg};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;">${initials(a.name)}</div>
+    <div style="flex:1;font-size:13px;font-weight:500;">${a.name}</div>
+    <button onclick="document.getElementById('cl-acc-id').value='';document.getElementById('cl-acc-selected').style.display='none';" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:14px;">✕</button>
+  </div>`;
 }
 
 function selectClientColor(c){
@@ -2849,15 +2881,17 @@ function selectClientColor(c){
 }
 
 function saveClient(){
-  const name=document.getElementById('cl-name').value.trim();
-  if(!name)return;
-  const c={id:Date.now(),name,sector:document.getElementById('cl-sector').value.trim(),contact:document.getElementById('cl-contact').value.trim(),email:document.getElementById('cl-email').value.trim(),color:selClientColor,note:document.getElementById('cl-note').value.trim()};
+  const accId=parseInt(document.getElementById('cl-acc-id').value);
+  if(!accId){alert('Selecteer eerst een klant-account.');return;}
+  const a=accs.find(x=>x.id===accId);if(!a)return;
+  if(clients.some(x=>x.id===accId)){alert('Dit account is al een opdrachtgever.');return;}
+  const c={id:accId,name:a.name,sector:a.sector||'',contact:[a.cf,a.cl].filter(Boolean).join(' '),email:a.ce||'',color:selClientColor,note:document.getElementById('cl-note').value.trim()};
   clients.push(c);
   ss('ix_clients',clients);
   _saveClient(c).catch(e=>console.warn('client:',e));
   closeM('m-client');
   renderClientBar();
-  addActivity(`<strong>${CU==='MA'?'Mees':'Julian'}</strong> heeft opdrachtgever <strong>${name}</strong> toegevoegd`,'◈','#e8f0fb',null);
+  addActivity(`<strong>${CU==='MA'?'Mees':'Julian'}</strong> heeft <strong>${a.name}</strong> als opdrachtgever toegevoegd`,'◈','#e8f0fb',null);
 }
 
 function openLinkModal(accId){
@@ -3368,6 +3402,7 @@ function editWfRule(id){
 // ── ASYNC INIT WITH SUPABASE ──
 (async()=>{
   calPerson=CU;
+  await _cleanupDemoData();
   const loaded=await _loadFromSupabase();
   if(!loaded){
     console.warn('Using localStorage fallback');
