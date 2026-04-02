@@ -1483,7 +1483,21 @@ async function _saveAcc(a){
   let id=a.id;
   if(id&&typeof id==='number'&&id<2000000000){await _sbPatch('accounts',id,d);}
   else{const[r]=await _sbPost('accounts',d);id=r.id;a.id=id;}
-  if(a.clientLinks){for(const[cid,lnk]of Object.entries(a.clientLinks)){await _sbUpsert('account_client_links',{account_id:id,client_id:parseInt(cid),status:lnk.status||'lead',pipeline_stage:lnk.pipe||'Nieuw',value:parseFloat(lnk.val)||null,note:lnk.note||''},'account_id,client_id');}}
+  if(a.clientLinks){
+    // Reload clients to get correct SB IDs before saving links
+    let currentClients=clients;
+    try{const r=await _sbGet('clients','?select=id,name');if(r&&r.length)currentClients=r;}catch(e){}
+    for(const[cid,lnk]of Object.entries(a.clientLinks)){
+      // Find real client id - cid might be old temp id, match by looking up in clients array
+      const localClient=clients.find(x=>String(x.id)===String(cid));
+      if(!localClient)continue;
+      // Find real SB id by name
+      const sbClient=currentClients.find(x=>x.name===localClient.name);
+      const realClientId=sbClient?sbClient.id:parseInt(cid);
+      if(!realClientId||isNaN(realClientId))continue;
+      await _sbUpsert('account_client_links',{account_id:id,client_id:realClientId,status:lnk.status||'lead',pipeline_stage:lnk.pipe||'Nieuw',value:parseFloat(lnk.val)||null,note:lnk.note||''},'account_id,client_id');
+    }
+  }
   return id;
 }
 async function _saveTodo(t){
@@ -1497,8 +1511,23 @@ async function _saveEvent(ev){
 }
 async function _saveClient(c){
   const d={name:c.name,sector:c.sector||'',contact_person:c.contact||'',email:c.email||'',color:c.color||'#0d1f3c',note:c.note||''};
-  if(c.id&&typeof c.id==='number'&&c.id<2000000000){await _sbPatch('clients',c.id,d);}
-  else{const[r]=await _sbPost('clients',d);c.id=r.id;}
+  // Always check by name first to avoid duplicates
+  try{
+    const existing=await _sbGet('clients',`?name=eq.${encodeURIComponent(c.name)}&select=id`);
+    if(existing&&existing.length>0){
+      // Update existing
+      await _sbPatch('clients',existing[0].id,d);
+      c.sbId=existing[0].id;
+    } else {
+      // Insert new
+      const[r]=await _sbPost('clients',d);
+      c.sbId=r.id;
+    }
+  }catch(e){
+    // Fallback: just insert
+    const[r]=await _sbPost('clients',d);
+    c.sbId=r.id;
+  }
 }
 async function _saveNote(accId,note){
   const[r]=await _sbPost('notes',{account_id:accId,text:note.text,type:note.type||'notitie',created_by:note.by||'MA'});
@@ -2645,8 +2674,40 @@ function renderClientCheckboxes(existingLinks){
     </label>`).join(''):`<span style="font-size:12px;color:var(--text3);">Voeg eerst een opdrachtgever toe.</span>`;
 }
 
-function openAddAcc(){editId=null;document.getElementById('m-acc-title').textContent='Account toevoegen';['f-name','f-sector','f-web','f-li','f-phone','f-kvk','f-addr','f-val','f-cf','f-cl','f-cr','f-cp','f-ce','f-note'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});document.getElementById('f-status').value='lead';document.getElementById('f-seg').value='';document.getElementById('f-pipe').value='Nieuw';selOwner('MA','asgn-acc');renderClientCheckboxes({});document.getElementById('m-acc').classList.add('on');}
-function openEditAcc(id){editId=id;const a=accs.find(x=>x.id===id);if(!a)return;document.getElementById('m-acc-title').textContent='Account bewerken';document.getElementById('f-name').value=a.name;document.getElementById('f-status').value=a.status;document.getElementById('f-sector').value=a.sector||'';document.getElementById('f-seg').value=a.seg||'';document.getElementById('f-web').value=a.web||'';document.getElementById('f-li').value=a.li||'';document.getElementById('f-phone').value=a.phone||'';document.getElementById('f-kvk').value=a.kvk||'';document.getElementById('f-addr').value=a.addr||'';document.getElementById('f-pipe').value=a.pipe||'Nieuw';document.getElementById('f-val').value=a.val||'';document.getElementById('f-cf').value=a.cf||'';document.getElementById('f-cl').value=a.cl||'';document.getElementById('f-cr').value=a.cr||'';document.getElementById('f-cp').value=a.cp||'';document.getElementById('f-ce').value=a.ce||'';document.getElementById('f-note').value=a.note||'';selOwner(a.owner||'MA','asgn-acc');renderClientCheckboxes(a.clientLinks||{});document.getElementById('m-acc').classList.add('on');}
+async function openAddAcc(){
+  editId=null;
+  document.getElementById('m-acc-title').textContent='Account toevoegen';
+  ['f-name','f-sector','f-web','f-li','f-phone','f-kvk','f-addr','f-val','f-cf','f-cl','f-cr','f-cp','f-ce','f-note'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  document.getElementById('f-status').value='lead';
+  document.getElementById('f-seg').value='';
+  document.getElementById('f-pipe').value='Nieuw';
+  selOwner(CU,'asgn-acc');
+  // Refresh clients from Supabase so checkboxes are always up to date
+  try{
+    const fresh=await _sbGet('clients','?select=*&order=id.asc');
+    if(fresh&&fresh.length>0){
+      clients=fresh.map(_mapClient);
+      if(!clients.some(x=>x.name==='Intersect')){
+        clients.unshift({id:999999,name:'Intersect',sector:'Sales & Business Development',contact:'Mees & Julian',email:'mees@intersect-partners.com',color:'#c9a84c',note:'Onze eigen organisatie.'});
+      }
+    }
+  }catch(e){console.warn('Could not refresh clients:',e);}
+  renderClientCheckboxes({});
+  document.getElementById('m-acc').classList.add('on');
+}
+async function openEditAcc(id){
+  editId=id;const a=accs.find(x=>x.id===id);if(!a)return;
+  document.getElementById('m-acc-title').textContent='Account bewerken';
+  // Refresh clients
+  try{
+    const fresh=await _sbGet('clients','?select=*&order=id.asc');
+    if(fresh&&fresh.length>0){
+      clients=fresh.map(_mapClient);
+      if(!clients.some(x=>x.name==='Intersect')){
+        clients.unshift({id:999999,name:'Intersect',sector:'Sales & Business Development',contact:'Mees & Julian',email:'mees@intersect-partners.com',color:'#c9a84c',note:'Onze eigen organisatie.'});
+      }
+    }
+  }catch(e){}document.getElementById('f-name').value=a.name;document.getElementById('f-status').value=a.status;document.getElementById('f-sector').value=a.sector||'';document.getElementById('f-seg').value=a.seg||'';document.getElementById('f-web').value=a.web||'';document.getElementById('f-li').value=a.li||'';document.getElementById('f-phone').value=a.phone||'';document.getElementById('f-kvk').value=a.kvk||'';document.getElementById('f-addr').value=a.addr||'';document.getElementById('f-pipe').value=a.pipe||'Nieuw';document.getElementById('f-val').value=a.val||'';document.getElementById('f-cf').value=a.cf||'';document.getElementById('f-cl').value=a.cl||'';document.getElementById('f-cr').value=a.cr||'';document.getElementById('f-cp').value=a.cp||'';document.getElementById('f-ce').value=a.ce||'';document.getElementById('f-note').value=a.note||'';selOwner(a.owner||'MA','asgn-acc');renderClientCheckboxes(a.clientLinks||{});document.getElementById('m-acc').classList.add('on');}
 function openAddTodo(){document.getElementById('t-title').value='';document.getElementById('t-prio').value='medium';document.getElementById('t-due').value='';const sel=document.getElementById('t-acc');sel.innerHTML='<option value="">— geen —</option>';accs.forEach(a=>sel.innerHTML+=`<option value="${a.id}">${a.name}</option>`);selOwner(CU,'asgn-todo');document.getElementById('m-todo').classList.add('on');}
 function openAddTodoForAcc(id){openAddTodo();document.getElementById('t-acc').value=id;}
 function openAddNote(){document.getElementById('n-text').value='';document.getElementById('m-note').classList.add('on');}
@@ -3044,17 +3105,37 @@ function selectClientColor(c){
   });
 }
 
-function saveClient(){
+async function saveClient(){
   const accId=parseInt(document.getElementById('cl-acc-id').value);
   if(!accId){alert('Selecteer eerst een klant-account.');return;}
   const a=accs.find(x=>x.id===accId);if(!a)return;
-  if(clients.some(x=>x.id===accId)){alert('Dit account is al een opdrachtgever.');return;}
-  const c={id:accId,name:a.name,sector:a.sector||'',contact:[a.cf,a.cl].filter(Boolean).join(' '),email:a.ce||'',color:selClientColor,note:document.getElementById('cl-note').value.trim()};
+  if(clients.some(x=>x.name===a.name)){alert('Dit account is al een opdrachtgever.');return;}
+  // id will be assigned by Supabase after insert - use temp id for now
+  const c={id:Date.now(),name:a.name,sector:a.sector||'',contact:[a.cf,a.cl].filter(Boolean).join(' '),email:a.ce||'',color:selClientColor,note:document.getElementById('cl-note').value.trim(),accRef:accId};
+  // Add locally first so UI updates immediately
   clients.push(c);
-  ss('ix_clients',clients);
-  _saveClient(c).catch(e=>console.warn('client:',e));
-  closeM('m-client');
   renderClientBar();
+  renderClientCheckboxes({});
+  closeM('m-client');
+  // Save to Supabase and reload fresh from DB
+  try{
+    await _saveClient(c);
+    // Reload clients from Supabase to get correct IDs
+    const fresh=await _sbGet('clients','?select=*&order=id.asc');
+    if(fresh&&fresh.length>0){
+      clients=fresh.map(_mapClient);
+      // Re-ensure Intersect
+      if(!clients.some(x=>x.name==='Intersect')){
+        clients.unshift({id:999999,name:'Intersect',sector:'Sales & Business Development',contact:'Mees & Julian',email:'mees@intersect-partners.com',color:'#c9a84c',note:'Onze eigen organisatie.'});
+      }
+      ss('ix_clients',clients);
+      renderClientBar();
+      renderClientCheckboxes({});
+    }
+  }catch(e){
+    console.error('Save client error:',e);
+    ss('ix_clients',clients);
+  }
   addActivity(`<strong>${CU==='MA'?'Mees':'Julian'}</strong> heeft <strong>${a.name}</strong> als opdrachtgever toegevoegd`,'◈','#e8f0fb',null);
 }
 
