@@ -284,7 +284,7 @@ textarea{resize:vertical;min-height:75px;}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
 
 /* ══ CLIENT CONTEXT SWITCHER ══ */
-.client-bar{background:var(--navy-mid);border-bottom:1px solid rgba(255,255,255,.06);padding:0 22px;display:flex;align-items:center;gap:0;height:38px;flex-shrink:0;overflow-x:auto;}
+.client-bar{background:var(--navy-mid);border-bottom:1px solid rgba(255,255,255,.06);padding:0 22px;display:flex;flex-direction:row;align-items:center;gap:0;height:38px;flex-shrink:0;overflow-x:auto;white-space:nowrap;}
 .client-tab{display:flex;align-items:center;gap:7px;padding:0 14px;height:100%;cursor:pointer;color:rgba(255,255,255,.45);font-size:12px;font-weight:500;border-bottom:2px solid transparent;white-space:nowrap;transition:all .12s;border-top:none;border-left:none;border-right:none;background:none;font-family:'DM Sans',sans-serif;}
 .client-tab:hover{color:rgba(255,255,255,.75);}
 .client-tab.on{color:#fff;border-bottom-color:var(--gold);}
@@ -451,7 +451,7 @@ textarea{resize:vertical;min-height:75px;}
   <!-- CLIENT CONTEXT BAR -->
   <div class="client-bar" id="client-bar">
     <button class="client-tab client-all on" data-cid="all" onclick="setClient('all')">Alle opdrachtgevers</button>
-    <div id="client-tabs-inner"></div>
+    <div id="client-tabs-inner" style="display:inline-flex;flex-direction:row;align-items:center;height:100%;"></div>
     <button class="client-tab-add" onclick="openAddClient()" title="Koppel een klant-account als opdrachtgever">+</button>
   </div>
 
