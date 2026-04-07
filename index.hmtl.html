@@ -1704,6 +1704,7 @@ function openDetail(id){
     {id:'deals',label:'Kansen',cnt:(a.deals||[]).length},
     {id:'proposals',label:'Offertes',cnt:(a.proposals||[]).length},
     {id:'activity',label:'Activiteit & notities',cnt:(a.notes||[]).length},
+    {id:'omzet',label:'💰 Intersect Omzet',cnt:0},
     {id:'outreach',label:'E-mail outreach',cnt:0},
     {id:'docs',label:'Documenten',cnt:(a.docs||[]).length},
     {id:'todos',label:'Taken',cnt:todos.filter(t=>t.acc===a.id&&!t.done).length},
@@ -1717,7 +1718,7 @@ function openDetail(id){
 
 function switchTab(t){
   curTab=t;
-  document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('on',el.textContent.trim().startsWith(t==='overview'?'Overzicht':t==='contacts'?'Contacten':t==='deals'?'Kansen':t==='proposals'?'Offertes':t==='activity'?'Activiteit':t==='outreach'?'E-mail':t==='docs'?'Documenten':'Taken')));
+  document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('on',el.textContent.trim().startsWith(t==='overview'?'Overzicht':t==='contacts'?'Contacten':t==='deals'?'Kansen':t==='proposals'?'Offertes':t==='activity'?'Activiteit':t==='outreach'?'E-mail':t==='commissie'?'💰':t==='docs'?'Documenten':'Taken')));
   // re-render tabs properly
   document.querySelectorAll('.tab').forEach(el=>{
     const tabId=el.getAttribute('onclick').replace("switchTab('","").replace("')","");
@@ -1826,6 +1827,224 @@ function renderTab(t){
           <div class="note-text">${n.text}</div>
         </div>`).join(''):`<div class="empty"><div class="eico">◻</div><p>Nog geen notities</p></div>`}`;
   }
+  else if(t==='omzet'){
+    // ── Intersect Omzet tab ───────────────────────────────────────
+    // Config stored on a.omzetCfg; falls back to Audio Obscura defaults
+    const cfg = a.omzetCfg || {
+      vorm: 'staffel',          // staffel | vaste_fee | retainer | achteraf
+      startDate: '',
+      durationMonths: 12,
+      eigenLeadPct: 10,         // % voor eigen leads opdrachtgever (staffel)
+      vasteFee: 0,              // eenmalige vaste fee (vaste_fee)
+      retainerPerMaand: 0,      // maandelijkse retainer
+      achterafPct: 0,           // % achteraf over totale omzet
+      staffelTiers: [
+        {max:50000,   rate:17.5, label:'0 – €50k'},
+        {max:100000,  rate:20,   label:'€50k – €100k'},
+        {max:Infinity,rate:22.5, label:'> €100k'}
+      ]
+    };
+
+    // ── Looptijd check: automatisch oud klant bij verlopen partnership ──
+    if(cfg.startDate && cfg.durationMonths){
+      const _end = new Date(cfg.startDate);
+      _end.setMonth(_end.getMonth() + cfg.durationMonths);
+      if(new Date() > _end && a.status === 'klant'){
+        a.status = 'inactief';
+        a.statusNote = 'Automatisch inactief: partnership looptijd verlopen';
+        const _idx = accs.findIndex(x=>x.id===a.id);
+        if(_idx>=0) accs[_idx] = a;
+        ss('ix_accs', accs);
+        _saveAcc(a).catch(()=>{});
+        if(document.getElementById('detail-hero')) openDetail(a.id);
+      }
+    }
+
+    // ── Won deals (markeer eigen leads via d.isEigenLead) ──────────
+    const wonDeals = (a.deals||[]).filter(d =>
+      d.stage==='Gewonnen' || d.stage==='Gesloten' || d.stage==='Won'
+    );
+
+    const fmt  = n => new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(n);
+    const fmtP = n => n % 1 === 0 ? n+'%' : n.toFixed(1)+'%';
+
+    // ── Looptijd helpers ───────────────────────────────────────────
+    let daysLeft=0, daysTotal=0, timeProgress=0, endDateStr='', startDateStr='';
+    let isExpired = false;
+    if(cfg.startDate){
+      const _s = new Date(cfg.startDate+'T12:00');
+      const _e = new Date(_s); _e.setMonth(_e.getMonth()+(cfg.durationMonths||12));
+      const _now = new Date();
+      daysTotal   = Math.round((_e-_s)/86400000);
+      daysLeft    = Math.max(0,Math.round((_e-_now)/86400000));
+      timeProgress= Math.min(100,Math.max(0,((_now-_s)/(_e-_s))*100));
+      isExpired   = _now > _e;
+      startDateStr= _s.toLocaleDateString('nl-NL',{day:'numeric',month:'long',year:'numeric'});
+      endDateStr  = _e.toLocaleDateString('nl-NL',{day:'numeric',month:'long',year:'numeric'});
+    }
+
+    // ── Bereken Intersect omzet ────────────────────────────────────
+    let intersectOmzet=0, eigenOmzet=0;
+    wonDeals.forEach(d=>{
+      const v=parseFloat(d.val)||0;
+      if(d.isEigenLead) eigenOmzet+=v; else intersectOmzet+=v;
+    });
+    const totalOmzet = intersectOmzet + eigenOmzet;
+
+    // ── Bereken vergoeding op basis van samenwerkingsvorm ──────────
+    let intersectVergoeding=0, eigenVergoeding=0, activeTierRate=17.5;
+    const vorm = cfg.vorm || 'staffel';
+
+    if(vorm==='staffel'){
+      // Schijf: alles tegen het tarief van de schijf waar je in valt
+      const tiers = cfg.staffelTiers || [{max:50000,rate:17.5},{max:100000,rate:20},{max:Infinity,rate:22.5}];
+      let tier = tiers[tiers.length-1];
+      for(const tx of tiers){ if(intersectOmzet<=tx.max){tier=tx;break;} }
+      activeTierRate = tier.rate;
+      intersectVergoeding = intersectOmzet * tier.rate / 100;
+      eigenVergoeding     = eigenOmzet * (cfg.eigenLeadPct||10) / 100;
+    } else if(vorm==='vaste_fee'){
+      intersectVergoeding = cfg.vasteFee || 0;
+    } else if(vorm==='retainer'){
+      // Maanden verstreken * maandbedrag
+      let maanden = 0;
+      if(cfg.startDate){
+        const _s=new Date(cfg.startDate+'T12:00');
+        maanden = Math.max(0,Math.round((new Date()-_s)/2629800000));
+      }
+      intersectVergoeding = (cfg.retainerPerMaand||0) * maanden;
+    } else if(vorm==='achteraf'){
+      intersectVergoeding = totalOmzet * (cfg.achterafPct||0) / 100;
+    }
+    const totalVergoeding = intersectVergoeding + eigenVergoeding;
+
+    // ── Next tier (alleen staffel) ─────────────────────────────────
+    let nextTierInfo = null;
+    if(vorm==='staffel'){
+      const tiers = cfg.staffelTiers || [{max:50000,rate:17.5},{max:100000,rate:20},{max:Infinity,rate:22.5}];
+      for(const tx of tiers){
+        if(intersectOmzet < tx.max && tx.max !== Infinity){ nextTierInfo = tx; break; }
+      }
+    }
+
+    // ── HTML ───────────────────────────────────────────────────────
+    c.innerHTML = `
+    <!-- Toolbar -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:7px;">
+        <span style="display:block;width:3px;height:14px;background:var(--gold);border-radius:2px;"></span>
+        Intersect Omzet
+        <span style="font-size:11px;font-weight:400;color:var(--text3);padding:2px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;">${{staffel:'Staffel',vaste_fee:'Vaste fee',retainer:'Retainer',achteraf:'Achteraf %'}[vorm]||vorm}</span>
+        ${isExpired?'<span style="font-size:11px;padding:2px 9px;border-radius:10px;background:var(--red-bg);color:var(--red-t);font-weight:600;">⚠ Verlopen</span>':''}
+      </div>
+      <button class="btn sm ghost" onclick="openOmzetInstellingen(${a.id})">⚙ Instellingen</button>
+    </div>
+
+    <!-- KPI strip -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;">
+      <!-- Totale omzet (Intersect) -->
+      <div style="background:var(--navy);border-radius:var(--r-lg);padding:16px 18px;color:#fff;">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:rgba(255,255,255,.4);margin-bottom:5px;">Totale Intersect omzet</div>
+        <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:700;">${fmt(intersectOmzet)}</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.35);margin-top:3px;">${wonDeals.filter(d=>!d.isEigenLead).length} deal${wonDeals.filter(d=>!d.isEigenLead).length!==1?'s':''}</div>
+      </div>
+      <!-- Vergoeding Intersect -->
+      <div style="background:var(--gold);border-radius:var(--r-lg);padding:16px 18px;">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:rgba(13,31,60,.4);margin-bottom:5px;">Jouw vergoeding</div>
+        <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:700;color:var(--navy);">${fmt(totalVergoeding)}</div>
+        <div style="font-size:11px;color:rgba(13,31,60,.45);margin-top:3px;">${vorm==='staffel'?fmtP(activeTierRate)+' Intersect + '+fmtP(cfg.eigenLeadPct||10)+' eigen':''}</div>
+      </div>
+      <!-- Looptijd / Vorm -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px 18px;">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);margin-bottom:5px;">Partnership looptijd</div>
+        ${cfg.startDate ? `
+          <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:700;color:${isExpired?'var(--red)':'var(--navy)'};">${isExpired?'Verlopen':daysLeft+' dgn'}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:3px;">t/m ${endDateStr}</div>
+          <div style="margin-top:8px;height:4px;background:var(--border);border-radius:2px;overflow:hidden;">
+            <div style="height:100%;width:${timeProgress.toFixed(1)}%;background:${isExpired?'var(--red)':timeProgress>80?'var(--amber)':'var(--navy)'};border-radius:2px;transition:width .3s;"></div>
+          </div>
+        ` : `<div style="font-size:12.5px;color:var(--text3);">Niet ingesteld</div><button class="btn xs ghost" style="margin-top:6px;" onclick="openOmzetInstellingen(${a.id})">Instellen →</button>`}
+      </div>
+    </div>
+
+    <!-- Staffel voortgang (alleen bij staffel) -->
+    ${vorm==='staffel'?`
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px 18px;margin-bottom:14px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <div style="font-family:'Syne',sans-serif;font-size:12.5px;font-weight:700;">Staffel schijven</div>
+        ${nextTierInfo?`<div style="font-size:11.5px;color:var(--text2);">Nog <strong>${fmt(nextTierInfo.max-intersectOmzet)}</strong> voor ${fmtP(nextTierInfo.rate)}</div>`:'<div style="font-size:11.5px;color:var(--green-t);font-weight:600;">🏆 Hoogste schijf</div>'}
+      </div>
+      <div style="display:flex;gap:0;margin-bottom:12px;">
+        ${(cfg.staffelTiers||[{max:50000,rate:17.5,label:'0 – €50k'},{max:100000,rate:20,label:'€50k – €100k'},{max:Infinity,rate:22.5,label:'> €100k'}]).map((tier,i,arr)=>{
+          const active = intersectOmzet >= (i===0?0:(arr[i-1].max)) && intersectOmzet <= tier.max;
+          const past   = tier.max !== Infinity && intersectOmzet > tier.max;
+          const bg     = active?'var(--navy)':past?'rgba(13,31,60,.08)':'var(--surface2)';
+          const clr    = active?'var(--gold)':past?'var(--navy)':'var(--text3)';
+          const border = i===0?'8px 0 0 8px':i===arr.length-1?'0 8px 8px 0':'0';
+          return '<div style="flex:1;padding:12px 10px;background:'+bg+';border:1px solid '+(active?'var(--navy)':past?'rgba(13,31,60,.15)':'var(--border)')+';border-radius:'+border+';text-align:center;'+(i>0?'border-left:none':'')+';"><div style="font-size:16px;font-weight:700;color:'+clr+';">'+tier.rate+'%</div><div style="font-size:10px;color:'+(active?'rgba(255,255,255,.55)':past?'var(--text2)':'var(--text3)')+';margin-top:2px;">'+tier.label+'</div>'+(active?'<div style="font-size:9px;color:var(--gold);margin-top:3px;font-weight:700;letter-spacing:.5px;">ACTIEF</div>':'')+'</div>';
+        }).join('')}
+      </div>
+      ${nextTierInfo?`
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text3);margin-bottom:5px;">
+        <span>${fmt(intersectOmzet)}</span><span>${fmt(nextTierInfo.max)}</span>
+      </div>
+      <div style="height:6px;background:var(--surface2);border-radius:3px;overflow:hidden;">
+        <div style="height:100%;width:${Math.min(100,((intersectOmzet/(nextTierInfo.max||1))*100)).toFixed(1)}%;background:var(--navy);border-radius:3px;transition:width .4s;"></div>
+      </div>
+      `:''}
+    </div>`:''}
+
+    <!-- Uitsplitsing (alleen staffel heeft eigen leads) -->
+    ${vorm==='staffel'?`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:8px;">Intersect leads</div>
+        <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:700;color:var(--navy);">${fmt(intersectOmzet)}</div>
+        <div style="font-size:12px;color:var(--text2);margin-top:3px;">${fmtP(activeTierRate)} → <strong>${fmt(intersectVergoeding)}</strong></div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:8px;">Eigen leads opdrachtgever</div>
+        <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:700;color:var(--navy);">${fmt(eigenOmzet)}</div>
+        <div style="font-size:12px;color:var(--text2);margin-top:3px;">${fmtP(cfg.eigenLeadPct||10)} → <strong>${fmt(eigenVergoeding)}</strong></div>
+      </div>
+    </div>`:''}
+
+    <!-- Gewonnen deals tabel met eigen-lead toggle -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;margin-bottom:14px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border);">
+        <div style="font-family:'Syne',sans-serif;font-size:12.5px;font-weight:700;display:flex;align-items:center;gap:6px;">
+          <span style="display:block;width:3px;height:13px;background:var(--gold);border-radius:2px;"></span>Gewonnen deals
+        </div>
+        <button class="btn xs ghost" onclick="switchTab('deals')">Alle deals →</button>
+      </div>
+      ${wonDeals.length ? `
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="background:var(--surface2);">
+          <th style="text-align:left;padding:9px 14px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;">Deal</th>
+          <th style="padding:9px 14px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;">Omzet</th>
+          <th style="padding:9px 14px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;">Lead type</th>
+          ${vorm==='staffel'?'<th style="padding:9px 14px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;">Tarief</th><th style="padding:9px 14px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;">Vergoeding</th>':''}
+        </tr></thead>
+        <tbody>
+          ${wonDeals.map((d,di)=>{
+            const val = parseFloat(d.val)||0;
+            const rate = d.isEigenLead ? (cfg.eigenLeadPct||10) : activeTierRate;
+            const verg = vorm==='staffel' ? val*rate/100 : 0;
+            return '<tr style="border-top:1px solid var(--border);"><td style="padding:10px 14px;font-weight:500;">'+d.name+'</td><td style="padding:10px 14px;font-family:\'Syne\',sans-serif;font-weight:600;">'+fmt(val)+'</td><td style="padding:10px 14px;"><button onclick="toggleDealEigenLead('+a.id+','+di+')" style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid '+(d.isEigenLead?'var(--amber)':'var(--navy)')+';background:'+(d.isEigenLead?'var(--amber-bg)':'var(--navy-fade)')+';color:'+(d.isEigenLead?'var(--amber-t)':'var(--navy)')+';font-family:\'DM Sans\',sans-serif;">'+(d.isEigenLead?'🤝 Eigen lead':'📊 Intersect lead')+'</button></td>'+(vorm==='staffel'?'<td style="padding:10px 14px;color:var(--text2);">'+fmtP(rate)+'</td><td style="padding:10px 14px;font-family:\'Syne\',sans-serif;font-weight:700;color:var(--navy);">'+fmt(verg)+'</td>':'')+'</tr>';
+          }).join('')}
+        </tbody>
+        <tfoot>
+          <tr style="border-top:2px solid var(--border);background:var(--surface2);">
+            <td style="padding:10px 14px;font-weight:700;">Totaal</td>
+            <td style="padding:10px 14px;font-family:'Syne',sans-serif;font-weight:700;">${fmt(totalOmzet)}</td>
+            <td></td>
+            ${vorm==='staffel'?'<td></td><td style="padding:10px 14px;font-family:\'Syne\',sans-serif;font-weight:700;color:var(--gold);">'+fmt(totalVergoeding)+'</td>':''}
+          </tr>
+        </tfoot>
+      </table>
+      ` : `<div class="empty" style="padding:28px;"><div class="eico">💰</div><p>Nog geen gewonnen deals — zet een deal op "Gewonnen" in het Kansen tabblad.</p></div>`}
+    </div>`;
+  }
   else if(t==='outreach'){
     c.innerHTML=`
       <div style="margin-bottom:14px;font-size:13px;color:var(--text2);">Stel een e-mail op naar de contactpersoon van <strong>${a.name}</strong>. Gebruik een template of schrijf direct.</div>
@@ -1891,7 +2110,6 @@ function renderTab(t){
           <div class="av ${td.owner.toLowerCase()} lg">${td.owner}</div>
         </div>`).join(''):`<div style="color:var(--text3);font-size:13px;padding:8px 0;">Geen taken voor dit account</div>`}`;
   }
-}
 
 function df(l,v){if(!v)return '';return`<div class="df"><span class="df-lbl">${l}</span><span class="df-val">${v}</span></div>`;}
 
@@ -3645,6 +3863,89 @@ function editWfRule(id){
   if(newDays&&!isNaN(parseInt(newDays))){r.days=parseInt(newDays);ss('ix_wfrules',wfRules);renderWorkflows();}
 }
 
+// ══════════════ OMZET HELPERS ══════════════
+
+function toggleDealEigenLead(accId, dealIndex){
+  const a = accs.find(x => x.id === accId);
+  if(!a || !a.deals || !a.deals[dealIndex]) return;
+  a.deals[dealIndex].isEigenLead = !a.deals[dealIndex].isEigenLead;
+  const idx = accs.findIndex(x => x.id === accId);
+  if(idx >= 0) accs[idx] = a;
+  ss('ix_accs', accs);
+  _saveAcc(a).catch(() => {});
+  renderTab('omzet');
+}
+
+function openOmzetInstellingen(accId){
+  const a = accs.find(x => x.id === accId);
+  if(!a) return;
+  const cfg = a.omzetCfg || {
+    vorm: 'staffel',
+    startDate: '',
+    durationMonths: 12,
+    eigenLeadPct: 10,
+    vasteFee: 0,
+    retainerPerMaand: 0,
+    achterafPct: 0,
+    staffelTiers:[
+      {max:50000,  rate:17.5, label:'0 – \u20ac50k'},
+      {max:100000, rate:20,   label:'\u20ac50k – \u20ac100k'},
+      {max:Infinity,rate:22.5,label:'> \u20ac100k'}
+    ]
+  };
+  document.getElementById('omzet-acc-id').value  = accId;
+  document.getElementById('omzet-vorm').value      = cfg.vorm || 'staffel';
+  document.getElementById('omzet-start').value     = cfg.startDate || '';
+  document.getElementById('omzet-maanden').value   = cfg.durationMonths || 12;
+  document.getElementById('omzet-eigen-pct').value = cfg.eigenLeadPct || 10;
+  document.getElementById('omzet-vaste-fee').value  = cfg.vasteFee || 0;
+  document.getElementById('omzet-retainer').value   = cfg.retainerPerMaand || 0;
+  document.getElementById('omzet-achteraf-pct').value = cfg.achterafPct || 0;
+  document.getElementById('omzet-t1-rate').value   = (cfg.staffelTiers&&cfg.staffelTiers[0])?cfg.staffelTiers[0].rate:17.5;
+  document.getElementById('omzet-t2-rate').value   = (cfg.staffelTiers&&cfg.staffelTiers[1])?cfg.staffelTiers[1].rate:20;
+  document.getElementById('omzet-t3-rate').value   = (cfg.staffelTiers&&cfg.staffelTiers[2])?cfg.staffelTiers[2].rate:22.5;
+  updateOmzetVormFields();
+  openM('m-omzet');
+}
+
+function updateOmzetVormFields(){
+  const v = document.getElementById('omzet-vorm').value;
+  document.getElementById('omzet-staffel-fields').style.display  = v==='staffel'?'':'none';
+  document.getElementById('omzet-vaste-fields').style.display    = v==='vaste_fee'?'':'none';
+  document.getElementById('omzet-retainer-fields').style.display = v==='retainer'?'':'none';
+  document.getElementById('omzet-achteraf-fields').style.display = v==='achteraf'?'':'none';
+}
+
+function saveOmzetInstellingen(){
+  const accId = parseInt(document.getElementById('omzet-acc-id').value);
+  const a = accs.find(x => x.id === accId);
+  if(!a) return;
+  const vorm = document.getElementById('omzet-vorm').value;
+  const t1   = parseFloat(document.getElementById('omzet-t1-rate').value) || 17.5;
+  const t2   = parseFloat(document.getElementById('omzet-t2-rate').value) || 20;
+  const t3   = parseFloat(document.getElementById('omzet-t3-rate').value) || 22.5;
+  a.omzetCfg = {
+    vorm:              vorm,
+    startDate:         document.getElementById('omzet-start').value.trim(),
+    durationMonths:    parseInt(document.getElementById('omzet-maanden').value)||12,
+    eigenLeadPct:      parseFloat(document.getElementById('omzet-eigen-pct').value)||10,
+    vasteFee:          parseFloat(document.getElementById('omzet-vaste-fee').value)||0,
+    retainerPerMaand:  parseFloat(document.getElementById('omzet-retainer').value)||0,
+    achterafPct:       parseFloat(document.getElementById('omzet-achteraf-pct').value)||0,
+    staffelTiers:[
+      {max:50000,   rate:t1, label:'0 \u2013 \u20ac50k'},
+      {max:100000,  rate:t2, label:'\u20ac50k \u2013 \u20ac100k'},
+      {max:Infinity,rate:t3, label:'> \u20ac100k'}
+    ]
+  };
+  const idx = accs.findIndex(x => x.id === accId);
+  if(idx >= 0) accs[idx] = a;
+  ss('ix_accs', accs);
+  _saveAcc(a).catch(() => {});
+  closeM('m-omzet');
+  renderTab('omzet');
+}
+
 // ══════════════ INIT ══════════════
 // ── ASYNC INIT WITH AUTH CHECK ──
 (async()=>{
@@ -3673,5 +3974,98 @@ function editWfRule(id){
   setTimeout(()=>{runWorkflowEngine(false);updateWfBadge();renderWatNu();},600);
 })();
 </script>
+
+<!-- ══ OMZET INSTELLINGEN MODAL ══ -->
+<div class="modal-bg" id="m-omzet">
+  <div class="modal" style="max-width:500px;">
+    <div class="mh">
+      <div>
+        <div class="mt">Intersect Omzet instellingen</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:2px;">Samenwerkingsvorm &amp; looptijd per account</div>
+      </div>
+      <button class="btn sm ghost" onclick="closeM('m-omzet')">&#x2715;</button>
+    </div>
+    <div class="mb">
+      <input type="hidden" id="omzet-acc-id">
+
+      <!-- Samenwerkingsvorm -->
+      <div class="fg">
+        <label class="fl">Samenwerkingsvorm</label>
+        <select id="omzet-vorm" onchange="updateOmzetVormFields()" style="font-size:13px;">
+          <option value="staffel">Staffel (% over omzet per schijf)</option>
+          <option value="vaste_fee">Vaste fee (eenmalig bedrag)</option>
+          <option value="retainer">Retainer (maandelijks)</option>
+          <option value="achteraf">Achteraf % (% over totale omzet)</option>
+        </select>
+      </div>
+
+      <!-- Looptijd -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="fg">
+          <label class="fl">Startdatum partnership</label>
+          <input type="date" id="omzet-start">
+        </div>
+        <div class="fg">
+          <label class="fl">Looptijd (maanden)</label>
+          <input type="number" id="omzet-maanden" min="1" max="120" placeholder="12">
+          <div style="font-size:11px;color:var(--text3);margin-top:3px;">Bij verlopen &#8594; automatisch inactief</div>
+        </div>
+      </div>
+
+      <!-- STAFFEL fields -->
+      <div id="omzet-staffel-fields">
+        <div style="font-size:12px;font-weight:600;color:var(--text);margin:10px 0 6px;">Staffel tarieven (Intersect leads)</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">
+          <div class="fg" style="margin:0;">
+            <label class="fl" style="font-size:10.5px;">0 &#8211; &#8364;50k (%)</label>
+            <input type="number" id="omzet-t1-rate" step="0.5" min="0" max="100" placeholder="17.5">
+          </div>
+          <div class="fg" style="margin:0;">
+            <label class="fl" style="font-size:10.5px;">&#8364;50k &#8211; &#8364;100k (%)</label>
+            <input type="number" id="omzet-t2-rate" step="0.5" min="0" max="100" placeholder="20">
+          </div>
+          <div class="fg" style="margin:0;">
+            <label class="fl" style="font-size:10.5px;">&gt; &#8364;100k (%)</label>
+            <input type="number" id="omzet-t3-rate" step="0.5" min="0" max="100" placeholder="22.5">
+          </div>
+        </div>
+        <div class="fg">
+          <label class="fl">Tarief eigen leads opdrachtgever (%)</label>
+          <input type="number" id="omzet-eigen-pct" step="0.5" min="0" max="100" placeholder="10">
+          <div style="font-size:11px;color:var(--text3);margin-top:3px;">Eigen leads aanvinken per deal in het omzet-overzicht</div>
+        </div>
+      </div>
+
+      <!-- VASTE FEE fields -->
+      <div id="omzet-vaste-fields" style="display:none;">
+        <div class="fg">
+          <label class="fl">Vaste fee (&#8364;)</label>
+          <input type="number" id="omzet-vaste-fee" min="0" placeholder="0">
+        </div>
+      </div>
+
+      <!-- RETAINER fields -->
+      <div id="omzet-retainer-fields" style="display:none;">
+        <div class="fg">
+          <label class="fl">Retainer per maand (&#8364;)</label>
+          <input type="number" id="omzet-retainer" min="0" placeholder="0">
+        </div>
+      </div>
+
+      <!-- ACHTERAF fields -->
+      <div id="omzet-achteraf-fields" style="display:none;">
+        <div class="fg">
+          <label class="fl">Percentage achteraf (%)</label>
+          <input type="number" id="omzet-achteraf-pct" step="0.5" min="0" max="100" placeholder="0">
+        </div>
+      </div>
+    </div>
+    <div class="mf">
+      <button class="btn ghost" onclick="closeM('m-omzet')">Annuleren</button>
+      <button class="btn gold" onclick="saveOmzetInstellingen()">Opslaan</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
