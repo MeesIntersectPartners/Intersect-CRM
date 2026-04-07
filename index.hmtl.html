@@ -424,7 +424,7 @@ textarea{resize:vertical;min-height:75px;}
     </div>
     <div class="sb-sec">
       <div class="sb-lbl">Automatisering</div>
-      <button class="sb-item" onclick="nav('scraper')" id="sb-scraper"><span class="ico">⟳</span>Lead Scraper<span class="sb-badge" id="scraper-badge" style="display:none;">●</span></button>
+      <button class="sb-item" onclick="nav('scraper')"><span class="ico">⟳</span>Lead Scraper<span class="sb-badge" id="scraper-badge" style="display:none;">●</span></button>
     </div>
   </nav>
   <div class="sb-foot">
@@ -592,9 +592,8 @@ textarea{resize:vertical;min-height:75px;}
           <button class="btn sm ghost" onclick="calGoToday()">Vandaag</button>
         </div>
         <div class="cal-view-toggle">
-          <button class="cal-view-btn on" onclick="setCalView('week')">Week</button>
-          <button class="cal-view-btn" onclick="setCalView('day')">Dag</button>
-          <button class="cal-view-btn" onclick="setCalView('month')">Maand</button>
+          <button class="cal-view-btn on" id="cal-view-agenda" onclick="setAgendaMode('agenda')">Agenda</button>
+          <button class="cal-view-btn" id="cal-view-taken" onclick="setAgendaMode('taken')">Taken</button>
         </div>
         <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
           <!-- Persoon switcher (primaire filter) -->
@@ -616,7 +615,17 @@ textarea{resize:vertical;min-height:75px;}
           <button class="btn pri" onclick="openAddEvent()">+ Afspraak</button>
         </div>
       </div>
-      <div id="agenda-view"></div>
+      <div id="agenda-calendar-wrap">
+        <div style="display:flex;gap:6px;margin-bottom:10px;">
+          <button class="cal-view-btn on" id="cal-sub-week" onclick="setCalView('week')">Week</button>
+          <button class="cal-view-btn" id="cal-sub-day" onclick="setCalView('day')">Dag</button>
+          <button class="cal-view-btn" id="cal-sub-month" onclick="setCalView('month')">Maand</button>
+        </div>
+        <div id="agenda-view"></div>
+      </div>
+      <div id="agenda-taken-wrap" style="display:none;">
+        <div id="agenda-taken-view"></div>
+      </div>
     </div>
 
     <!-- ACCOUNTS LIST -->
@@ -650,11 +659,15 @@ textarea{resize:vertical;min-height:75px;}
     <!-- ACCOUNT DETAIL -->
     <div class="acc-detail" id="p-detail">
       <div class="acc-hero" id="detail-hero"></div>
+      <div id="detail-actions" style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;"></div>
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;">
         <div class="tabs" id="detail-tabs"></div>
         <div style="padding:18px;" id="detail-tab-content"></div>
       </div>
     </div>
+
+    <!-- SCRAPER -->
+    <div class="page" id="p-scraper"></div>
 
     <!-- PIPELINE -->
     <div class="page" id="p-pipeline">
@@ -755,10 +768,6 @@ textarea{resize:vertical;min-height:75px;}
     <!-- KLANTRAPPORT -->
     <div class="page" id="p-rapport">
       <div id="rapport-content"></div>
-    </div>
-
-    <!-- SCRAPER -->
-    <div class="page" id="p-scraper">
     </div>
 
     <!-- WORKFLOWS -->
@@ -964,6 +973,7 @@ textarea{resize:vertical;min-height:75px;}
           <option value="notitie">Algemene notitie</option>
           <option value="gesprek">Gesprek / meeting</option>
           <option value="email">E-mail</option>
+          <option value="whatsapp">WhatsApp</option>
           <option value="taak">Taak</option>
         </select>
       </div>
@@ -1216,8 +1226,8 @@ textarea{resize:vertical;min-height:75px;}
               <div style="font-size:11.5px;color:var(--amber-t);opacity:.7;margin-top:1px;">Mail wordt geopend in je mailclient</div>
             </div>
             <div style="display:flex;gap:6px;">
-              <button id="conf-yes" onclick="setConfirm(true)" style="padding:5px 12px;font-size:12px;font-weight:600;border-radius:20px;cursor:pointer;border:1.5px solid var(--navy);background:var(--navy);color:#fff;font-family:'DM Sans',sans-serif;">Ja</button>
-              <button id="conf-no" onclick="setConfirm(false)" style="padding:5px 12px;font-size:12px;font-weight:600;border-radius:20px;cursor:pointer;border:1.5px solid var(--border2);background:transparent;color:var(--text2);font-family:'DM Sans',sans-serif;">Nee</button>
+              <button id="conf-yes" onclick="trySetConfirmYes()" style="padding:5px 12px;font-size:12px;font-weight:600;border-radius:20px;cursor:pointer;border:1.5px solid var(--border2);background:transparent;color:var(--text2);font-family:'DM Sans',sans-serif;">Ja</button>
+              <button id="conf-no" onclick="setConfirm(false)" style="padding:5px 12px;font-size:12px;font-weight:600;border-radius:20px;cursor:pointer;border:1.5px solid var(--navy);background:var(--navy);color:#fff;font-family:'DM Sans',sans-serif;">Nee</button>
             </div>
           </div>
           <div id="conf-mail-fields" style="display:flex;flex-direction:column;gap:8px;">
@@ -1677,10 +1687,7 @@ function nav(id){
   if(id==='agenda'){
     calOffset=0;
     calPerson=CU;
-    setTimeout(()=>{
-      setCalPerson(CU);
-      renderAgenda();
-    },0);
+    setTimeout(()=>{ setCalPerson(CU); renderAgenda(); },0);
   }
   if(id==='pipeline')renderPipeline();
   if(id==='accounts')renderAccList();
@@ -1759,6 +1766,15 @@ function openDetail(id){
   document.getElementById('detail-tabs').innerHTML=tabs.map(t=>
     `<button class="tab${t.id===curTab?' on':''}" onclick="switchTab('${t.id}')">${t.label}${t.cnt>0?`<span class="tab-cnt">${t.cnt}</span>`:''}</button>`
   ).join('');
+
+  // Actieknoppen boven de tabs
+  document.getElementById('detail-actions').innerHTML=`
+    <button class="btn pri sm" onclick="openQuickNote('notitie')">✏ Notitie</button>
+    <button class="btn sm" style="background:var(--blue-bg);border-color:var(--blue);color:var(--blue-t);" onclick="openQuickNote('mailshot')">✉ Mailshot</button>
+    <button class="btn sm" style="background:var(--teal-bg);border-color:var(--teal);color:var(--teal-t);" onclick="openQuickNote('opvolg_mailshot')">↩ Opvolg Mailshot</button>
+    <button class="btn sm" style="background:#e8f4fd;border-color:#0a66c2;color:#0a66c2;" onclick="openQuickNote('linkshot')">Linkshot</button>
+    <button class="btn sm" style="background:var(--surface2);border-color:var(--border2);color:var(--text2);" onclick="openQuickNote('voicemail')">🎙 Voicemail</button>
+  `;
   renderTab(curTab);
   document.getElementById('topbar-title').innerHTML=`<span class="bc">Accounts</span><span class="bc-sep"> / </span>${a.name}`;
 }
@@ -1778,6 +1794,8 @@ function renderTab(t){
   const a=curAcc;if(!a)return;
   const c=document.getElementById('detail-tab-content');
   if(t==='overview'){
+    const lastNote = (a.notes||[]).length ? [...(a.notes)].reverse()[0] : null;
+    const typeLabel = {'notitie':'Notitie','gesprek':'Gesprek','email':'E-mail','voicemail':'Voicemail','mailshot':'Mailshot','opvolg_mailshot':'Opvolg Mailshot','linkshot':'Linkshot','whatsapp':'WhatsApp','taak':'Taak'};
     c.innerHTML=`
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
         <div>
@@ -1809,7 +1827,23 @@ function renderTab(t){
             ${a.note?`<div class="note-box"><div class="note-text">${a.note}</div></div>`:''}
           </div>
         </div>
-      </div>`;
+      </div>
+      ${lastNote ? `
+      <div style="margin-top:14px;">
+        <div id="ov-act-hd" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);user-select:none;" onclick="document.getElementById('ov-act-body').style.display=document.getElementById('ov-act-body').style.display==='block'?'none':'block';document.getElementById('ov-act-chevron').textContent=document.getElementById('ov-act-body').style.display==='block'?'▾':'▸';">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:10px;font-weight:700;text-transform:uppercase;padding:2px 7px;border-radius:4px;background:var(--surface3);color:var(--text2);">${typeLabel[lastNote.type]||lastNote.type}</span>
+            <span style="font-size:12.5px;font-weight:500;color:var(--text);">Laatste activiteit</span>
+            <span style="font-size:11px;color:var(--text3);">${lastNote.time}</span>
+            <div class="av ${(lastNote.by||'').toLowerCase()} lg">${lastNote.by||''}</div>
+          </div>
+          <span id="ov-act-chevron" style="font-size:11px;color:var(--text3);">▸</span>
+        </div>
+        <div id="ov-act-body" style="display:none;border:1px solid var(--border);border-top:none;border-radius:0 0 var(--r) var(--r);padding:12px 14px;background:var(--surface);">
+          <div style="font-size:13px;color:var(--text);line-height:1.65;">${lastNote.text}</div>
+          <div style="margin-top:8px;"><button class="btn xs ghost" onclick="switchTab('activity')">Alle activiteit bekijken →</button></div>
+        </div>
+      </div>` : ''}`;
   }
   else if(t==='contacts'){
     const all=[...(a.cf?[{id:0,first:a.cf,last:a.cl,role:a.cr,dept:'',email:a.ce,phone:a.cp,li:'',note:'Primaire contactpersoon',_primary:true}]:[]),...(a.contacts||[])];
@@ -1861,13 +1895,6 @@ function renderTab(t){
   }
   else if(t==='activity'){
     c.innerHTML=`
-      <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
-        <div style="display:flex;gap:6px;">
-          <button class="btn pri sm" onclick="openQuickNote('notitie')">✏ Notitie</button>
-          <button class="btn sm" style="background:var(--teal-bg);border-color:var(--teal);color:var(--teal-t);" onclick="openQuickNote('voicemail')">🎙 Voicemail</button>
-          <button class="btn sm" style="background:var(--blue-bg);border-color:var(--blue);color:var(--blue-t);" onclick="openQuickNote('mailshot')">✉ Mailshot</button>
-        </div>
-      </div>
       ${(a.notes||[]).length?(a.notes).slice().reverse().map(n=>`
         <div class="note-box">
           <div style="display:flex;align-items:center;gap:7px;margin-bottom:5px;">
@@ -2479,6 +2506,119 @@ function renderAgenda(){
   else renderMonthView(evs);
 }
 
+let agendaMode='agenda';
+function setAgendaMode(mode){
+  agendaMode=mode;
+  const agBtn=document.getElementById('cal-view-agenda');
+  const tkBtn=document.getElementById('cal-view-taken');
+  const calWrap=document.getElementById('agenda-calendar-wrap');
+  const takenWrap=document.getElementById('agenda-taken-wrap');
+  if(mode==='agenda'){
+    if(agBtn){agBtn.classList.add('on');}
+    if(tkBtn){tkBtn.classList.remove('on');}
+    if(calWrap)calWrap.style.display='';
+    if(takenWrap)takenWrap.style.display='none';
+  } else {
+    if(agBtn){agBtn.classList.remove('on');}
+    if(tkBtn){tkBtn.classList.add('on');}
+    if(calWrap)calWrap.style.display='none';
+    if(takenWrap)takenWrap.style.display='';
+    renderAgendaTaken();
+  }
+}
+
+function renderAgendaTaken(){
+  const el=document.getElementById('agenda-taken-view');
+  if(!el)return;
+
+  const today=new Date();today.setHours(0,0,0,0);
+  const prioOrder={'hoog':0,'middel':1,'laag':2,'':3};
+  const prioLabel={'hoog':'Hoog','middel':'Middel','laag':'Laag'};
+  const prioCls={'hoog':'ph','middel':'pm','laag':'pl'};
+
+  // Bepaal de 7 dagen van de huidige week (ma-zo) op basis van calOffset
+  const mon=getWeekStart(calOffset);
+  const weekDagen=[];
+  for(let i=0;i<7;i++){const d=new Date(mon);d.setDate(mon.getDate()+i);weekDagen.push(d);}
+
+  // Filter taken op persoon
+  let mijnTaken=todos.filter(t=>{
+    if(t.done)return false;
+    if(calPerson==='BOTH')return true;
+    return t.owner===calPerson||!t.owner;
+  });
+
+  // Voeg vervallen taken toe (deadline voor vandaag, nog niet afgerond)
+  // Ze worden op vandaag getoond als ze al voorbij zijn
+  const dagenHtml=weekDagen.map(dag=>{
+    const dagISO=`${dag.getFullYear()}-${String(dag.getMonth()+1).padStart(2,'0')}-${String(dag.getDate()).padStart(2,'0')}`;
+    const dagNaam=dag.toLocaleDateString('nl-NL',{weekday:'long'});
+    const dagNum=dag.toLocaleDateString('nl-NL',{day:'numeric',month:'short'});
+    const isVandaag=dag.getTime()===today.getTime();
+    const isVerleden=dag.getTime()<today.getTime();
+
+    // Taken die bij deze dag horen
+    // Reguliere taken: deadline===dagISO
+    // Overdue taken: deadline < vandaag, tonen op vandaag
+    let dagTaken=mijnTaken.filter(t=>{
+      if(!t.due)return false;
+      if(isVandaag){
+        // Toon ook alle verlopen taken op vandaag
+        return t.due<=dagISO;
+      }
+      if(isVerleden)return false;
+      return t.due===dagISO;
+    });
+
+    // Sorteren op prioriteit
+    dagTaken.sort((a,b)=>(prioOrder[a.prio||'']||3)-(prioOrder[b.prio||'']||3));
+
+    if(dagTaken.length===0&&isVerleden&&!isVandaag)return'';
+
+    return`<div style="background:var(--surface);border:1px solid ${isVandaag?'var(--navy)':'var(--border)'};border-radius:var(--r-lg);overflow:hidden;${isVandaag?'box-shadow:0 0 0 2px rgba(13,31,60,.08);':''}">
+      <div style="padding:9px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:${isVandaag?'var(--navy)':'var(--surface2)'};">
+        <div>
+          <span style="font-size:12px;font-weight:700;color:${isVandaag?'#fff':'var(--text)'};text-transform:capitalize;">${dagNaam}</span>
+          <span style="font-size:11px;color:${isVandaag?'rgba(255,255,255,.5)':'var(--text3)'};margin-left:6px;">${dagNum}</span>
+        </div>
+        ${dagTaken.length>0?`<span style="background:${isVandaag?'var(--gold)':'var(--surface3)'};color:${isVandaag?'var(--navy)':'var(--text2)'};font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;">${dagTaken.length}</span>`:''}
+      </div>
+      <div style="padding:8px 10px;display:flex;flex-direction:column;gap:5px;min-height:40px;">
+        ${dagTaken.length?dagTaken.map(t=>{
+          const acc=t.acc?accs.find(a=>a.id===t.acc):null;
+          const isOverdue=t.due<dagISO&&isVandaag;
+          return`<div style="display:flex;align-items:flex-start;gap:8px;padding:7px 9px;background:var(--surface2);border:1px solid ${isOverdue?'rgba(192,57,43,.2)':'var(--border)'};border-radius:var(--r);${isOverdue?'border-left:3px solid var(--red);':''}" class="todo-item">
+            <div class="chk${t.done?' done':''}" onclick="toggleTodo(${t.id})" style="margin-top:2px;flex-shrink:0;">${t.done?'✓':''}</div>
+            <div style="flex:1;min-width:0;">
+              <div class="todo-t${t.done?' done':''}" style="font-size:12.5px;">${t.text}</div>
+              <div style="display:flex;gap:6px;align-items:center;margin-top:3px;flex-wrap:wrap;">
+                ${t.prio?`<span class="prio ${prioCls[t.prio]||''}" style="font-size:10px;">${prioLabel[t.prio]||t.prio}</span>`:''}
+                ${acc?`<span style="font-size:11px;color:var(--text3);">${acc.name}</span>`:''}
+                ${isOverdue?`<span style="font-size:10px;font-weight:700;color:var(--red-t);">Verlopen</span>`:''}
+              </div>
+            </div>
+          </div>`;
+        }).join(''):`<div style="font-size:12px;color:var(--text3);padding:6px 2px;">Geen taken</div>`}
+      </div>
+    </div>`;
+  }).filter(Boolean).join('');
+
+  el.innerHTML=`
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;">
+      <div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--surface2);">
+        <div style="font-family:'Syne',sans-serif;font-size:12.5px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:6px;">
+          <span style="display:block;width:3px;height:13px;background:var(--gold);border-radius:2px;"></span>
+          Taken deze week
+          <span style="font-size:11px;font-weight:400;color:var(--text3);">${calPerson==='MA'?'Mees':calPerson==='JK'?'Julian':'Mees & Julian'}</span>
+        </div>
+        <button class="btn xs ghost" onclick="openAddTodo()">+ Taak</button>
+      </div>
+      <div style="padding:12px;display:grid;grid-template-columns:repeat(7,1fr);gap:8px;">
+        ${dagenHtml||'<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--text3);font-size:13px;">Geen taken deze week</div>'}
+      </div>
+    </div>`;
+}
+
 function getWeekStart(offset){
   const now=new Date();
   const dow=(now.getDay()+6)%7;
@@ -3075,6 +3215,26 @@ function openQuickNote(type){
     document.getElementById('n-text').placeholder = 'Welke mail gestuurd, campagne, onderwerp…';
     document.getElementById('n-type').value = 'mailshot';
     document.getElementById('m-note-save-btn').textContent = '✉ Opslaan';
+  } else if(type === 'opvolg_mailshot'){
+    document.getElementById('m-note-title').textContent = 'Opvolg Mailshot vastleggen';
+    document.getElementById('m-note-sub').textContent = curAcc.name;
+    document.getElementById('n-contact-row').style.display = '';
+    document.getElementById('n-type-row').style.display = 'none';
+    document.getElementById('n-dur-row').style.display = 'none';
+    document.getElementById('n-text-label').textContent = 'Onderwerp / inhoud opvolging';
+    document.getElementById('n-text').placeholder = 'Welke opvolg mail gestuurd, op welke mail een reactie…';
+    document.getElementById('n-type').value = 'opvolg_mailshot';
+    document.getElementById('m-note-save-btn').textContent = '↩ Opslaan';
+  } else if(type === 'linkshot'){
+    document.getElementById('m-note-title').textContent = 'LinkedIn bericht vastleggen';
+    document.getElementById('m-note-sub').textContent = curAcc.name;
+    document.getElementById('n-contact-row').style.display = '';
+    document.getElementById('n-type-row').style.display = 'none';
+    document.getElementById('n-dur-row').style.display = 'none';
+    document.getElementById('n-text-label').textContent = 'Bericht / inhoud';
+    document.getElementById('n-text').placeholder = 'Wat heb je gestuurd via LinkedIn…';
+    document.getElementById('n-type').value = 'linkshot';
+    document.getElementById('m-note-save-btn').textContent = 'in Opslaan';
   } else {
     document.getElementById('m-note-title').textContent = 'Notitie toevoegen';
     document.getElementById('m-note-sub').textContent = curAcc.name;
@@ -3292,6 +3452,33 @@ function setConfirm(yes){
   document.getElementById('conf-mail-fields').style.display=yes?'flex':'none';
 }
 
+function trySetConfirmYes(){
+  // Haal contactemail op van geselecteerde account
+  const accId=parseInt(document.getElementById('ev-acc-id').value)||null;
+  const contactEmail=document.getElementById('ev-contact-email').value.trim();
+  const a=accId?accs.find(x=>x.id===accId):null;
+  const email=contactEmail||(a?a.ce:'')||'';
+  if(!email){
+    // Geen email beschikbaar — Ja niet toegestaan
+    const cy=document.getElementById('conf-yes');
+    if(cy){
+      cy.style.opacity='0.35';cy.style.cursor='not-allowed';cy.title='Voeg eerst een e-mailadres toe aan de contactpersoon';
+    }
+    // Toast tonen
+    showConfToast('Geen e-mailadres bekend bij contactpersoon — voeg dit eerst toe.');
+    return;
+  }
+  document.getElementById('ev-conf-to').value=email;
+  setConfirm(true);
+}
+
+function showConfToast(msg){
+  let t=document.getElementById('conf-toast');
+  if(!t){t=document.createElement('div');t.id='conf-toast';t.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--red-bg);color:var(--red-t);border:1px solid rgba(192,57,43,.25);border-radius:8px;padding:9px 16px;font-size:13px;font-weight:500;z-index:9999;';document.body.appendChild(t);}
+  t.textContent=msg;t.style.display='block';
+  clearTimeout(t._to);t._to=setTimeout(()=>{t.style.display='none';},3000);
+}
+
 function openAddEvent(prefillAccId){
   document.querySelectorAll('#ev-type-btns button').forEach((b,i)=>{
     b.style.borderBottom=i===0?'2px solid var(--navy)':'2px solid transparent';
@@ -3315,8 +3502,8 @@ function openAddEvent(prefillAccId){
   document.getElementById('ev-contact-name').value='';
   document.getElementById('ev-contact-email').value='';
   selOwner(CU,'asgn-event');
-  sendConfirm=true;
-  setConfirm(true);
+  sendConfirm=false;
+  setConfirm(false);
   if(prefillAccId)setTimeout(()=>selectEvAcc(prefillAccId),50);
   document.getElementById('m-event').classList.add('on');
 }
@@ -4321,283 +4508,157 @@ function applyHash(){
 window.addEventListener('popstate', applyHash);
 
 
-// ══════════════ SCRAPER ══════════════
-const SCRAPER_KEY = 'ix_scraper_settings';
-const SCRAPER_HISTORY_KEY = 'ix_scraper_history';
+// ══════════════ SPELLINGSCHECK & AUTOCORRECT ══════════════
+(function(){
+  // Native browser spellcheck op alle textareas en text inputs
+  function activeerSpellcheck(){
+    document.querySelectorAll('textarea, input[type="text"]').forEach(el=>{
+      el.setAttribute('spellcheck','true');
+      el.setAttribute('lang','nl');
+    });
+  }
 
-const scraperDefaults = {
-  partner: 'Audio Obscura',
-  leadsPerRun: 100,
-  regio: 'Zuid-Holland',
-  minMedewerkers: '10',
-  dag: 'Zondag',
-  tijd: '02:00',
-  herhaling: 'Wekelijks',
-  quickRun: '100',
-};
-
-function scraperGetSettings(){
-  try{ return {...scraperDefaults,...JSON.parse(localStorage.getItem(SCRAPER_KEY)||'{}')}; }
-  catch(e){ return {...scraperDefaults}; }
-}
-
-function scraperSaveSettings(s){
-  localStorage.setItem(SCRAPER_KEY, JSON.stringify(s));
-}
-
-function scraperGetHistory(){
-  try{ return JSON.parse(localStorage.getItem(SCRAPER_HISTORY_KEY)||'[]'); }
-  catch(e){ return []; }
-}
-
-function scraperSaveHistory(h){
-  localStorage.setItem(SCRAPER_HISTORY_KEY, JSON.stringify(h.slice(0,10)));
-}
-
-function scraperNextRunLabel(dag, tijd, herhaling){
-  const dagVolgende = {
-    'Zondag':'maandagochtend', 'Maandag':'dinsdagochtend', 'Dinsdag':'woensdagochtend',
-    'Woensdag':'donderdagochtend', 'Donderdag':'vrijdagochtend',
-    'Vrijdag':'maandagochtend', 'Zaterdag':'maandagochtend'
+  // Autocorrect: kleine schrijffouten automatisch aanpassen
+  // - Eerste letter na punt + spatie kapitaliseren
+  // - "ik" aan het begin van zin → "Ik"
+  // - Dubbele spaties verwijderen
+  const AUTOCORRECT_MAP = {
+    ' ik ': ' Ik ',
+    ' ik.': ' Ik.',
+    ' ik,': ' Ik,',
+    'intersect': 'Intersect',
+    'audio obscura': 'Audio Obscura',
+    'rotterdam': 'Rotterdam',
+    'amsterdam': 'Amsterdam',
+    'den haag': 'Den Haag',
   };
-  const volgend = dagVolgende[dag] || 'de volgende werkdag';
-  return `${dag.toLowerCase()} om ${tijd} — leads staan ${volgend} klaar`;
-}
 
-function scraperToggleGroup(groupEl, activeBtn){
-  groupEl.querySelectorAll('button').forEach(b=>b.classList.remove('sc-on'));
-  activeBtn.classList.add('sc-on');
-}
+  function autocorrect(el){
+    if(!el||el.type==='password')return;
+    let val=el.value;
+    let changed=false;
 
-function scraperTriggerRun(leadsAantal, settings){
-  const history = scraperGetHistory();
-  const runEntry = {
-    datum: new Date().toLocaleString('nl-NL',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}),
-    leads: null,
-    status: 'bezig',
-    partner: settings.partner,
-    regio: settings.regio,
-    aangevraagd: leadsAantal,
-  };
-  history.unshift(runEntry);
-  scraperSaveHistory(history);
+    // Dubbele spaties
+    const clean=val.replace(/  +/g,' ');
+    if(clean!==val){val=clean;changed=true;}
 
-  // Badge tonen tijdens run
-  const badge = document.getElementById('scraper-badge');
-  if(badge){ badge.style.display=''; badge.textContent='⟳'; }
+    // Eerste letter van zin kapitaliseren (na '. ' of '! ' of '? ' of start)
+    const gecap=val.replace(/(^|[.!?]\s+)([a-z])/g,(m,p1,p2)=>p1+p2.toUpperCase());
+    if(gecap!==val){val=gecap;changed=true;}
 
-  renderScraper();
-
-  // Simuleer een run (in productie: fetch naar /api/cron/scrape)
-  // fetch('/api/cron/scrape', { method:'POST', headers:{Authorization:'Bearer '+CRON_SECRET} })
-  setTimeout(()=>{
-    const h2 = scraperGetHistory();
-    if(h2.length && h2[0].status==='bezig'){
-      h2[0].status = 'geslaagd';
-      h2[0].leads = leadsAantal;
-      scraperSaveHistory(h2);
+    // Autocorrect map (alleen exacte matches in lowercase context)
+    for(const [van,naar] of Object.entries(AUTOCORRECT_MAP)){
+      const regex=new RegExp(van.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'g');
+      const nieuw=val.replace(regex,naar);
+      if(nieuw!==val){val=nieuw;changed=true;}
     }
-    if(badge){ badge.style.display='none'; }
-    renderScraper();
-  }, 4000);
-}
 
-function renderScraper(){
-  const s = scraperGetSettings();
-  const history = scraperGetHistory();
-  const scraperLeads = accs.filter(a=>a.bron==='scraper'||a.scraper_datum).length;
-  const metContact = accs.filter(a=>(a.bron==='scraper'||a.scraper_datum)&&a.contact).length;
-  const loopt = history.find(h=>h.status==='bezig');
-  const lastRun = history.find(h=>h.status!=='bezig');
+    if(changed){
+      const pos=el.selectionStart;
+      el.value=val;
+      try{el.setSelectionRange(pos,pos);}catch(e){}
+    }
+  }
 
-  const el = document.getElementById('p-scraper');
-  if(!el) return;
+  // Activeer spellcheck op nieuwe elementen via MutationObserver
+  const obs=new MutationObserver(()=>activeerSpellcheck());
+  obs.observe(document.body,{childList:true,subtree:true});
 
-  el.innerHTML = `
-  <div style="max-width:720px;">
+  // Autocorrect op blur (als je het veld verlaat)
+  document.addEventListener('focusout',e=>{
+    if(e.target.tagName==='TEXTAREA'||e.target.type==='text'){
+      autocorrect(e.target);
+    }
+  });
 
-    <!-- Statistieken -->
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;">
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;">
-        <div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px;">Scraper leads in CRM</div>
-        <div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:700;color:var(--navy);">${scraperLeads}</div>
-      </div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;">
-        <div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px;">Met contactpersoon</div>
-        <div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:700;color:var(--navy);">${metContact}</div>
-      </div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;">
-        <div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px;">Laatste run</div>
-        <div style="font-size:13px;font-weight:500;color:var(--text);margin-top:4px;">${lastRun ? lastRun.datum : '—'}</div>
-        ${lastRun ? `<div style="font-size:11px;color:var(--text3);">${lastRun.leads || 0} leads toegevoegd</div>` : ''}
-      </div>
-    </div>
+  // Initieel activeren
+  setTimeout(activeerSpellcheck,500);
+})();
 
-    <!-- Partner & instellingen -->
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:18px 20px;margin-bottom:12px;">
-      <div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:14px;display:flex;align-items:center;gap:6px;"><span style="display:block;width:3px;height:12px;background:var(--gold);border-radius:2px;"></span>Partner & instellingen</div>
 
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-        <div>
-          <div style="font-size:13px;font-weight:500;color:var(--text);">Actieve partner</div>
-          <div style="font-size:11.5px;color:var(--text3);margin-top:2px;">Scraper haalt leads op voor deze opdrachtgever</div>
-        </div>
-        <select id="sc-partner" onchange="scraperFieldChange()" style="width:180px;font-size:13px;">
-          ${accs.filter(a=>a.status==='klant').map(a=>`<option ${a.name===s.partner?'selected':''}>${a.name}</option>`).join('')}
-          <option ${s.partner==='Audio Obscura'?'selected':''}>Audio Obscura</option>
-        </select>
-      </div>
+// ══════════════ SCRAPER ══════════════
+const SCRAPER_KEY='ix_scraper_settings';
+const SCRAPER_HISTORY_KEY='ix_scraper_history';
+const scraperDefaults={partner:'Audio Obscura',leadsPerRun:100,regio:'Zuid-Holland',minMedewerkers:'10',dag:'Zondag',tijd:'02:00',herhaling:'Wekelijks',quickRun:'100'};
+function scraperGetSettings(){try{return{...scraperDefaults,...JSON.parse(localStorage.getItem(SCRAPER_KEY)||'{}')};}catch(e){return{...scraperDefaults};}}
+function scraperSaveSettings(s){localStorage.setItem(SCRAPER_KEY,JSON.stringify(s));}
+function scraperGetHistory(){try{return JSON.parse(localStorage.getItem(SCRAPER_HISTORY_KEY)||'[]');}catch(e){return[];}}
+function scraperSaveHistory(h){localStorage.setItem(SCRAPER_HISTORY_KEY,JSON.stringify(h.slice(0,10)));}
+function scraperNextRunLabel(dag,tijd){const m={Zondag:'maandagochtend',Maandag:'dinsdagochtend',Dinsdag:'woensdagochtend',Woensdag:'donderdagochtend',Donderdag:'vrijdagochtend',Vrijdag:'maandagochtend',Zaterdag:'maandagochtend'};return `${dag.toLowerCase()} om ${tijd} — leads staan ${m[dag]||'de volgende werkdag'} klaar`;}
+function scraperToggleGroup(g,b){g.querySelectorAll('button').forEach(x=>x.classList.remove('sc-on'));b.classList.add('sc-on');}
 
-      <div style="height:1px;background:var(--border);margin:12px 0;"></div>
-
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-        <div style="font-size:13px;font-weight:500;">Leads per run</div>
-        <input type="number" id="sc-leads" value="${s.leadsPerRun}" min="10" max="500" onchange="scraperFieldChange()" style="width:80px;font-size:13px;text-align:center;">
-      </div>
-
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-        <div style="font-size:13px;font-weight:500;">Regio</div>
-        <select id="sc-regio" onchange="scraperFieldChange()" style="width:180px;font-size:13px;">
-          <option ${s.regio==='Zuid-Holland'?'selected':''}>Zuid-Holland</option>
-          <option ${s.regio==='Noord-Holland'?'selected':''}>Noord-Holland</option>
-          <option ${s.regio==='Utrecht'?'selected':''}>Utrecht</option>
-          <option ${s.regio==='Heel Nederland'?'selected':''}>Heel Nederland</option>
-        </select>
-      </div>
-
-      <div style="display:flex;align-items:center;justify-content:space-between;">
-        <div style="font-size:13px;font-weight:500;">Min. medewerkers</div>
-        <div class="sc-toggle" id="sc-min-med">
-          ${['10','25','50'].map(v=>`<button onclick="scraperToggleGroup(this.closest('.sc-toggle'),this);scraperFieldChange()" class="${s.minMedewerkers===v?'sc-on':''}">${v}+</button>`).join('')}
-        </div>
-      </div>
-    </div>
-
-    <!-- Schema -->
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:18px 20px;margin-bottom:12px;">
-      <div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:14px;display:flex;align-items:center;gap:6px;"><span style="display:block;width:3px;height:12px;background:var(--gold);border-radius:2px;"></span>Automatisch schema</div>
-
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-        <div style="font-size:13px;font-weight:500;">Dag</div>
-        <select id="sc-dag" onchange="scraperFieldChange()" style="width:150px;font-size:13px;">
-          ${['Zondag','Maandag','Dinsdag','Woensdag','Donderdag','Vrijdag','Zaterdag'].map(d=>`<option ${s.dag===d?'selected':''}>${d}</option>`).join('')}
-        </select>
-      </div>
-
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-        <div style="font-size:13px;font-weight:500;">Tijd</div>
-        <select id="sc-tijd" onchange="scraperFieldChange()" style="width:150px;font-size:13px;">
-          ${['00:00','01:00','02:00','03:00','06:00','08:00','12:00'].map(t=>`<option ${s.tijd===t?'selected':''}>${t}</option>`).join('')}
-        </select>
-      </div>
-
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-        <div style="font-size:13px;font-weight:500;">Herhaling</div>
-        <div class="sc-toggle" id="sc-herhaling">
-          ${['Wekelijks','2x per week','Maandelijks'].map(v=>`<button onclick="scraperToggleGroup(this.closest('.sc-toggle'),this);scraperFieldChange()" class="${s.herhaling===v?'sc-on':''}">${v}</button>`).join('')}
-        </div>
-      </div>
-
-      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:9px 12px;font-size:12.5px;color:var(--text3);" id="sc-preview">
-        Volgende run: ${scraperNextRunLabel(s.dag, s.tijd, s.herhaling)}
-      </div>
-    </div>
-
-    <!-- Nu uitvoeren -->
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:18px 20px;margin-bottom:12px;">
-      <div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:14px;display:flex;align-items:center;gap:6px;"><span style="display:block;width:3px;height:12px;background:var(--gold);border-radius:2px;"></span>Nu uitvoeren</div>
-
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
-        <div>
-          <div style="font-size:13px;font-weight:500;">Aantal leads</div>
-          <div style="font-size:11.5px;color:var(--text3);margin-top:2px;">Draait direct, ongeacht het schema</div>
-        </div>
-        <div class="sc-toggle" id="sc-quick">
-          ${['25 (test)','50','100'].map(v=>`<button onclick="scraperToggleGroup(this.closest('.sc-toggle'),this);scraperFieldChange()" class="${s.quickRun===v?'sc-on':''}">${v}</button>`).join('')}
-        </div>
-      </div>
-
-      ${loopt ? `
-        <div style="background:var(--amber-bg);border:1px solid rgba(138,98,0,.2);border-radius:var(--r);padding:10px 14px;font-size:13px;color:var(--amber-t);display:flex;align-items:center;gap:8px;">
-          <span style="animation:spin 1s linear infinite;display:inline-block;">⟳</span>
-          Scraper is bezig... Leads worden opgehaald voor ${loopt.partner}
-        </div>
-      ` : `
-        <button class="btn gold" style="width:100%;justify-content:center;padding:10px;font-size:14px;" onclick="scraperNuStarten()">
-          Scraper nu starten →
-        </button>
-      `}
-    </div>
-
-    <!-- Geschiedenis -->
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:18px 20px;">
-      <div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:14px;display:flex;align-items:center;gap:6px;"><span style="display:block;width:3px;height:12px;background:var(--gold);border-radius:2px;"></span>Geschiedenis</div>
-      ${history.length===0 ? `<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px;">Nog geen runs uitgevoerd</div>` :
-        history.map(h=>`
-          <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px;">
-            <span style="padding:2px 9px;border-radius:10px;font-size:11px;font-weight:600;${h.status==='geslaagd'?'background:var(--green-bg);color:var(--green-t);':h.status==='bezig'?'background:var(--amber-bg);color:var(--amber-t);':'background:var(--red-bg);color:var(--red-t);'}">${h.status}</span>
-            <span style="flex:1;color:var(--text2);">${h.datum}</span>
-            <span style="color:var(--text3);">${h.partner} · ${h.regio}</span>
-            ${h.leads!==null?`<span style="font-weight:600;color:var(--navy);">${h.leads} leads</span>`:''}
-          </div>
-        `).join('')
-      }
-    </div>
-
-  </div>
-  `;
+function scraperNuStarten(){
+  const s=scraperGetSettings();
+  const el=document.querySelector('#sc-quick .sc-on');
+  const aantal=el?parseInt(el.textContent)||100:100;
+  const h=scraperGetHistory();
+  h.unshift({datum:new Date().toLocaleString('nl-NL',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}),leads:null,status:'bezig',partner:s.partner,regio:s.regio,aangevraagd:aantal});
+  scraperSaveHistory(h);
+  const badge=document.getElementById('scraper-badge');
+  if(badge){badge.style.display='';badge.textContent='⟳';}
+  renderScraper();
+  setTimeout(()=>{const h2=scraperGetHistory();if(h2.length&&h2[0].status==='bezig'){h2[0].status='geslaagd';h2[0].leads=aantal;scraperSaveHistory(h2);}if(badge)badge.style.display='none';renderScraper();},4000);
 }
 
 function scraperFieldChange(){
-  const s = scraperGetSettings();
-  const partner = document.getElementById('sc-partner');
-  const leads = document.getElementById('sc-leads');
-  const regio = document.getElementById('sc-regio');
-  const dag = document.getElementById('sc-dag');
-  const tijd = document.getElementById('sc-tijd');
-  const minMed = document.querySelector('#sc-min-med .sc-on');
-  const herhaling = document.querySelector('#sc-herhaling .sc-on');
-  const quick = document.querySelector('#sc-quick .sc-on');
-
-  if(partner) s.partner = partner.value;
-  if(leads) s.leadsPerRun = parseInt(leads.value)||100;
-  if(regio) s.regio = regio.value;
-  if(dag) s.dag = dag.value;
-  if(tijd) s.tijd = tijd.value;
-  if(minMed) s.minMedewerkers = minMed.textContent.replace('+','');
-  if(herhaling) s.herhaling = herhaling.textContent;
-  if(quick) s.quickRun = quick.textContent;
-
+  const s=scraperGetSettings();
+  const get=id=>document.getElementById(id);
+  if(get('sc-partner'))s.partner=get('sc-partner').value;
+  if(get('sc-leads'))s.leadsPerRun=parseInt(get('sc-leads').value)||100;
+  if(get('sc-regio'))s.regio=get('sc-regio').value;
+  if(get('sc-dag'))s.dag=get('sc-dag').value;
+  if(get('sc-tijd'))s.tijd=get('sc-tijd').value;
+  const minM=document.querySelector('#sc-min-med .sc-on');if(minM)s.minMedewerkers=minM.textContent.replace('+','');
+  const herh=document.querySelector('#sc-herhaling .sc-on');if(herh)s.herhaling=herh.textContent;
+  const quick=document.querySelector('#sc-quick .sc-on');if(quick)s.quickRun=quick.textContent;
   scraperSaveSettings(s);
-
-  const preview = document.getElementById('sc-preview');
-  if(preview && dag && tijd) {
-    preview.textContent = 'Volgende run: ' + scraperNextRunLabel(s.dag, s.tijd, s.herhaling);
-  }
+  const prev=document.getElementById('sc-preview');
+  if(prev&&s.dag&&s.tijd)prev.textContent='Volgende run: '+scraperNextRunLabel(s.dag,s.tijd);
 }
 
-function scraperNuStarten(){
-  const s = scraperGetSettings();
-  const quickEl = document.querySelector('#sc-quick .sc-on');
-  const aantal = quickEl ? parseInt(quickEl.textContent)||100 : 100;
-  scraperTriggerRun(aantal, s);
+function renderScraper(){
+  const el=document.getElementById('p-scraper');if(!el)return;
+  const s=scraperGetSettings();
+  const history=scraperGetHistory();
+  const scraperLeads=accs.filter(a=>a.bron==='scraper').length;
+  const metContact=accs.filter(a=>a.bron==='scraper'&&a.cf).length;
+  const loopt=history.find(h=>h.status==='bezig');
+  const lastRun=history.find(h=>h.status!=='bezig');
+  const dagOpties=['Zondag','Maandag','Dinsdag','Woensdag','Donderdag','Vrijdag','Zaterdag'];
+  const tijdOpties=['00:00','01:00','02:00','03:00','06:00','08:00','12:00'];
+  if(!document.getElementById('sc-style')){const st=document.createElement('style');st.id='sc-style';st.textContent='.sc-toggle{display:flex;border:1px solid var(--border2);border-radius:var(--r);overflow:hidden;}.sc-toggle button{font-size:12.5px;padding:6px 13px;border:none;background:transparent;color:var(--text2);cursor:pointer;font-family:"DM Sans",sans-serif;white-space:nowrap;}.sc-toggle button:hover{background:var(--surface2);}.sc-toggle button.sc-on{background:var(--navy);color:#fff;font-weight:500;}';document.head.appendChild(st);}
+  el.innerHTML=`<div style="max-width:720px;">
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;"><div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px;">Scraper leads in CRM</div><div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:700;color:var(--navy);">${scraperLeads}</div></div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;"><div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px;">Met contactpersoon</div><div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:700;color:var(--navy);">${metContact}</div></div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;"><div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px;">Laatste run</div><div style="font-size:13px;font-weight:500;color:var(--text);margin-top:4px;">${lastRun?lastRun.datum:'—'}</div>${lastRun?`<div style="font-size:11px;color:var(--text3);">${lastRun.leads||0} leads</div>`:''}</div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:18px 20px;margin-bottom:12px;">
+      <div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:14px;display:flex;align-items:center;gap:6px;"><span style="display:block;width:3px;height:12px;background:var(--gold);border-radius:2px;"></span>Partner & instellingen</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;"><div><div style="font-size:13px;font-weight:500;">Actieve partner</div><div style="font-size:11.5px;color:var(--text3);margin-top:2px;">Scraper haalt leads op voor deze opdrachtgever</div></div><select id="sc-partner" onchange="scraperFieldChange()" style="width:180px;font-size:13px;">${accs.filter(a=>a.status==='klant').map(a=>`<option ${a.name===s.partner?'selected':''}>${a.name}</option>`).join('')}<option ${!accs.filter(a=>a.status==='klant').find(a=>a.name===s.partner)?'selected':''}>Audio Obscura</option></select></div>
+      <div style="height:1px;background:var(--border);margin:12px 0;"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><div style="font-size:13px;font-weight:500;">Leads per run</div><input type="number" id="sc-leads" value="${s.leadsPerRun}" min="10" max="500" onchange="scraperFieldChange()" style="width:80px;font-size:13px;text-align:center;"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><div style="font-size:13px;font-weight:500;">Regio</div><select id="sc-regio" onchange="scraperFieldChange()" style="width:180px;font-size:13px;"><option ${s.regio==='Zuid-Holland'?'selected':''}>Zuid-Holland</option><option ${s.regio==='Noord-Holland'?'selected':''}>Noord-Holland</option><option ${s.regio==='Utrecht'?'selected':''}>Utrecht</option><option ${s.regio==='Heel Nederland'?'selected':''}>Heel Nederland</option></select></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;"><div style="font-size:13px;font-weight:500;">Min. medewerkers</div><div class="sc-toggle" id="sc-min-med">${['10','25','50'].map(v=>`<button onclick="scraperToggleGroup(this.closest('.sc-toggle'),this);scraperFieldChange()" class="${s.minMedewerkers===v?'sc-on':''}">${v}+</button>`).join('')}</div></div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:18px 20px;margin-bottom:12px;">
+      <div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:14px;display:flex;align-items:center;gap:6px;"><span style="display:block;width:3px;height:12px;background:var(--gold);border-radius:2px;"></span>Automatisch schema</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><div style="font-size:13px;font-weight:500;">Dag</div><select id="sc-dag" onchange="scraperFieldChange()" style="width:150px;font-size:13px;">${dagOpties.map(d=>`<option ${s.dag===d?'selected':''}>${d}</option>`).join('')}</select></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><div style="font-size:13px;font-weight:500;">Tijd</div><select id="sc-tijd" onchange="scraperFieldChange()" style="width:150px;font-size:13px;">${tijdOpties.map(t=>`<option ${s.tijd===t?'selected':''}>${t}</option>`).join('')}</select></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;"><div style="font-size:13px;font-weight:500;">Herhaling</div><div class="sc-toggle" id="sc-herhaling">${['Wekelijks','2x per week','Maandelijks'].map(v=>`<button onclick="scraperToggleGroup(this.closest('.sc-toggle'),this);scraperFieldChange()" class="${s.herhaling===v?'sc-on':''}">${v}</button>`).join('')}</div></div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:9px 12px;font-size:12.5px;color:var(--text3);" id="sc-preview">Volgende run: ${scraperNextRunLabel(s.dag,s.tijd)}</div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:18px 20px;margin-bottom:12px;">
+      <div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:14px;display:flex;align-items:center;gap:6px;"><span style="display:block;width:3px;height:12px;background:var(--gold);border-radius:2px;"></span>Nu uitvoeren</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;"><div><div style="font-size:13px;font-weight:500;">Aantal leads</div><div style="font-size:11.5px;color:var(--text3);margin-top:2px;">Draait direct, ongeacht het schema</div></div><div class="sc-toggle" id="sc-quick">${['25 (test)','50','100'].map(v=>`<button onclick="scraperToggleGroup(this.closest('.sc-toggle'),this);scraperFieldChange()" class="${s.quickRun===v?'sc-on':''}">${v}</button>`).join('')}</div></div>
+      ${loopt?`<div style="background:var(--amber-bg);border:1px solid rgba(138,98,0,.2);border-radius:var(--r);padding:10px 14px;font-size:13px;color:var(--amber-t);">⟳ Scraper is bezig... Leads worden opgehaald voor ${loopt.partner}</div>`:`<button class="btn gold" style="width:100%;justify-content:center;padding:10px;font-size:14px;" onclick="scraperNuStarten()">Scraper nu starten →</button>`}
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:18px 20px;">
+      <div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:14px;display:flex;align-items:center;gap:6px;"><span style="display:block;width:3px;height:12px;background:var(--gold);border-radius:2px;"></span>Geschiedenis</div>
+      ${history.length===0?'<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px;">Nog geen runs uitgevoerd</div>':history.map(h=>`<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px;"><span style="padding:2px 9px;border-radius:10px;font-size:11px;font-weight:600;${h.status==='geslaagd'?'background:var(--green-bg);color:var(--green-t);':h.status==='bezig'?'background:var(--amber-bg);color:var(--amber-t);':'background:var(--red-bg);color:var(--red-t);'}">${h.status}</span><span style="flex:1;color:var(--text2);">${h.datum}</span><span style="color:var(--text3);">${h.partner} · ${h.regio}</span>${h.leads!==null?`<span style="font-weight:600;color:var(--navy);">${h.leads} leads</span>`:''}</div>`).join('')}
+    </div>
+  </div>`;
 }
-
-// CSS voor sc-toggle (wordt eenmalig toegevoegd)
-(function(){
-  if(document.getElementById('sc-style')) return;
-  const style = document.createElement('style');
-  style.id = 'sc-style';
-  style.textContent = `
-    .sc-toggle{display:flex;border:1px solid var(--border2);border-radius:var(--r);overflow:hidden;}
-    .sc-toggle button{font-size:12.5px;padding:6px 13px;border:none;background:transparent;color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap;}
-    .sc-toggle button:hover{background:var(--surface2);}
-    .sc-toggle button.sc-on{background:var(--navy);color:#fff;font-weight:500;}
-    @keyframes spin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
-  `;
-  document.head.appendChild(style);
-})();
-
 
 // ══════════════ INIT ══════════════
 // ── ASYNC INIT WITH AUTH CHECK ──
@@ -4629,7 +4690,7 @@ function scraperNuStarten(){
 })();
 </script>
 
-<!-- ══ SCRAPER PAGE ══ -->
+<!-- ══ OMZET INSTELLINGEN MODAL ══ -->
 <div class="modal-bg" id="m-omzet">
   <div class="modal" style="max-width:500px;">
     <div class="mh">
