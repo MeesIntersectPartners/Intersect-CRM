@@ -1,0 +1,15 @@
+{
+  "name": "intersect-scraper",
+  "version": "1.0.0",
+  "description": "Geautomatiseerde lead scraper voor Intersect CRM",
+  "main": "lib/orchestrator.js",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.20.0",
+    "@supabase/supabase-js": "^2.39.0",
+    "axios": "^1.6.5",
+    "cheerio": "^1.0.0-rc.12"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
