@@ -882,7 +882,6 @@ textarea{resize:vertical;min-height:75px;}
         <div class="fg"><label class="fl">Pipeline fase</label><select id="f-pipe"><option value="Nieuw">Nieuw</option><option value="Contact gelegd">Contact gelegd</option><option value="Kennismaking">Kennismaking</option><option value="Voorstel verstuurd">Voorstel verstuurd</option><option value="Onderhandeling">Onderhandeling</option><option value="Gewonnen">Gewonnen 🎉</option><option value="Verloren">Verloren</option></select></div>
         <div class="fg"><label class="fl">Verwachte waarde (€)</label><input type="text" id="f-val" placeholder="5000"></div>
       </div>
-      <div class="fg"><label class="fl">Interessant voor klant</label><input type="text" id="f-for" placeholder="bijv. Klant A, referral…"></div>
       <div class="fdiv">Primaire contactpersoon</div>
       <div class="fr">
         <div class="fg"><label class="fl">Voornaam</label><input type="text" id="f-cf"></div>
@@ -931,13 +930,48 @@ textarea{resize:vertical;min-height:75px;}
 
 <!-- ADD NOTE MODAL -->
 <div class="modal-bg" id="m-note">
-  <div class="modal">
-    <div class="mh"><span class="mt">Notitie toevoegen</span><button class="btn sm ghost" onclick="closeM('m-note')">✕</button></div>
-    <div class="mb">
-      <div class="fg"><label class="fl">Notitie</label><textarea id="n-text" style="min-height:120px;" placeholder="Schrijf hier je notitie…"></textarea></div>
-      <div class="fg"><label class="fl">Type</label><select id="n-type"><option value="notitie">Algemene notitie</option><option value="gesprek">Gesprek / meeting</option><option value="email">E-mail</option><option value="taak">Taak</option></select></div>
+  <div class="modal" style="max-width:460px;">
+    <div class="mh">
+      <div>
+        <div class="mt" id="m-note-title">Notitie toevoegen</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px;" id="m-note-sub"></div>
+      </div>
+      <button class="btn sm ghost" onclick="closeM('m-note')">✕</button>
     </div>
-    <div class="mf"><button class="btn ghost" onclick="closeM('m-note')">Annuleren</button><button class="btn pri" onclick="saveNote()">Opslaan</button></div>
+    <div class="mb">
+      <!-- Contact (alleen bij voicemail/mailshot) -->
+      <div class="fg" id="n-contact-row" style="display:none;">
+        <label class="fl">Contactpersoon</label>
+        <input type="text" id="n-contact" placeholder="Naam contactpersoon" readonly style="background:var(--surface2);">
+      </div>
+      <!-- Notitietekst -->
+      <div class="fg">
+        <label class="fl" id="n-text-label">Notitie</label>
+        <textarea id="n-text" style="min-height:100px;" placeholder="Schrijf hier je notitie…"></textarea>
+      </div>
+      <!-- Type (alleen bij gewone notitie) -->
+      <div class="fg" id="n-type-row">
+        <label class="fl">Type</label>
+        <select id="n-type">
+          <option value="notitie">Algemene notitie</option>
+          <option value="gesprek">Gesprek / meeting</option>
+          <option value="email">E-mail</option>
+          <option value="taak">Taak</option>
+        </select>
+      </div>
+      <!-- Gespreksduur (bij notitie + voicemail) -->
+      <div class="fg" id="n-dur-row" style="display:none;">
+        <label class="fl" id="n-dur-label">Gespreksduur</label>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="number" id="n-dur" min="0" max="999" placeholder="0" style="width:80px;">
+          <span style="font-size:13px;color:var(--text2);">minuten</span>
+        </div>
+      </div>
+    </div>
+    <div class="mf">
+      <button class="btn ghost" onclick="closeM('m-note')">Annuleren</button>
+      <button class="btn pri" onclick="saveNote()" id="m-note-save-btn">Opslaan</button>
+    </div>
   </div>
 </div>
 
@@ -1627,6 +1661,7 @@ function nav(id){
   document.querySelectorAll('.page,.acc-detail').forEach(p=>p.classList.remove('on'));
   const el=document.getElementById('p-'+id);
   if(el)el.classList.add('on');
+  history.replaceState(null,'','#'+id);
   document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('on'));
   const titles={dashboard:'Dashboard',agenda:'Agenda',pipeline:'Pipeline',todos:"To-do's",accounts:'Accounts',contacts:'Contacten',outreach:'Outreach',activity:'Activiteit',rapport:'Klantrapport'};
   document.getElementById('topbar-title').innerHTML=titles[id]||id;
@@ -1657,6 +1692,7 @@ function openDetail(id){
   curAcc=a;
   document.querySelectorAll('.page,.acc-detail').forEach(p=>p.classList.remove('on'));
   document.getElementById('p-detail').classList.add('on');
+  history.replaceState(null,'','#account/'+id);
   const [bg,fg]=CLRS[a.color%CLRS.length];
   const init=initials(a.name);
   // Hero
@@ -1741,7 +1777,7 @@ function renderTab(t){
             ${df('Sector',a.sector)}${df('Segment',a.seg)}${df('Adres',a.addr)}${df('Telefoon',a.phone)}
             ${a.web?df('Website',`<a href="${a.web}" target="_blank">${a.web}</a>`):''}
             ${a.li?df('LinkedIn',`<a href="https://${a.li}" target="_blank">${a.li}</a>`):''}
-            ${df('KvK',a.kvk)}${df('Interessant voor',a.forClient)}
+            ${df('KvK',a.kvk)}
           </div>
         </div>
         <div>
@@ -1818,7 +1854,11 @@ function renderTab(t){
   else if(t==='activity'){
     c.innerHTML=`
       <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
-        <button class="btn pri sm" onclick="openAddNote()">+ Notitie</button>
+        <div style="display:flex;gap:6px;">
+          <button class="btn pri sm" onclick="openQuickNote('notitie')">✏ Notitie</button>
+          <button class="btn sm" style="background:var(--teal-bg);border-color:var(--teal);color:var(--teal-t);" onclick="openQuickNote('voicemail')">🎙 Voicemail</button>
+          <button class="btn sm" style="background:var(--blue-bg);border-color:var(--blue);color:var(--blue-t);" onclick="openQuickNote('mailshot')">✉ Mailshot</button>
+        </div>
       </div>
       ${(a.notes||[]).length?(a.notes).slice().reverse().map(n=>`
         <div class="note-box">
@@ -2445,7 +2485,7 @@ function renderWeekView(evs){
   const dayNames=['Ma','Di','Wo','Do','Vr','Za','Zo'];
   const s=days[0],e=days[6];
   document.getElementById('cal-period-label').textContent=`${s.getDate()} ${s.toLocaleDateString('nl-NL',{month:'short'})} – ${e.getDate()} ${e.toLocaleDateString('nl-NL',{month:'short',year:'numeric'})}`;
-  const HOURS=Array.from({length:13},(_,i)=>i+8); // 08–20
+  const SLOTS=[];for(let h=8;h<=20;h++){SLOTS.push({h,m:0});if(h<20)SLOTS.push({h,m:30});}
 
   // Header
   let html=`<div class="week-wrap"><div class="week-header-row">
@@ -2462,19 +2502,23 @@ function renderWeekView(evs){
   });
   html+=`</div><div class="week-body">`;
 
-  // Rows
-  HOURS.forEach(h=>{
-    html+=`<div class="week-row"><div class="week-time-cell">${h}:00</div>`;
+  // Rows — half-hour slots
+  SLOTS.forEach(slot=>{
+    const {h,m}=slot;
+    const timeStr=`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+    const isHour=m===0;
+    html+=`<div class="week-row" style="height:20px;${isHour?'':'border-top:1px dashed var(--border);'}">`;
+    html+=`<div class="week-time-cell" style="font-size:10px;color:${isHour?'var(--text2)':'transparent'};line-height:20px;">${isHour?h+':00':''}</div>`;
     days.forEach(d=>{
       const ds=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
       const isT=ds===todayISO;
-      const slotEvs=evs.filter(e=>e.date===ds&&e.time&&parseInt(e.time.split(':')[0])===h);
-      html+=`<div class="week-ev-cell${isT?' today-c':''}" onclick="openAddEventOnDate('${ds}','${String(h).padStart(2,'0')}:00')">`;
+      const slotEvs=evs.filter(e=>e.date===ds&&e.time&&e.time===timeStr);
+      html+=`<div class="week-ev-cell${isT?' today-c':''}" style="height:20px;" onclick="openAddEventOnDate('${ds}','${timeStr}')">`;
       slotEvs.forEach(ev=>{
         const a=accs.find(x=>x.id===ev.acc);
         const [bg,fg]=a?CLRS[a.color%CLRS.length]:['#e8f0fb','#1a5fb4'];
-        const durRows=Math.max(Math.round((ev.dur||60)/60*40),22);
-        html+=`<div class="w-ev" style="background:${bg};color:${fg};height:${durRows}px;" onclick="event.stopPropagation();showEventPopup(event,${ev.id})" title="${ev.title}">
+        const durPx=Math.max(Math.round((ev.dur||60)/30*20),20);
+        html+=`<div class="w-ev" style="background:${bg};color:${fg};height:${durPx}px;" onclick="event.stopPropagation();showEventPopup(event,${ev.id})" title="${ev.title}">
           ${ev.time} ${ev.title}
         </div>`;
       });
@@ -2497,7 +2541,7 @@ function renderDayView(evs){
   const ds=`${base.getFullYear()}-${String(base.getMonth()+1).padStart(2,'0')}-${String(base.getDate()).padStart(2,'0')}`;
   const dayEvs=evs.filter(e=>e.date===ds).sort((a,b)=>(a.time||'00:00').localeCompare(b.time||'00:00'));
   document.getElementById('cal-period-label').textContent=base.toLocaleDateString('nl-NL',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
-  const HOURS=Array.from({length:13},(_,i)=>i+8);
+  const SLOTS=[];for(let h=8;h<=20;h++){SLOTS.push({h,m:0});if(h<20)SLOTS.push({h,m:30});}
   const evCount=dayEvs.length;
 
   let html=`<div class="day-wrap">
@@ -2510,19 +2554,21 @@ function renderDayView(evs){
     </div>
     <div class="day-body">`;
 
-  HOURS.forEach(h=>{
-    const hEvs=dayEvs.filter(e=>e.time&&parseInt(e.time.split(':')[0])===h);
-    // also half-hour
-    const hEvs2=dayEvs.filter(e=>e.time&&parseInt(e.time.split(':')[0])===h&&e.time.includes(':30'));
-    html+=`<div class="day-row">
-      <div class="day-tc">${h}:00</div>
-      <div class="day-ec" onclick="openAddEventOnDate('${ds}','${String(h).padStart(2,'0')}:00')">`;
-    hEvs.forEach(ev=>{
+  SLOTS.forEach(slot=>{
+    const {h,m}=slot;
+    const timeStr=`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+    const isHour=m===0;
+    const slotEvs=dayEvs.filter(e=>e.time&&e.time===timeStr);
+    html+=`<div class="day-row" style="min-height:${isHour?'32':'20'}px;${isHour?'':'border-top:1px dashed var(--border);'}">
+      <div class="day-tc" style="font-size:${isHour?'11':'10'}px;color:${isHour?'var(--text2)':'var(--border)'};padding-top:4px;">${isHour?timeStr:''}</div>
+      <div class="day-ec" onclick="openAddEventOnDate('${ds}','${timeStr}')">`;
+    slotEvs.forEach(ev=>{
       const a=accs.find(x=>x.id===ev.acc);
       const [bg,fg]=a?CLRS[a.color%CLRS.length]:['#e8f0fb','#1a5fb4'];
+      const mapsLink=ev.loc?`<a href="https://maps.google.com/?q=${encodeURIComponent(ev.loc)}" target="_blank" onclick="event.stopPropagation()" style="font-size:10.5px;color:var(--blue-t);text-decoration:none;">🗺 Maps</a>`:'';
       html+=`<div class="d-ev" style="border-left-color:${fg};background:${bg}10;" onclick="event.stopPropagation();showEventPopup(event,${ev.id})">
         <div class="d-ev-title" style="color:${fg};">${ev.time} — ${ev.title}</div>
-        <div class="d-ev-meta">${ev.type||''}${ev.dur?' · '+ev.dur+' min':''}${a?' · '+a.name:''}${ev.loc?' · '+ev.loc:''}</div>
+        <div class="d-ev-meta">${ev.type||''}${ev.dur?' · '+ev.dur+' min':''}${a?' · '+a.name:''}${ev.loc?` · <span onclick="event.stopPropagation()" style="display:inline;">${ev.loc} ${mapsLink}</span>`:''}</div>
       </div>`;
     });
     html+=`</div></div>`;
@@ -2577,13 +2623,15 @@ function showEventPopup(e,evId){
     </div>
     <div style="display:flex;flex-direction:column;gap:5px;font-size:12.5px;color:var(--text2);">
       <div style="display:flex;gap:7px;align-items:center;"><span style="color:var(--text3);width:14px;">◷</span>${d}${ev.time?' · '+ev.time:''} · ${ev.dur||60} min</div>
-      ${ev.loc?`<div style="display:flex;gap:7px;"><span style="color:var(--text3);width:14px;">⌖</span>${ev.loc}</div>`:''}
+      ${ev.loc?`<div style="display:flex;gap:7px;align-items:center;"><span style="color:var(--text3);width:14px;">⌖</span><span>${ev.loc}</span><a href="https://maps.google.com/?q=${encodeURIComponent(ev.loc)}" target="_blank" onclick="event.stopPropagation()" style="font-size:10.5px;color:var(--blue-t);text-decoration:none;margin-left:4px;">🗺</a></div>`:''}
       ${acc?`<div style="display:flex;gap:7px;align-items:center;"><div style="width:12px;height:12px;border-radius:3px;background:${bg};flex-shrink:0;"></div>${acc.name}</div>`:''}
       ${ev.note?`<div style="font-size:11.5px;color:var(--text3);margin-top:4px;border-top:1px solid var(--border);padding-top:6px;">${ev.note}</div>`:''}
     </div>
-    <div style="display:flex;gap:6px;margin-top:12px;">
+    <div style="display:flex;gap:6px;margin-top:12px;align-items:center;">
       <div class="av ${(ev.owner||'MA').toLowerCase()}" style="width:22px;height:22px;font-size:8px;">${ev.owner||'MA'}</div>
-      <span style="font-size:11.5px;color:var(--text3);">${ev.owner==='MA'?'Mees':ev.owner==='JK'?'Julian':'Mees & Julian'}</span>
+      <span style="font-size:11.5px;color:var(--text3);flex:1;">${ev.owner==='MA'?'Mees':ev.owner==='JK'?'Julian':'Mees & Julian'}</span>
+      <button onclick="event.stopPropagation();this.closest('.ev-popup').remove();editEvent(${ev.id})" class="btn xs" style="background:var(--navy);border-color:var(--navy);color:#fff;">✎ Bewerken</button>
+      <button onclick="event.stopPropagation();if(confirm('Afspraak verwijderen?')){deleteEvent(${ev.id});this.closest('.ev-popup').remove();}" class="btn xs ghost" style="color:var(--red-t);border-color:var(--red);">✕</button>
     </div>`;
   // Position near click
   const rect=e.target.getBoundingClientRect();
@@ -2594,6 +2642,53 @@ function showEventPopup(e,evId){
   document.body.appendChild(pop);
   // Close on outside click
   setTimeout(()=>document.addEventListener('click',function h(ev){if(!pop.contains(ev.target)){pop.remove();document.removeEventListener('click',h);}},true),10);
+}
+
+function editEvent(evId){
+  const ev=calEvents.find(x=>x.id===evId);if(!ev)return;
+  openAddEvent(ev.acc||null);
+  setTimeout(()=>{
+    document.getElementById('ev-title').value=ev.title||'';
+    document.getElementById('ev-date').value=ev.date||'';
+    if(ev.date)updateDateLabel(ev.date);
+    document.getElementById('ev-time').value=ev.time||'';
+    document.getElementById('ev-dur').value=ev.dur||60;
+    document.getElementById('ev-loc').value=ev.loc||'';
+    document.getElementById('ev-note').value=ev.note||'';
+    document.querySelectorAll('#ev-type-btns button').forEach(b=>b.classList.toggle('ev-type-on',b.dataset.t===ev.type));
+    document.getElementById('ev-type').value=ev.type||'Kennismaking';
+    const saveBtn=document.getElementById('m-event-save');
+    if(saveBtn){saveBtn.textContent='Opslaan wijzigingen';saveBtn.onclick=()=>saveEditedEvent(evId);}
+  },80);
+}
+
+function saveEditedEvent(evId){
+  const idx=calEvents.findIndex(x=>x.id===evId);if(idx<0)return;
+  const title=document.getElementById('ev-title').value.trim();
+  if(!title){alert('Vul een titel in.');return;}
+  calEvents[idx]={...calEvents[idx],title,
+    type:document.getElementById('ev-type').value,
+    date:document.getElementById('ev-date').value,
+    time:document.getElementById('ev-time').value,
+    dur:parseInt(document.getElementById('ev-dur').value)||60,
+    loc:document.getElementById('ev-loc').value.trim(),
+    note:document.getElementById('ev-note').value.trim(),
+    owner:document.querySelector('#asgn-event .asgn-opt.on')?.dataset.u||CU,
+  };
+  ss('ix_calev',calEvents);
+  _saveEvent(calEvents[idx]).catch(()=>{});
+  closeM('m-event');
+  if(document.getElementById('p-agenda').classList.contains('on'))renderAgenda();
+  if(document.getElementById('p-dashboard').classList.contains('on'))renderDash();
+}
+
+function deleteEvent(evId){
+  if(!confirm('Afspraak verwijderen?'))return;
+  calEvents=calEvents.filter(x=>x.id!==evId);
+  ss('ix_calev',calEvents);
+  (async()=>{try{await fetch('https://wjmalzbdxbtnkyngaccw.supabase.co/rest/v1/calendar_events?id=eq.'+evId,{method:'DELETE',headers:{'apikey':'sb_publishable_8BI2HQ9f0_jTnUR7Q1-B7Q_xflM7k7Q','Authorization':'Bearer sb_publishable_8BI2HQ9f0_jTnUR7Q1-B7Q_xflM7k7Q'}});}catch(e){console.warn('del ev:',e);}})();
+  if(document.getElementById('p-agenda').classList.contains('on'))renderAgenda();
+  if(document.getElementById('p-dashboard').classList.contains('on'))renderDash();
 }
 
 function openAddEventOnDate(ds,time){
@@ -2835,12 +2930,18 @@ function saveNote(){
   const text=document.getElementById('n-text').value.trim();
   if(!text)return;
   if(!curAcc.notes)curAcc.notes=[];
-  curAcc.notes.push({id:Date.now(),text,type:document.getElementById('n-type').value,by:CU,time:new Date().toLocaleDateString('nl-NL',{day:'numeric',month:'short',year:'numeric'})});
+  const type=document.getElementById('n-type').value;
+  const dur=parseInt(document.getElementById('n-dur').value)||0;
+  const contact=document.getElementById('n-contact').value||'';
+  const icons={'notitie':'◈','gesprek':'◷','email':'✉','voicemail':'🎙','mailshot':'📨','taak':'◻'};
+  const durText=dur?` (${dur} min)`:'';
+  const note={id:Date.now(),text,type,by:CU,dur:dur||null,contact:contact||null,
+    time:new Date().toLocaleDateString('nl-NL',{day:'numeric',month:'short',year:'numeric'})};
+  curAcc.notes.push(note);
   const idx=accs.findIndex(a=>a.id===curAcc.id);
   accs[idx]=curAcc;ss('ix_accs',accs);
-  _saveProp(curAcc.id,curAcc.proposals[curAcc.proposals.length-1]).catch(e=>console.warn('prop:',e));
-  addActivity(`<strong>${CU==='MA'?'Mees':'Julian'}</strong> voegde een notitie toe bij <strong>${curAcc.name}</strong>`,'◈',CLRS[curAcc.color%CLRS.length][0]);
-  _saveNote(curAcc.id,curAcc.notes[curAcc.notes.length-1]).catch(e=>console.warn('note:',e));closeM('m-note');renderTab('activity');
+  addActivity(`<strong>${CU==='MA'?'Mees':'Julian'}</strong> voegde ${type} toe bij <strong>${curAcc.name}</strong>${durText}`,'◈',CLRS[curAcc.color%CLRS.length][0]);
+  _saveNote(curAcc.id,note).catch(e=>console.warn('note:',e));closeM('m-note');renderTab('activity');
 }
 
 function saveContact(){
@@ -2935,7 +3036,51 @@ async function openEditAcc(id){
   }catch(e){}document.getElementById('f-name').value=a.name;document.getElementById('f-status').value=a.status;document.getElementById('f-sector').value=a.sector||'';document.getElementById('f-seg').value=a.seg||'';document.getElementById('f-web').value=a.web||'';document.getElementById('f-li').value=a.li||'';document.getElementById('f-phone').value=a.phone||'';document.getElementById('f-kvk').value=a.kvk||'';document.getElementById('f-addr').value=a.addr||'';document.getElementById('f-pipe').value=a.pipe||'Nieuw';document.getElementById('f-val').value=a.val||'';document.getElementById('f-cf').value=a.cf||'';document.getElementById('f-cl').value=a.cl||'';document.getElementById('f-cr').value=a.cr||'';document.getElementById('f-cp').value=a.cp||'';document.getElementById('f-ce').value=a.ce||'';document.getElementById('f-note').value=a.note||'';selOwner(a.owner||'MA','asgn-acc');renderClientCheckboxes(a.clientLinks||{});document.getElementById('m-acc').classList.add('on');}
 function openAddTodo(){document.getElementById('t-title').value='';document.getElementById('t-prio').value='medium';document.getElementById('t-due').value='';const sel=document.getElementById('t-acc');sel.innerHTML='<option value="">— geen —</option>';accs.forEach(a=>sel.innerHTML+=`<option value="${a.id}">${a.name}</option>`);selOwner(CU,'asgn-todo');document.getElementById('m-todo').classList.add('on');}
 function openAddTodoForAcc(id){openAddTodo();document.getElementById('t-acc').value=id;}
-function openAddNote(){document.getElementById('n-text').value='';document.getElementById('m-note').classList.add('on');}
+function openAddNote(){ openQuickNote('notitie'); }
+
+function openQuickNote(type){
+  if(!curAcc) return;
+  const contact = [curAcc.cf, curAcc.cl].filter(Boolean).join(' ');
+  // Reset modal
+  document.getElementById('n-text').value = '';
+  document.getElementById('n-dur').value = '';
+  document.getElementById('n-contact').value = contact || '—';
+
+  if(type === 'voicemail'){
+    document.getElementById('m-note-title').textContent = 'Voicemail vastleggen';
+    document.getElementById('m-note-sub').textContent = curAcc.name;
+    document.getElementById('n-contact-row').style.display = '';
+    document.getElementById('n-type-row').style.display = 'none';
+    document.getElementById('n-dur-row').style.display = '';
+    document.getElementById('n-dur-label').textContent = 'Duur voicemail';
+    document.getElementById('n-text-label').textContent = 'Boodschap / toelichting';
+    document.getElementById('n-text').placeholder = 'Waar ging de voicemail over…';
+    document.getElementById('n-type').value = 'voicemail';
+    document.getElementById('m-note-save-btn').textContent = '🎙 Opslaan';
+  } else if(type === 'mailshot'){
+    document.getElementById('m-note-title').textContent = 'Mailshot vastleggen';
+    document.getElementById('m-note-sub').textContent = curAcc.name;
+    document.getElementById('n-contact-row').style.display = '';
+    document.getElementById('n-type-row').style.display = 'none';
+    document.getElementById('n-dur-row').style.display = 'none';
+    document.getElementById('n-text-label').textContent = 'Onderwerp / inhoud';
+    document.getElementById('n-text').placeholder = 'Welke mail gestuurd, campagne, onderwerp…';
+    document.getElementById('n-type').value = 'mailshot';
+    document.getElementById('m-note-save-btn').textContent = '✉ Opslaan';
+  } else {
+    document.getElementById('m-note-title').textContent = 'Notitie toevoegen';
+    document.getElementById('m-note-sub').textContent = curAcc.name;
+    document.getElementById('n-contact-row').style.display = 'none';
+    document.getElementById('n-type-row').style.display = '';
+    document.getElementById('n-dur-row').style.display = '';
+    document.getElementById('n-dur-label').textContent = 'Gespreksduur';
+    document.getElementById('n-text-label').textContent = 'Notitie';
+    document.getElementById('n-text').placeholder = 'Schrijf hier je notitie…';
+    document.getElementById('n-type').value = 'notitie';
+    document.getElementById('m-note-save-btn').textContent = 'Opslaan';
+  }
+  document.getElementById('m-note').classList.add('on');
+}
 function openAddContact(){['c-first','c-last','c-role','c-dept','c-email','c-phone','c-li','c-note'].forEach(id=>document.getElementById(id).value='');document.getElementById('m-contact').classList.add('on');}
 function openAddDeal(){['d-name','d-val','d-prob','d-close','d-note'].forEach(id=>document.getElementById(id).value='');document.getElementById('d-stage').value='Verkenning';document.getElementById('m-deal').classList.add('on');}
 function openAddProposal(){['p-title','p-val','p-date','p-exp','p-desc'].forEach(id=>document.getElementById(id).value='');document.getElementById('p-stat').value='concept';document.getElementById('m-prop').classList.add('on');}
@@ -4145,6 +4290,29 @@ function saveOmzetInstellingen(){
   renderTab('omzet');
 }
 
+// ══════════════ HASH ROUTER ══════════════
+function applyHash(){
+  const hash = window.location.hash.replace('#','');
+  if(!hash) return;
+  if(hash.startsWith('account/')){
+    const id = parseInt(hash.split('/')[1]);
+    if(!isNaN(id)){
+      const a = accs.find(x=>x.id===id);
+      if(a){ openDetail(id); return; }
+    }
+  }
+  const pages=['dashboard','accounts','pipeline','contacts','todos','outreach','activity','agenda','workflows','rapport'];
+  if(pages.includes(hash)){
+    nav(hash);
+    if(hash==='accounts') renderAccList();
+    if(hash==='agenda') renderAgenda();
+    if(hash==='contacts') renderContacts();
+    if(hash==='todos') renderTodos();
+  }
+}
+window.addEventListener('popstate', applyHash);
+
+
 // ══════════════ INIT ══════════════
 // ── ASYNC INIT WITH AUTH CHECK ──
 (async()=>{
@@ -4171,6 +4339,7 @@ function saveOmzetInstellingen(){
   updateBadge();
   renderClientBar();
   setTimeout(()=>{runWorkflowEngine(false);updateWfBadge();renderWatNu();},600);
+  setTimeout(applyHash, 150);
 })();
 </script>
 
