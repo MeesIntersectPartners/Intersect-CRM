@@ -2110,6 +2110,7 @@ function renderTab(t){
           <div class="av ${td.owner.toLowerCase()} lg">${td.owner}</div>
         </div>`).join(''):`<div style="color:var(--text3);font-size:13px;padding:8px 0;">Geen taken voor dit account</div>`}`;
   }
+}
 
 function df(l,v){if(!v)return '';return`<div class="df"><span class="df-lbl">${l}</span><span class="df-val">${v}</span></div>`;}
 
@@ -3859,7 +3860,7 @@ function dismissSignal(id){
 
 function editWfRule(id){
   const r=wfRules.find(x=>x.id===id);if(!r)return;
-  const newDays=prompt(`Hoeveel dagen voor "${r.name}"?\nHuidige waarde: ${r.days} dagen`,r.days);
+  const newDays=prompt('Hoeveel dagen voor "'+r.name+'"?\nHuidige waarde: '+r.days+' dagen',r.days);
   if(newDays&&!isNaN(parseInt(newDays))){r.days=parseInt(newDays);ss('ix_wfrules',wfRules);renderWorkflows();}
 }
 
