@@ -3166,9 +3166,10 @@ function saveNote(){
   const contact=document.getElementById('n-contact-sel').value;
   if(!contact){alert('Kies een contactpersoon.');return;}
 
-  // Gesprek type — sla chat berichten op
+  // Chat types — gesprek, whatsapp, linkshot
+  const isChatType = type==='gesprek' || type==='whatsapp' || type==='linkshot';
   let finalText='';
-  if(type==='gesprek'){
+  if(isChatType){
     const gevuldeBerichten=chatBerichten.filter(b=>b.tekst.trim());
     if(!gevuldeBerichten.length){alert('Voeg minimaal één bericht toe.');return;}
     finalText=gevuldeBerichten.map(b=>`[${b.van==='MA'?'Mees':b.van==='JK'?'Julian':b.van}]: ${b.tekst.trim()}`).join('\n');
@@ -3187,8 +3188,7 @@ function saveNote(){
     if(!finalText.startsWith('[')) finalText=prefix+finalText;
   }
 
-  // Chat berichten opslaan als array voor uitklap weergave
-  const chatArr = type==='gesprek' ? chatBerichten.filter(b=>b.tekst.trim()) : null;
+  const chatArr = isChatType ? chatBerichten.filter(b=>b.tekst.trim()) : null;
 
   if(editId){
     const idx=curAcc.notes.findIndex(n=>n.id===editId);
@@ -4847,11 +4847,19 @@ function renderActiviteitBalk(n, ingeklapt = true, toonBewerken = true) {
 
 function renderChatWeergave(chat, id) {
   const naamLabel = v => v==='MA'?'Mees':v==='JK'?'Julian':v;
-  const berichtHtml = berichten => berichten.map(b=>`
-    <div style="margin-bottom:7px;">
-      <span style="font-size:11px;font-weight:600;color:var(--text2);">${naamLabel(b.van)}</span>
-      <div style="font-size:13px;color:var(--text);line-height:1.6;margin-top:2px;padding:7px 10px;background:var(--surface2);border-radius:var(--r);border:1px solid var(--border);">${b.tekst}</div>
-    </div>`).join('');
+  const persoonStijl = v => {
+    if(v==='MA') return {bg:'#eaf1fd',kleur:'#1a5fb4',naam:'Mees'};
+    if(v==='JK') return {bg:'#eaf7ef',kleur:'#1a7a3a',naam:'Julian'};
+    return {bg:'#fff8e6',kleur:'#8a6200',naam:v};
+  };
+  const berichtHtml = berichten => berichten.map(b=>{
+    const st = persoonStijl(b.van);
+    return `
+    <div style="margin-bottom:8px;">
+      <span style="font-size:11px;font-weight:700;color:${st.kleur};padding:2px 8px;background:${st.bg};border-radius:10px;">${st.naam}</span>
+      <div style="font-size:13px;color:var(--text);line-height:1.6;margin-top:4px;padding:8px 12px;background:${st.bg};border-left:3px solid ${st.kleur};border-radius:0 var(--r) var(--r) 0;">${b.tekst}</div>
+    </div>`;
+  }).join('');
   const eerste2 = chat.slice(0,2);
   const rest = chat.slice(2);
   return `
