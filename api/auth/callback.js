@@ -5,7 +5,7 @@
 const { exchangeCode, getProfiel } = require('../../lib/microsoft');
 const { createClient } = require('@supabase/supabase-js');
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   const { code, error, state } = req.query;
 
   if (error) {
