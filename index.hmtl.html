@@ -1790,7 +1790,7 @@ function openDetail(id){
     {id:'deals',label:'Kansen',cnt:(a.deals||[]).length},
     {id:'proposals',label:'Offertes',cnt:(a.proposals||[]).length},
     {id:'activity',label:'Activiteit & Notities',cnt:(a.notes||[]).length},
-    {id:'omzet',label:'💰 Intersect Omzet',cnt:0},
+    {id:'omzet',label:'Intersect Omzet',cnt:0},
     {id:'outreach',label:'E-mail outreach',cnt:0},
     {id:'docs',label:'Documenten',cnt:(a.docs||[]).length},
     {id:'todos',label:'Taken',cnt:todos.filter(t=>t.acc===a.id&&!t.done).length},
@@ -1855,7 +1855,7 @@ function renderTab(t){
           </div>
           <div class="ds"><div class="ds-title">Intern</div>
             ${df('Eigenaar',a.owner==='BOTH'?'Mees & Julian':a.owner==='MA'?'Mees Arentsen':'Julian Kanhai')}
-            ${df('Toegevoegd',fmtDate(a.added))}
+            ${(()=>{const ln=(a.notes||[]).length?[...(a.notes)].reverse()[0]:null;return ln?df('Laatste activiteit',`${ln.time} · ${actStijl(ln.type).label}`):df('Laatste activiteit','—');})()}
             ${a.note?`<div class="note-box"><div class="note-text">${a.note}</div></div>`:''}
           </div>
         </div>
@@ -4715,20 +4715,38 @@ function actBadge(type) {
 function renderActiviteitBalk(n, ingeklapt = true, toonBewerken = true) {
   const s = actStijl(n.type);
   const id = 'act-'+n.id;
-  const contactHtml = n.contact ? `<span style="color:var(--blue);cursor:pointer;" onclick="event.stopPropagation();zoekContact('${n.contact}')">${n.contact}</span>` : '';
+
+  // Contactpersoon klikbaar
+  const contactHtml = n.contact
+    ? `<span style="font-size:12px;color:var(--text3);">met</span>
+       <span style="font-size:12px;color:var(--blue);cursor:pointer;font-weight:500;text-decoration:underline;text-decoration-style:dotted;" onclick="event.stopPropagation();switchTab('contacts')">${n.contact}</span>`
+    : '';
+
+  // Tijdstip tonen
+  const tijdHtml = `<span style="font-size:11px;color:var(--text3);white-space:nowrap;">${n.time||''}</span>`;
+
+  // Avatar
+  const avHtml = `<div class="av ${(n.by||'').toLowerCase()} lg" style="flex-shrink:0;">${n.by||''}</div>`;
+
   return `
-  <div style="border:1px solid var(--border);border-left:3px solid ${s.kleur};border-radius:var(--r);margin-bottom:6px;overflow:hidden;">
-    <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;background:${s.bg}20;" onclick="toggleAct('${id}')">
-      ${actBadge(n.type)}
-      ${contactHtml ? `<span style="font-size:12px;color:var(--text3);">met</span>${contactHtml}` : ''}
-      <span style="font-size:11px;color:var(--text3);margin-left:auto;white-space:nowrap;">${n.time}</span>
-      <div class="av ${(n.by||'').toLowerCase()} lg" style="flex-shrink:0;">${n.by||''}</div>
-      <span style="font-size:10px;color:var(--text3);" id="${id}-chev">${ingeklapt?'▸':'▾'}</span>
+  <div style="border:1px solid ${s.kleur}30;border-left:4px solid ${s.kleur};border-radius:var(--r);margin-bottom:8px;overflow:hidden;background:${s.bg}18;">
+    <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;" onclick="toggleAct('${id}')">
+      <div style="flex:1;display:flex;align-items:center;gap:8px;min-width:0;">
+        <span style="font-size:12px;font-weight:700;color:${s.kleur};white-space:nowrap;padding:3px 9px;background:${s.bg};border-radius:20px;">${s.label}</span>
+        ${contactHtml}
+        ${ingeklapt && n.text ? `<span style="font-size:12px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px;">${n.text.substring(0,60)}${n.text.length>60?'…':''}</span>` : ''}
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+        ${tijdHtml}
+        ${avHtml}
+        <span style="font-size:10px;color:var(--text3);" id="${id}-chev">${ingeklapt?'▸':'▾'}</span>
+      </div>
     </div>
-    <div id="${id}-body" style="display:${ingeklapt?'none':'block'};padding:10px 14px;border-top:1px solid var(--border);">
-      <div style="font-size:13px;color:var(--text);line-height:1.65;white-space:pre-wrap;">${n.text}</div>
-      ${toonBewerken ? `<div style="margin-top:8px;display:flex;gap:6px;">
-        <button class="btn xs ghost" onclick="event.stopPropagation();bewerkNote(${n.id})">Bewerken</button>
+    <div id="${id}-body" style="display:${ingeklapt?'none':'block'};padding:12px 14px;border-top:1px solid ${s.kleur}20;background:var(--surface);">
+      <div style="font-size:13.5px;font-weight:500;color:${s.kleur};margin-bottom:6px;">${s.label}${n.contact?' · '+n.contact:''}</div>
+      <div style="font-size:13px;color:var(--text);line-height:1.7;white-space:pre-wrap;">${n.text||''}</div>
+      ${toonBewerken ? `<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border);display:flex;gap:6px;">
+        <button class="btn xs ghost" onclick="event.stopPropagation();bewerkNote(${n.id})">✎ Bewerken</button>
       </div>` : ''}
     </div>
   </div>`;
@@ -4903,6 +4921,18 @@ function openMailCompose(type, prefillAan, prefillOnderwerp) {
 
   mcSetType(mcType);
   mcVulVerzendaccounts();
+
+  // Vul contactpersoon dropdown
+  const mcCont = document.getElementById('mc-contact');
+  if (mcCont) {
+    mcCont.innerHTML = '<option value="">— kies contactpersoon —</option>';
+    const primair = [curAcc.cf, curAcc.cl].filter(Boolean).join(' ');
+    if (primair) mcCont.innerHTML += `<option value="${primair}" selected>${primair}${curAcc.cr?' ('+curAcc.cr+')':''}</option>`;
+    (curAcc.contacts||[]).forEach(ct => {
+      const naam = [ct.first, ct.last].filter(Boolean).join(' ');
+      if (naam) mcCont.innerHTML += `<option value="${naam}">${naam}${ct.role?' ('+ct.role+')':''}</option>`;
+    });
+  }
   document.getElementById('m-mail-compose').classList.add('on');
   setTimeout(() => document.getElementById('mc-body').focus(), 100);
 }
@@ -4982,12 +5012,14 @@ async function mcGenereerSuggestie() {
 
 async function mcVerstuur() {
   const van = document.getElementById('mc-from').value.trim();
+  const contact = document.getElementById('mc-contact').value.trim();
   const aan = document.getElementById('mc-to').value.trim();
   const cc = document.getElementById('mc-cc').value.trim();
   const onderwerp = document.getElementById('mc-subject').value.trim();
   const inhoudEl = document.getElementById('mc-body');
   let inhoud = inhoudEl.innerHTML.trim();
 
+  if (!contact) { alert('Kies een contactpersoon.'); return; }
   if (!van) { alert('Kies een verzendaccount.'); return; }
   if (!aan) { alert('Vul een ontvanger in.'); return; }
   if (!onderwerp) { alert('Vul een onderwerp in.'); return; }
@@ -5031,6 +5063,7 @@ async function mcVerstuur() {
         type: mcType,
         text: `${typeLabels[mcType]} verstuurd via CRM · ${van} → ${aan}${mcBijlages.length ? ` · ${mcBijlages.length} bijlage(s)` : ''}\n\nOnderwerp: ${onderwerp}`,
         by: CU,
+        contact: contact,
         time: new Date().toLocaleString('nl-NL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }),
         id: Date.now(),
       };
@@ -5297,6 +5330,14 @@ function renderInstellingen() {
         <button class="btn xs mc-type-btn on" data-type="mailshot" onclick="mcSetType('mailshot')">✉ Mailshot</button>
         <button class="btn xs mc-type-btn" data-type="opvolg_mailshot" onclick="mcSetType('opvolg_mailshot')">↩ Opvolg Mailshot</button>
         <button class="btn xs mc-type-btn" data-type="directe_mail" onclick="mcSetType('directe_mail')">Directe mail</button>
+      </div>
+
+      <!-- Contactpersoon -->
+      <div class="fg">
+        <label class="fl">Contactpersoon <span style="color:var(--red);">*</span></label>
+        <select id="mc-contact" style="font-size:13px;">
+          <option value="">— kies contactpersoon —</option>
+        </select>
       </div>
 
       <!-- Van (verzendaccount kiezen) -->
