@@ -1,4 +1,10 @@
 {
+  "version": 2,
+  "buildCommand": null,
+  "outputDirectory": null,
+  "rewrites": [
+    { "source": "/", "destination": "/index.html" }
+  ],
   "crons": [
     {
       "path": "/api/cron/scrape",
