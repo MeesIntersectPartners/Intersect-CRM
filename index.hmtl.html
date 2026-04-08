@@ -563,7 +563,7 @@ textarea{resize:vertical;min-height:75px;}
           <div style="background:var(--navy);padding:12px 18px;display:flex;align-items:center;justify-content:space-between;">
             <div>
               <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:#fff;display:flex;align-items:center;gap:8px;">
-                ⚡ Wat nu?
+                Wat nu?
                 <span id="dash-wf-count" style="background:var(--gold);color:var(--navy);font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;"></span>
               </div>
               <div style="font-size:11px;color:rgba(255,255,255,.4);margin-top:1px;">Accounts die actie nodig hebben — automatisch bepaald</div>
@@ -1801,11 +1801,11 @@ function openDetail(id){
 
   // Actieknoppen boven de tabs
   document.getElementById('detail-actions').innerHTML=`
-    <button class="btn pri sm" onclick="openQuickNote('notitie')">✏ Notitie</button>
-    <button class="btn sm" style="background:var(--blue-bg);border-color:var(--blue);color:var(--blue-t);" onclick="openMailCompose('mailshot')">✉ Mailshot</button>
-    <button class="btn sm" style="background:var(--teal-bg);border-color:var(--teal);color:var(--teal-t);" onclick="openMailCompose('opvolg_mailshot')">↩ Opvolg Mailshot</button>
+    <button class="btn pri sm" onclick="openQuickNote('notitie')">Notitie</button>
+    <button class="btn sm" style="background:var(--blue-bg);border-color:var(--blue);color:var(--blue-t);" onclick="openMailCompose('mailshot')">Mailshot</button>
+    <button class="btn sm" style="background:var(--teal-bg);border-color:var(--teal);color:var(--teal-t);" onclick="openMailCompose('opvolg_mailshot')">Opvolg Mailshot</button>
     <button class="btn sm" style="background:#e8f4fd;border-color:#0a66c2;color:#0a66c2;" onclick="openQuickNote('linkshot')">Linkshot</button>
-    <button class="btn sm" style="background:var(--surface2);border-color:var(--border2);color:var(--text2);" onclick="openQuickNote('voicemail')">🎙 Voicemail</button>
+    <button class="btn sm" style="background:var(--surface2);border-color:var(--border2);color:var(--text2);" onclick="openQuickNote('voicemail')">Voicemail</button>
   `;
   renderTab(curTab);
   document.getElementById('topbar-title').innerHTML=`<span class="bc">Accounts</span><span class="bc-sep"> / </span>${a.name}`;
@@ -1813,7 +1813,7 @@ function openDetail(id){
 
 function switchTab(t){
   curTab=t;
-  document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('on',el.textContent.trim().startsWith(t==='overview'?'Overzicht':t==='contacts'?'Contacten':t==='deals'?'Kansen':t==='proposals'?'Offertes':t==='activity'?'Activiteit':t==='outreach'?'E-mail':t==='commissie'?'💰':t==='docs'?'Documenten':'Taken')));
+  document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('on',el.textContent.trim().startsWith(t==='overview'?'Overzicht':t==='contacts'?'Contacten':t==='deals'?'Kansen':t==='proposals'?'Offertes':t==='activity'?'Activiteit':t==='outreach'?'E-mail':t==='commissie'?'Intersect':t==='docs'?'Documenten':'Taken')));
   // re-render tabs properly
   document.querySelectorAll('.tab').forEach(el=>{
     const tabId=el.getAttribute('onclick').replace("switchTab('","").replace("')","");
@@ -2163,7 +2163,7 @@ function renderTab(t){
           </tr>
         </tfoot>
       </table>
-      ` : `<div class="empty" style="padding:28px;"><div class="eico">💰</div><p>Nog geen gewonnen deals — zet een deal op "Gewonnen" in het Kansen tabblad.</p></div>`}
+      ` : `<div class="empty" style="padding:28px;"><div class="eico">—</div><p>Nog geen gewonnen deals — zet een deal op "Gewonnen" in het Kansen tabblad.</p></div>`}
     </div>`;
   }
   else if(t==='outreach'){
@@ -3331,19 +3331,19 @@ function openQuickNote(type){
     document.getElementById('n-text').placeholder = 'Waar ging de voicemail over…';
     document.getElementById('n-type').value = 'voicemail';
     document.getElementById('n-voicemail-row').style.display = '';
-    document.getElementById('m-note-save-btn').textContent = '🎙 Opslaan';
+    document.getElementById('m-note-save-btn').textContent = 'Opslaan';
   } else if(type === 'mailshot'){
     document.getElementById('m-note-title').textContent = 'Mailshot vastleggen';
     document.getElementById('n-text-label').textContent = 'Onderwerp / inhoud';
     document.getElementById('n-text').placeholder = 'Welke mail gestuurd, campagne, onderwerp…';
     document.getElementById('n-type').value = 'mailshot';
-    document.getElementById('m-note-save-btn').textContent = '✉ Opslaan';
+    document.getElementById('m-note-save-btn').textContent = 'Opslaan';
   } else if(type === 'opvolg_mailshot'){
     document.getElementById('m-note-title').textContent = 'Opvolg Mailshot vastleggen';
     document.getElementById('n-text-label').textContent = 'Onderwerp / inhoud opvolging';
     document.getElementById('n-text').placeholder = 'Welke opvolg mail gestuurd…';
     document.getElementById('n-type').value = 'opvolg_mailshot';
-    document.getElementById('m-note-save-btn').textContent = '↩ Opslaan';
+    document.getElementById('m-note-save-btn').textContent = 'Opslaan';
   } else if(type === 'linkshot'){
     document.getElementById('m-note-title').textContent = 'LinkedIn bericht vastleggen';
     document.getElementById('n-text-label').textContent = 'Bericht / inhoud';
@@ -5327,8 +5327,8 @@ function renderInstellingen() {
 
       <!-- Mail type badge -->
       <div style="display:flex;gap:6px;" id="mc-type-row">
-        <button class="btn xs mc-type-btn on" data-type="mailshot" onclick="mcSetType('mailshot')">✉ Mailshot</button>
-        <button class="btn xs mc-type-btn" data-type="opvolg_mailshot" onclick="mcSetType('opvolg_mailshot')">↩ Opvolg Mailshot</button>
+        <button class="btn xs mc-type-btn on" data-type="mailshot" onclick="mcSetType('mailshot')">Mailshot</button>
+        <button class="btn xs mc-type-btn" data-type="opvolg_mailshot" onclick="mcSetType('opvolg_mailshot')">Opvolg Mailshot</button>
         <button class="btn xs mc-type-btn" data-type="directe_mail" onclick="mcSetType('directe_mail')">Directe mail</button>
       </div>
 
