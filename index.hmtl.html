@@ -428,6 +428,7 @@ textarea{resize:vertical;min-height:75px;}
     </div>
   </nav>
   <div class="sb-foot">
+    <button class="sb-item" onclick="nav('instellingen')" style="width:100%;margin-bottom:6px;"><span class="ico">⚙</span>Instellingen</button>
     <div style="font-size:9.5px;color:rgba(255,255,255,.3);padding:0 10px 6px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">Ingelogd als</div>
     <div class="user-sw" onclick="toggleUser()">
       <div class="av ma" id="cur-av">MA</div>
@@ -668,6 +669,9 @@ textarea{resize:vertical;min-height:75px;}
 
     <!-- SCRAPER -->
     <div class="page" id="p-scraper"></div>
+
+    <!-- INSTELLINGEN -->
+    <div class="page" id="p-instellingen"></div>
 
     <!-- PIPELINE -->
     <div class="page" id="p-pipeline">
@@ -1681,7 +1685,7 @@ function nav(id){
   if(el)el.classList.add('on');
   history.replaceState(null,'','#'+id);
   document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('on'));
-  const titles={dashboard:'Dashboard',agenda:'Agenda',pipeline:'Pipeline',todos:"To-do's",accounts:'Accounts',contacts:'Contacten',outreach:'Outreach',activity:'Activiteit',rapport:'Klantrapport',scraper:'Lead Scraper'};
+  const titles={dashboard:'Dashboard',agenda:'Agenda',pipeline:'Pipeline',todos:"To-do's",accounts:'Accounts',contacts:'Contacten',outreach:'Outreach',activity:'Activiteit',rapport:'Klantrapport',scraper:'Lead Scraper',instellingen:'Instellingen'};
   document.getElementById('topbar-title').innerHTML=titles[id]||id;
   if(id==='dashboard')renderDash();
   if(id==='agenda'){
@@ -1698,6 +1702,7 @@ function nav(id){
   if(id==='rapport')renderRapport();
   if(id==='workflows'){renderWorkflows();updateWfBadge();}
   if(id==='scraper')renderScraper();
+  if(id==='instellingen')renderInstellingen();
   curAcc=null;
 }
 
@@ -4496,7 +4501,7 @@ function applyHash(){
       if(a){ openDetail(id); return; }
     }
   }
-  const pages=['dashboard','accounts','pipeline','contacts','todos','outreach','activity','agenda','workflows','rapport','scraper'];
+  const pages=['dashboard','accounts','pipeline','contacts','todos','outreach','activity','agenda','workflows','rapport','scraper','instellingen'];
   if(pages.includes(hash)){
     nav(hash);
     if(hash==='accounts') renderAccList();
@@ -4659,6 +4664,175 @@ function renderScraper(){
     </div>
   </div>`;
 }
+
+// ══════════════ INSTELLINGEN ══════════════
+const INST_KEY = 'ix_instellingen';
+
+function instGetData() {
+  try { return JSON.parse(localStorage.getItem(INST_KEY) || '{}'); }
+  catch(e) { return {}; }
+}
+
+function instSave(data) {
+  localStorage.setItem(INST_KEY, JSON.stringify(data));
+}
+
+function instKoppelMicrosoft(user) {
+  window.open(`/api/auth/login?user=${user}`, '_blank');
+}
+
+async function instCheckKoppeling(user) {
+  // Check via Supabase of er een token is voor deze gebruiker
+  // Simpele check op basis van lokale opslag voor nu
+  const data = instGetData();
+  return data[`ms_gekoppeld_${user}`] || false;
+}
+
+function instMarkeerGekoppeld(user, email) {
+  const data = instGetData();
+  data[`ms_gekoppeld_${user}`] = true;
+  data[`ms_email_${user}`] = data[`ms_email_${user}`] || [];
+  if (email && !data[`ms_email_${user}`].includes(email)) {
+    data[`ms_email_${user}`].push(email);
+  }
+  instSave(data);
+}
+
+function instVerwijderEmail(user, email) {
+  const data = instGetData();
+  data[`ms_email_${user}`] = (data[`ms_email_${user}`] || []).filter(e => e !== email);
+  instSave(data);
+  renderInstellingen();
+}
+
+function instVoegEmailToe(user) {
+  instKoppelMicrosoft(user);
+  // Na koppeling — markeer als gekoppeld (in productie via callback)
+  setTimeout(() => {
+    const email = prompt('Welk e-mailadres heb je gekoppeld?');
+    if (email) {
+      instMarkeerGekoppeld(user, email);
+      renderInstellingen();
+    }
+  }, 2000);
+}
+
+function renderInstellingen() {
+  const el = document.getElementById('p-instellingen');
+  if (!el) return;
+  const data = instGetData();
+
+  const gebruikers = [
+    { id: 'MA', naam: 'Mees Arentsen', rol: 'Founder' },
+    { id: 'JK', naam: 'Julian Kanhai', rol: 'Partner' },
+  ];
+
+  const gebruikerCards = gebruikers.map(u => {
+    const emails = data[`ms_email_${u.id}`] || [];
+    const gekoppeld = emails.length > 0;
+    return `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:18px 20px;margin-bottom:12px;">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+        <div class="av ${u.id.toLowerCase()}" style="width:40px;height:40px;font-size:14px;">${u.id}</div>
+        <div>
+          <div style="font-size:14px;font-weight:600;color:var(--text);">${u.naam}</div>
+          <div style="font-size:12px;color:var(--text3);">${u.rol}</div>
+        </div>
+        <div style="margin-left:auto;">
+          <span style="padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600;${gekoppeld ? 'background:var(--green-bg);color:var(--green-t);' : 'background:var(--surface2);color:var(--text3);border:1px solid var(--border);'}">${gekoppeld ? '✓ Gekoppeld' : 'Niet gekoppeld'}</span>
+        </div>
+      </div>
+
+      <div style="border-top:1px solid var(--border);padding-top:14px;">
+        <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;">E-mailaccounts</div>
+        ${emails.length ? emails.map((email, i) => `
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);margin-bottom:6px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:13px;">✉</span>
+              <span style="font-size:13px;color:var(--text);">${email}</span>
+              ${i === 0 ? '<span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px;background:var(--navy-fade);color:var(--navy);">Primair</span>' : ''}
+            </div>
+            <button class="btn xs ghost" onclick="instVerwijderEmail('${u.id}','${email}')" style="color:var(--red);">Verwijderen</button>
+          </div>
+        `).join('') : `<div style="font-size:13px;color:var(--text3);padding:8px 0;">Nog geen e-mailaccount gekoppeld</div>`}
+        <button class="btn sm" style="margin-top:8px;${gekoppeld ? '' : 'background:var(--navy);color:#fff;border-color:var(--navy);'}" onclick="instVoegEmailToe('${u.id}')">
+          + E-mailaccount koppelen
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `
+  <div style="max-width:720px;">
+
+    <!-- Profiel & accounts -->
+    <div style="margin-bottom:20px;">
+      <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:7px;margin-bottom:12px;">
+        <span style="display:block;width:3px;height:14px;background:var(--gold);border-radius:2px;"></span>
+        Gebruikers & e-mailaccounts
+      </div>
+      <div style="font-size:13px;color:var(--text3);margin-bottom:14px;">Koppel één of meerdere Microsoft/Outlook accounts per gebruiker. Bij het versturen van een mail kies je vanuit welk account je stuurt.</div>
+      ${gebruikerCards}
+    </div>
+
+    <!-- Integraties status -->
+    <div style="margin-bottom:20px;">
+      <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:7px;margin-bottom:12px;">
+        <span style="display:block;width:3px;height:14px;background:var(--gold);border-radius:2px;"></span>
+        Integraties
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;">
+        ${[
+          { naam: 'Microsoft Graph (Mail & Agenda)', sleutel: 'MICROSOFT_CLIENT_ID', status: true, beschrijving: 'OAuth koppeling voor Outlook mail en agenda' },
+          { naam: 'Anthropic Claude API', sleutel: 'ANTHROPIC_API_KEY', status: true, beschrijving: 'AI voor haakjes, samenvattingen en personalisatie' },
+          { naam: 'Supabase', sleutel: 'SUPABASE_URL', status: true, beschrijving: 'Database backend voor alle CRM data' },
+          { naam: 'KvK Handelsregister API', sleutel: 'KVK_API_KEY', status: false, beschrijving: 'Bedrijfsdata voor de lead scraper' },
+        ].map((int, i, arr) => `
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;${i < arr.length-1 ? 'border-bottom:1px solid var(--border);' : ''}">
+            <div style="flex:1;">
+              <div style="font-size:13px;font-weight:500;color:var(--text);">${int.naam}</div>
+              <div style="font-size:11.5px;color:var(--text3);margin-top:2px;">${int.beschrijving}</div>
+            </div>
+            <span style="padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600;white-space:nowrap;${int.status ? 'background:var(--green-bg);color:var(--green-t);' : 'background:var(--amber-bg);color:var(--amber-t);'}">${int.status ? '✓ Actief' : '⚠ Niet ingesteld'}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+
+    <!-- Scraper instellingen shortcut -->
+    <div style="margin-bottom:20px;">
+      <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:7px;margin-bottom:12px;">
+        <span style="display:block;width:3px;height:14px;background:var(--gold);border-radius:2px;"></span>
+        Scraper
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <div style="font-size:13px;font-weight:500;">Lead Scraper instellingen</div>
+          <div style="font-size:11.5px;color:var(--text3);margin-top:2px;">Partner, regio, schema en handmatig starten</div>
+        </div>
+        <button class="btn sm" onclick="nav('scraper')">Ga naar scraper →</button>
+      </div>
+    </div>
+
+  </div>`;
+}
+
+// Check na login of auth_success in URL staat
+(function(){
+  if(window.location.search.includes('auth_success=1')){
+    // Verwijder query param
+    history.replaceState(null,'',window.location.pathname+window.location.hash);
+    // Toon melding
+    setTimeout(()=>{
+      const t=document.createElement('div');
+      t.style.cssText='position:fixed;top:16px;right:16px;background:var(--green-bg);color:var(--green-t);border:1px solid rgba(26,122,58,.2);border-radius:10px;padding:10px 16px;font-size:13px;font-weight:500;z-index:9999;';
+      t.textContent='✓ Microsoft account succesvol gekoppeld!';
+      document.body.appendChild(t);
+      setTimeout(()=>t.remove(),4000);
+    },500);
+  }
+})();
+
 
 // ══════════════ INIT ══════════════
 // ── ASYNC INIT WITH AUTH CHECK ──
