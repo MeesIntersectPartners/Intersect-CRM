@@ -1775,8 +1775,8 @@ function openDetail(id){
   // Actieknoppen boven de tabs
   document.getElementById('detail-actions').innerHTML=`
     <button class="btn pri sm" onclick="openQuickNote('notitie')">✏ Notitie</button>
-    <button class="btn sm" style="background:var(--blue-bg);border-color:var(--blue);color:var(--blue-t);" onclick="openQuickNote('mailshot')">✉ Mailshot</button>
-    <button class="btn sm" style="background:var(--teal-bg);border-color:var(--teal);color:var(--teal-t);" onclick="openQuickNote('opvolg_mailshot')">↩ Opvolg Mailshot</button>
+    <button class="btn sm" style="background:var(--blue-bg);border-color:var(--blue);color:var(--blue-t);" onclick="openMailCompose('mailshot')">✉ Mailshot</button>
+    <button class="btn sm" style="background:var(--teal-bg);border-color:var(--teal);color:var(--teal-t);" onclick="openMailCompose('opvolg_mailshot')">↩ Opvolg Mailshot</button>
     <button class="btn sm" style="background:#e8f4fd;border-color:#0a66c2;color:#0a66c2;" onclick="openQuickNote('linkshot')">Linkshot</button>
     <button class="btn sm" style="background:var(--surface2);border-color:var(--border2);color:var(--text2);" onclick="openQuickNote('voicemail')">🎙 Voicemail</button>
   `;
@@ -4665,6 +4665,170 @@ function renderScraper(){
   </div>`;
 }
 
+// ══════════════ MAIL COMPOSE ══════════════
+let mcType = 'mailshot';
+let mcBijlages = []; // { naam, base64, mimeType }
+
+function mcSetType(type) {
+  mcType = type;
+  document.querySelectorAll('.mc-type-btn').forEach(b => {
+    b.classList.toggle('on', b.dataset.type === type);
+    b.style.background = b.dataset.type === type ? 'var(--navy)' : '';
+    b.style.color = b.dataset.type === type ? '#fff' : '';
+    b.style.borderColor = b.dataset.type === type ? 'var(--navy)' : '';
+  });
+}
+
+function mcFormat(cmd) {
+  document.execCommand(cmd, false, null);
+  document.getElementById('mc-body').focus();
+}
+
+function mcVulVerzendaccounts() {
+  const sel = document.getElementById('mc-from');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— kies e-mailaccount —</option>';
+  const data = instGetData();
+  ['MA', 'JK'].forEach(user => {
+    const emails = data[`ms_email_${user}`] || [];
+    const naam = user === 'MA' ? 'Mees' : 'Julian';
+    emails.forEach((email, i) => {
+      const opt = document.createElement('option');
+      opt.value = email;
+      opt.textContent = `${email} (${naam}${i === 0 ? ' · primair' : ''})`;
+      sel.appendChild(opt);
+    });
+  });
+  // Zet huidig ingelogde gebruiker als default
+  const curEmails = data[`ms_email_${CU}`] || [];
+  if (curEmails.length) sel.value = curEmails[0];
+}
+
+function openMailCompose(type, prefillAan, prefillOnderwerp) {
+  mcType = type || 'mailshot';
+  mcBijlages = [];
+  document.getElementById('mc-file-list').innerHTML = '';
+  document.getElementById('mc-body').innerHTML = '';
+  document.getElementById('mc-to').value = prefillAan || (curAcc ? curAcc.ce || '' : '');
+  document.getElementById('mc-cc').value = '';
+  document.getElementById('mc-subject').value = prefillOnderwerp || '';
+
+  const typeLabels = { mailshot: 'Mailshot versturen', opvolg_mailshot: 'Opvolg Mailshot versturen', directe_mail: 'Directe mail versturen' };
+  document.getElementById('mc-title').textContent = typeLabels[mcType] || 'Mail versturen';
+  document.getElementById('mc-sub').textContent = curAcc ? curAcc.name : '';
+
+  mcSetType(mcType);
+  mcVulVerzendaccounts();
+  document.getElementById('m-mail-compose').classList.add('on');
+  setTimeout(() => document.getElementById('mc-body').focus(), 100);
+}
+
+function mcVoegBijlageToe(input) {
+  const files = Array.from(input.files);
+  const lijst = document.getElementById('mc-file-list');
+
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const base64 = e.target.result.split(',')[1];
+      mcBijlages.push({ naam: file.name, base64, mimeType: file.type, grootte: file.size });
+
+      const item = document.createElement('div');
+      item.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);font-size:12.5px;';
+      item.innerHTML = `<span>📄</span><span style="flex:1;">${file.name}</span><span style="color:var(--text3);">${(file.size/1024).toFixed(0)} KB</span><button class="btn xs ghost" onclick="mcVerwijderBijlage('${file.name}',this.parentElement)" style="color:var(--red);">✕</button>`;
+      lijst.appendChild(item);
+    };
+    reader.readAsDataURL(file);
+  });
+
+  input.value = '';
+}
+
+function mcVerwijderBijlage(naam, el) {
+  mcBijlages = mcBijlages.filter(b => b.naam !== naam);
+  el.remove();
+}
+
+async function mcVerstuur() {
+  const van = document.getElementById('mc-from').value.trim();
+  const aan = document.getElementById('mc-to').value.trim();
+  const cc = document.getElementById('mc-cc').value.trim();
+  const onderwerp = document.getElementById('mc-subject').value.trim();
+  const inhoudEl = document.getElementById('mc-body');
+  let inhoud = inhoudEl.innerHTML.trim();
+
+  if (!van) { alert('Kies een verzendaccount.'); return; }
+  if (!aan) { alert('Vul een ontvanger in.'); return; }
+  if (!onderwerp) { alert('Vul een onderwerp in.'); return; }
+  if (!inhoud) { alert('Schrijf een bericht.'); return; }
+
+  // Vervang [naam] en [bedrijf]
+  const contactNaam = curAcc ? [curAcc.cf, curAcc.cl].filter(Boolean).join(' ') : '';
+  inhoud = inhoud.replace(/\[naam\]/gi, contactNaam || '[naam]');
+  inhoud = inhoud.replace(/\[bedrijf\]/gi, curAcc ? curAcc.name : '[bedrijf]');
+
+  const btn = document.getElementById('mc-send-btn');
+  btn.textContent = 'Versturen…';
+  btn.disabled = true;
+
+  try {
+    const body = {
+      aan,
+      cc: cc ? [cc] : [],
+      onderwerp,
+      inhoud,
+      log_acc_id: curAcc ? curAcc.id : null,
+      mail_type: mcType,
+      bijlages: mcBijlages,
+    };
+
+    const res = await fetch('/api/mail', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-user-email': van,
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) throw new Error(await res.text());
+
+    // Log lokaal als activiteit
+    if (curAcc) {
+      const typeLabels = { mailshot: 'Mailshot', opvolg_mailshot: 'Opvolg Mailshot', directe_mail: 'Directe mail' };
+      const note = {
+        type: mcType,
+        text: `${typeLabels[mcType]} verstuurd via CRM · ${van} → ${aan}${mcBijlages.length ? ` · ${mcBijlages.length} bijlage(s)` : ''}\n\nOnderwerp: ${onderwerp}`,
+        by: CU,
+        time: new Date().toLocaleString('nl-NL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }),
+        id: Date.now(),
+      };
+      curAcc.notes = curAcc.notes || [];
+      curAcc.notes.push(note);
+      const idx = accs.findIndex(a => a.id === curAcc.id);
+      if (idx >= 0) accs[idx] = curAcc;
+      ss('ix_accs', accs);
+      _saveNote(curAcc.id, note).catch(() => {});
+    }
+
+    closeM('m-mail-compose');
+    if (curAcc && document.getElementById('p-detail').classList.contains('on')) renderTab(curTab);
+
+    // Succesmelding
+    const t = document.createElement('div');
+    t.style.cssText = 'position:fixed;top:16px;right:16px;background:var(--green-bg);color:var(--green-t);border:1px solid rgba(26,122,58,.2);border-radius:10px;padding:10px 16px;font-size:13px;font-weight:500;z-index:9999;';
+    t.textContent = `✓ Mail verstuurd via ${van}`;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 4000);
+
+  } catch (err) {
+    alert('Fout bij versturen: ' + err.message);
+  } finally {
+    btn.textContent = 'Versturen via Outlook →';
+    btn.disabled = false;
+  }
+}
+
 // ══════════════ INSTELLINGEN ══════════════
 const INST_KEY = 'ix_instellingen';
 
@@ -4865,6 +5029,91 @@ function renderInstellingen() {
 </script>
 
 <!-- ══ OMZET INSTELLINGEN MODAL ══ -->
+<!-- ══ MAIL COMPOSE MODAL ══ -->
+<div class="modal-bg" id="m-mail-compose">
+  <div class="modal wide" style="max-width:640px;">
+    <div class="mh">
+      <div>
+        <div class="mt" id="mc-title">Mailshot versturen</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px;" id="mc-sub"></div>
+      </div>
+      <button class="btn sm ghost" onclick="closeM('m-mail-compose')">✕</button>
+    </div>
+    <div class="mb" style="gap:10px;">
+
+      <!-- Mail type badge -->
+      <div style="display:flex;gap:6px;" id="mc-type-row">
+        <button class="btn xs mc-type-btn on" data-type="mailshot" onclick="mcSetType('mailshot')">✉ Mailshot</button>
+        <button class="btn xs mc-type-btn" data-type="opvolg_mailshot" onclick="mcSetType('opvolg_mailshot')">↩ Opvolg Mailshot</button>
+        <button class="btn xs mc-type-btn" data-type="directe_mail" onclick="mcSetType('directe_mail')">Directe mail</button>
+      </div>
+
+      <!-- Van (verzendaccount kiezen) -->
+      <div class="fg">
+        <label class="fl">Versturen vanuit</label>
+        <select id="mc-from" style="font-size:13px;">
+          <option value="">— kies e-mailaccount —</option>
+        </select>
+      </div>
+
+      <!-- Aan -->
+      <div class="fg">
+        <label class="fl">Aan</label>
+        <input type="email" id="mc-to" placeholder="naam@bedrijf.nl">
+      </div>
+
+      <!-- CC -->
+      <div class="fg">
+        <label class="fl">CC <span style="font-weight:400;color:var(--text3);">(optioneel)</span></label>
+        <input type="email" id="mc-cc" placeholder="cc@bedrijf.nl">
+      </div>
+
+      <!-- Onderwerp -->
+      <div class="fg">
+        <label class="fl">Onderwerp</label>
+        <input type="text" id="mc-subject" placeholder="Onderwerp van je mail…">
+      </div>
+
+      <!-- Inhoud -->
+      <div class="fg">
+        <label class="fl">Inhoud</label>
+        <div style="border:1px solid var(--border2);border-radius:var(--r);overflow:hidden;">
+          <!-- Mini toolbar -->
+          <div style="display:flex;gap:2px;padding:6px 8px;border-bottom:1px solid var(--border);background:var(--surface2);">
+            <button type="button" class="btn xs ghost" onclick="mcFormat('bold')" title="Vet"><strong>B</strong></button>
+            <button type="button" class="btn xs ghost" onclick="mcFormat('italic')" title="Cursief"><em>I</em></button>
+            <button type="button" class="btn xs ghost" onclick="mcFormat('insertUnorderedList')" title="Lijst">≡</button>
+            <div style="width:1px;background:var(--border);margin:0 4px;"></div>
+            <span style="font-size:11px;color:var(--text3);padding:4px 6px;">[naam] en [bedrijf] worden automatisch ingevuld</span>
+          </div>
+          <div id="mc-body" contenteditable="true" style="min-height:160px;padding:12px 14px;font-size:13px;line-height:1.7;outline:none;color:var(--text);" placeholder="Schrijf hier je mail…"></div>
+        </div>
+      </div>
+
+      <!-- Bijlages -->
+      <div class="fg">
+        <label class="fl">Bijlage <span style="font-weight:400;color:var(--text3);">(optioneel)</span></label>
+        <div id="mc-attachments" style="display:flex;flex-direction:column;gap:6px;">
+          <label style="display:inline-flex;align-items:center;gap:7px;cursor:pointer;padding:7px 12px;border:1px dashed var(--border2);border-radius:var(--r);font-size:13px;color:var(--text2);width:fit-content;">
+            <span>📎</span> Bestand kiezen
+            <input type="file" id="mc-file-input" multiple style="display:none;" onchange="mcVoegBijlageToe(this)">
+          </label>
+          <div id="mc-file-list"></div>
+        </div>
+      </div>
+
+    </div>
+    <div class="mf" style="justify-content:space-between;">
+      <div style="font-size:12px;color:var(--text3);display:flex;align-items:center;gap:5px;">
+        <span>📋</span> Wordt gelogd als activiteit bij het account
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn ghost" onclick="closeM('m-mail-compose')">Annuleren</button>
+        <button class="btn gold" onclick="mcVerstuur()" id="mc-send-btn">Versturen via Outlook →</button>
+      </div>
+    </div>
+  </div>
+</div>
 <div class="modal-bg" id="m-omzet">
   <div class="modal" style="max-width:500px;">
     <div class="mh">
