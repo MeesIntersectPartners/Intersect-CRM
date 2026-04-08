@@ -84,21 +84,31 @@ module.exports = async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      const { aan, onderwerp, inhoud, cc, log_acc_id } = req.body;
+      const { aan, onderwerp, inhoud, cc, log_acc_id, mail_type, bijlages } = req.body;
 
       if (!aan || !onderwerp || !inhoud) {
         return res.status(400).json({ error: 'aan, onderwerp en inhoud zijn verplicht' });
       }
 
-      await sendMail(tokens.access_token, { aan, onderwerp, inhoud, cc });
+      // Bouw bijlages op voor Graph API
+      const attachments = (bijlages || []).map(b => ({
+        '@odata.type': '#microsoft.graph.fileAttachment',
+        name: b.naam,
+        contentType: b.mimeType || 'application/octet-stream',
+        contentBytes: b.base64,
+      }));
+
+      await sendMail(tokens.access_token, { aan, onderwerp, inhoud, cc, attachments });
 
       // Log als activiteit in Supabase als acc_id meegegeven
       if (log_acc_id) {
         const samenvatting = await vatSamen(onderwerp, inhoud);
+        const typeLabels = { mailshot: 'Mailshot', opvolg_mailshot: 'Opvolg Mailshot', directe_mail: 'Directe mail' };
+        const logTekst = `${typeLabels[mail_type] || 'Mail'} verstuurd via CRM${bijlages && bijlages.length ? ` · ${bijlages.length} bijlage(s)` : ''}\n\n${samenvatting || `Onderwerp: ${onderwerp}`}`;
         await supabase.from('notes').insert({
           account_id: log_acc_id,
-          type: 'mailshot',
-          text: samenvatting || `Email verstuurd: ${onderwerp}`,
+          type: mail_type || 'mailshot',
+          text: logTekst,
           by: userEmail,
           time: new Date().toLocaleString('nl-NL'),
           created_at: new Date().toISOString(),
