@@ -1,10 +1,4 @@
 {
-  "version": 2,
-  "buildCommand": null,
-  "outputDirectory": null,
-  "rewrites": [
-    { "source": "/", "destination": "/index.html" }
-  ],
   "crons": [
     {
       "path": "/api/cron/scrape",
@@ -12,20 +6,10 @@
     }
   ],
   "functions": {
-    "api/cron/scrape.js": {
-      "maxDuration": 300
-    },
-    "api/mail.js": {
-      "maxDuration": 30
-    },
-    "api/agenda.js": {
-      "maxDuration": 30
-    },
-    "api/auth/login.js": {
-      "maxDuration": 10
-    },
-    "api/auth/callback.js": {
-      "maxDuration": 10
-    }
+    "api/cron/scrape.js": { "maxDuration": 300 },
+    "api/mail.js": { "maxDuration": 30 },
+    "api/agenda.js": { "maxDuration": 30 },
+    "api/auth/login.js": { "maxDuration": 10 },
+    "api/auth/callback.js": { "maxDuration": 10 }
   }
 }
