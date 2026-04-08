@@ -4749,6 +4749,53 @@ function mcVerwijderBijlage(naam, el) {
   el.remove();
 }
 
+let mcSuggestieOnderwerp = '';
+let mcSuggestieInhoud = '';
+
+async function mcGenereerSuggestie() {
+  if (!curAcc) return;
+  const btn = document.getElementById('mc-suggest-btn');
+  const toelichting = document.getElementById('mc-suggest-toelichting');
+  btn.textContent = '✦ Bezig…';
+  btn.disabled = true;
+
+  try {
+    const res = await fetch('/api/mail-suggest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        account: curAcc,
+        mailType: mcType,
+        user: CU,
+      }),
+    });
+
+    if (!res.ok) throw new Error(await res.text());
+    const { suggestie } = await res.json();
+
+    // Vul onderwerp in
+    document.getElementById('mc-subject').value = suggestie.onderwerp;
+    mcSuggestieOnderwerp = suggestie.onderwerp;
+
+    // Vul inhoud in — converteer newlines naar HTML
+    const html = suggestie.inhoud.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>');
+    document.getElementById('mc-body').innerHTML = `<p>${html}</p>`;
+    mcSuggestieInhoud = suggestie.inhoud;
+
+    // Toon toelichting
+    if (suggestie.toelichting) {
+      toelichting.textContent = '✦ ' + suggestie.toelichting;
+      toelichting.style.display = 'block';
+    }
+
+  } catch (err) {
+    alert('Fout bij genereren suggestie: ' + err.message);
+  } finally {
+    btn.textContent = '✦ Nieuwe suggestie';
+    btn.disabled = false;
+  }
+}
+
 async function mcVerstuur() {
   const van = document.getElementById('mc-from').value.trim();
   const aan = document.getElementById('mc-to').value.trim();
@@ -4813,6 +4860,26 @@ async function mcVerstuur() {
 
     closeM('m-mail-compose');
     if (curAcc && document.getElementById('p-detail').classList.contains('on')) renderTab(curTab);
+
+    // Leerdata opslaan als er een suggestie was
+    if (mcSuggestieInhoud) {
+      fetch('/api/mail-learn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          account_id: curAcc ? curAcc.id : null,
+          account_naam: curAcc ? curAcc.name : null,
+          mail_type: mcType,
+          user_id: CU,
+          suggestie_onderwerp: mcSuggestieOnderwerp,
+          suggestie_inhoud: mcSuggestieInhoud,
+          verstuurd_onderwerp: onderwerp,
+          verstuurd_inhoud: inhoudEl.innerText,
+        }),
+      }).catch(() => {});
+      mcSuggestieOnderwerp = '';
+      mcSuggestieInhoud = '';
+    }
 
     // Succesmelding
     const t = document.createElement('div');
@@ -5076,7 +5143,11 @@ function renderInstellingen() {
 
       <!-- Inhoud -->
       <div class="fg">
-        <label class="fl">Inhoud</label>
+        <label class="fl" style="display:flex;align-items:center;justify-content:space-between;">
+          <span>Inhoud</span>
+          <button type="button" class="btn xs" id="mc-suggest-btn" onclick="mcGenereerSuggestie()" style="background:var(--gold);border-color:var(--gold);color:var(--navy);font-weight:600;">✦ Genereer suggestie</button>
+        </label>
+        <div id="mc-suggest-toelichting" style="display:none;background:var(--gold-pale);border:1px solid rgba(201,168,76,.25);border-radius:var(--r);padding:8px 12px;font-size:12px;color:var(--amber-t);margin-bottom:6px;"></div>
         <div style="border:1px solid var(--border2);border-radius:var(--r);overflow:hidden;">
           <!-- Mini toolbar -->
           <div style="display:flex;gap:2px;padding:6px 8px;border-bottom:1px solid var(--border);background:var(--surface2);">
