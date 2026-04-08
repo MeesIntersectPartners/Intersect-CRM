@@ -1710,7 +1710,7 @@ function nav(id){
   document.querySelectorAll('.page,.acc-detail').forEach(p=>p.classList.remove('on'));
   const el=document.getElementById('p-'+id);
   if(el)el.classList.add('on');
-  history.replaceState(null,'','#'+id);
+  history.pushState(null,'','#'+id);
   document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('on'));
   const titles={dashboard:'Dashboard',agenda:'Agenda',pipeline:'Pipeline',todos:"To-do's",accounts:'Accounts',contacts:'Contacten',outreach:'Outreach',activity:'Activiteit',rapport:'Klantrapport',scraper:'Lead Scraper',instellingen:'Instellingen'};
   document.getElementById('topbar-title').innerHTML=titles[id]||id;
@@ -1739,7 +1739,7 @@ function openDetail(id){
   curAcc=a;
   document.querySelectorAll('.page,.acc-detail').forEach(p=>p.classList.remove('on'));
   document.getElementById('p-detail').classList.add('on');
-  history.replaceState(null,'','#account/'+id);
+  history.pushState(null,'','#account/'+id);
   const [bg,fg]=CLRS[a.color%CLRS.length];
   const init=initials(a.name);
   // Hero
