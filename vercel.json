@@ -8,6 +8,8 @@
   "functions": {
     "api/cron/scrape.js": { "maxDuration": 300 },
     "api/mail.js": { "maxDuration": 30 },
+    "api/mail-suggest.js": { "maxDuration": 60 },
+    "api/mail-learn.js": { "maxDuration": 10 },
     "api/agenda.js": { "maxDuration": 30 },
     "api/auth/login.js": { "maxDuration": 10 },
     "api/auth/callback.js": { "maxDuration": 10 }
