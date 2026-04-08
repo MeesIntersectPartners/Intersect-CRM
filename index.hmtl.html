@@ -649,8 +649,13 @@ textarea{resize:vertical;min-height:75px;}
       <div class="tbl-wrap">
         <table><thead><tr>
           <th style="padding-left:16px;">Organisatie</th>
-          <th>Status</th><th>Segment</th><th>Contactpersoon</th>
-          <th>Eigenaar</th><th>Pipeline</th><th>Waarde</th><th>Opdrachtgevers</th>
+          <th style="cursor:pointer;user-select:none;" onclick="toggleSort('status')">Status <span id="sort-status"></span></th>
+          <th style="cursor:pointer;user-select:none;" onclick="toggleSort('seg')">Segment <span id="sort-seg"></span></th>
+          <th>Contactpersoon</th>
+          <th>Eigenaar</th>
+          <th style="cursor:pointer;user-select:none;" onclick="toggleSort('pipe')">Pipeline <span id="sort-pipe"></span></th>
+          <th style="cursor:pointer;user-select:none;" onclick="toggleSort('val')">Waarde <span id="sort-val"></span></th>
+          <th>Opdrachtgevers</th>
         </tr></thead>
         <tbody id="acc-tbody"></tbody></table>
         <div class="empty" id="acc-empty" style="display:none;"><div class="eico">⬡</div><p>Geen accounts gevonden</p><button class="btn pri" style="margin-top:10px;" onclick="openAddAcc()">+ Toevoegen</button></div>
@@ -951,19 +956,24 @@ textarea{resize:vertical;min-height:75px;}
 
 <!-- ADD NOTE MODAL -->
 <div class="modal-bg" id="m-note">
-  <div class="modal" style="max-width:460px;">
+  <div class="modal" style="max-width:480px;" id="m-note-inner">
     <div class="mh">
       <div>
         <div class="mt" id="m-note-title">Notitie toevoegen</div>
         <div style="font-size:11px;color:var(--text3);margin-top:2px;" id="m-note-sub"></div>
       </div>
-      <button class="btn sm ghost" onclick="closeM('m-note')">✕</button>
+      <div style="display:flex;gap:6px;">
+        <button class="btn sm ghost" onclick="minimaliseerNote()" title="Minimaliseer">—</button>
+        <button class="btn sm ghost" onclick="closeM('m-note')">✕</button>
+      </div>
     </div>
     <div class="mb">
-      <!-- Contact (alleen bij voicemail/mailshot) -->
-      <div class="fg" id="n-contact-row" style="display:none;">
-        <label class="fl">Contactpersoon</label>
-        <input type="text" id="n-contact" placeholder="Naam contactpersoon" readonly style="background:var(--surface2);">
+      <!-- Contactpersoon — altijd verplicht -->
+      <div class="fg" id="n-contact-row">
+        <label class="fl">Contactpersoon <span style="color:var(--red);">*</span></label>
+        <select id="n-contact-sel" style="font-size:13px;">
+          <option value="">— kies contactpersoon —</option>
+        </select>
       </div>
       <!-- Notitietekst -->
       <div class="fg">
@@ -981,7 +991,19 @@ textarea{resize:vertical;min-height:75px;}
           <option value="taak">Taak</option>
         </select>
       </div>
-      <!-- Gespreksduur (bij notitie + voicemail) -->
+      <!-- Voicemail status -->
+      <div class="fg" id="n-voicemail-row" style="display:none;">
+        <label class="fl">Status voicemail</label>
+        <div style="display:flex;gap:8px;">
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
+            <input type="radio" name="vm-status" id="vm-ingesproken" value="ingesproken" checked> Ingesproken
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
+            <input type="radio" name="vm-status" id="vm-niet" value="niet_ingesproken"> Niet ingesproken
+          </label>
+        </div>
+      </div>
+      <!-- Gespreksduur (bij gesprek) -->
       <div class="fg" id="n-dur-row" style="display:none;">
         <label class="fl" id="n-dur-label">Gespreksduur</label>
         <div style="display:flex;gap:8px;align-items:center;">
@@ -995,6 +1017,11 @@ textarea{resize:vertical;min-height:75px;}
       <button class="btn pri" onclick="saveNote()" id="m-note-save-btn">Opslaan</button>
     </div>
   </div>
+</div>
+
+<!-- GEMINIMALISEERDE NOTE BUBBLE -->
+<div id="note-bubble" style="display:none;position:fixed;bottom:20px;right:20px;background:var(--navy);color:#fff;border-radius:12px;padding:10px 16px;cursor:pointer;z-index:300;font-size:13px;font-weight:500;box-shadow:0 4px 20px rgba(13,31,60,.3);" onclick="herstelNote()">
+  ✏ Notitie in concept — klik om verder te schrijven
 </div>
 
 <!-- ADD CONTACT MODAL -->
@@ -1762,7 +1789,7 @@ function openDetail(id){
     {id:'contacts',label:'Contacten',cnt:1+(a.contacts||[]).length},
     {id:'deals',label:'Kansen',cnt:(a.deals||[]).length},
     {id:'proposals',label:'Offertes',cnt:(a.proposals||[]).length},
-    {id:'activity',label:'Activiteit & notities',cnt:(a.notes||[]).length},
+    {id:'activity',label:'Activiteit & Notities',cnt:(a.notes||[]).length},
     {id:'omzet',label:'💰 Intersect Omzet',cnt:0},
     {id:'outreach',label:'E-mail outreach',cnt:0},
     {id:'docs',label:'Documenten',cnt:(a.docs||[]).length},
@@ -1833,21 +1860,13 @@ function renderTab(t){
           </div>
         </div>
       </div>
-      ${lastNote ? `
+      ${(a.notes||[]).length ? `
       <div style="margin-top:14px;">
-        <div id="ov-act-hd" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);user-select:none;" onclick="document.getElementById('ov-act-body').style.display=document.getElementById('ov-act-body').style.display==='block'?'none':'block';document.getElementById('ov-act-chevron').textContent=document.getElementById('ov-act-body').style.display==='block'?'▾':'▸';">
-          <div style="display:flex;align-items:center;gap:8px;">
-            <span style="font-size:10px;font-weight:700;text-transform:uppercase;padding:2px 7px;border-radius:4px;background:var(--surface3);color:var(--text2);">${typeLabel[lastNote.type]||lastNote.type}</span>
-            <span style="font-size:12.5px;font-weight:500;color:var(--text);">Laatste activiteit</span>
-            <span style="font-size:11px;color:var(--text3);">${lastNote.time}</span>
-            <div class="av ${(lastNote.by||'').toLowerCase()} lg">${lastNote.by||''}</div>
-          </div>
-          <span id="ov-act-chevron" style="font-size:11px;color:var(--text3);">▸</span>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;">Laatste activiteit</div>
+          <button class="btn xs ghost" onclick="switchTab('activity')">Alle activiteiten →</button>
         </div>
-        <div id="ov-act-body" style="display:none;border:1px solid var(--border);border-top:none;border-radius:0 0 var(--r) var(--r);padding:12px 14px;background:var(--surface);">
-          <div style="font-size:13px;color:var(--text);line-height:1.65;">${lastNote.text}</div>
-          <div style="margin-top:8px;"><button class="btn xs ghost" onclick="switchTab('activity')">Alle activiteit bekijken →</button></div>
-        </div>
+        ${[...(a.notes)].reverse().slice(0,5).map(n => renderActiviteitBalk(n, true, false)).join('')}
       </div>` : ''}`;
   }
   else if(t==='contacts'){
@@ -1899,16 +1918,35 @@ function renderTab(t){
         </div>`).join(''):`<div class="empty"><div class="eico">◻</div><p>Nog geen offertes</p></div>`}`;
   }
   else if(t==='activity'){
+    const alleTypes = [...new Set((a.notes||[]).map(n=>n.type))];
+    const alleContacten = [...new Set((a.notes||[]).map(n=>n.contact).filter(Boolean))];
+    const filterType = c.dataset.filterType || '';
+    const filterContact = c.dataset.filterContact || '';
+    const filterDir = c.dataset.filterDir || 'desc';
+
+    let noten = [...(a.notes||[])];
+    if(filterType) noten = noten.filter(n=>n.type===filterType);
+    if(filterContact) noten = noten.filter(n=>n.contact===filterContact);
+    if(filterDir==='asc') noten = noten.sort((a,b)=>a.id-b.id);
+    else noten = noten.sort((a,b)=>b.id-a.id);
+
     c.innerHTML=`
-      ${(a.notes||[]).length?(a.notes).slice().reverse().map(n=>`
-        <div class="note-box">
-          <div style="display:flex;align-items:center;gap:7px;margin-bottom:5px;">
-            <span style="font-size:10px;font-weight:700;text-transform:uppercase;padding:2px 7px;border-radius:4px;background:var(--surface3);color:var(--text2);">${n.type}</span>
-            <span style="font-size:11px;color:var(--text3);">${n.time}</span>
-            <div class="av ${n.by.toLowerCase()} lg">${n.by}</div>
-          </div>
-          <div class="note-text">${n.text}</div>
-        </div>`).join(''):`<div class="empty"><div class="eico">◻</div><p>Nog geen notities</p></div>`}`;
+      <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;align-items:center;">
+        <select onchange="c=document.getElementById('detail-tab-content');c.dataset.filterType=this.value;renderTab('activity');" style="font-size:12px;padding:4px 8px;width:160px;">
+          <option value="">Alle types</option>
+          ${alleTypes.map(tp=>`<option value="${tp}" ${filterType===tp?'selected':''}>${actStijl(tp).label}</option>`).join('')}
+        </select>
+        <select onchange="document.getElementById('detail-tab-content').dataset.filterContact=this.value;renderTab('activity');" style="font-size:12px;padding:4px 8px;width:160px;">
+          <option value="">Alle contacten</option>
+          ${alleContacten.map(ct=>`<option value="${ct}" ${filterContact===ct?'selected':''}>${ct}</option>`).join('')}
+        </select>
+        <select onchange="document.getElementById('detail-tab-content').dataset.filterDir=this.value;renderTab('activity');" style="font-size:12px;padding:4px 8px;width:150px;">
+          <option value="desc" ${filterDir==='desc'?'selected':''}>Nieuwste eerst</option>
+          <option value="asc" ${filterDir==='asc'?'selected':''}>Oudste eerst</option>
+        </select>
+        <span style="margin-left:auto;font-size:12px;color:var(--text3);">${noten.length} activiteiten</span>
+      </div>
+      ${noten.length ? noten.map(n => renderActiviteitBalk(n, false, true)).join('') : '<div class="empty"><div class="eico">◻</div><p>Geen activiteiten gevonden</p></div>'}`;
   }
   else if(t==='omzet'){
     // ── Intersect Omzet tab ───────────────────────────────────────
@@ -2860,24 +2898,56 @@ function openAddEventOnDate(ds,time){
   },10);
 }
 
+let accSortField = '';
+let accSortDir = 1;
+
+function toggleSort(field) {
+  if (accSortField === field) accSortDir *= -1;
+  else { accSortField = field; accSortDir = 1; }
+  ['status','seg','pipe','val'].forEach(f => {
+    const el = document.getElementById('sort-'+f);
+    if (el) el.textContent = f === accSortField ? (accSortDir === 1 ? ' ▲' : ' ▼') : '';
+  });
+  renderAccList();
+}
+
 function renderAccList(){
   updateCounts();
   const ownerF=document.getElementById('filter-owner').value;
   const search=document.getElementById('search-inp').value.toLowerCase();
   let list=clientAccs().filter(a=>curFilter==='all'||accClientStatus(a)===curFilter);
   if(ownerF!=='all')list=list.filter(a=>a.owner===ownerF||a.owner==='BOTH');
-  if(search)list=list.filter(a=>a.name.toLowerCase().includes(search)||(a.cf+' '+a.cl).toLowerCase().includes(search)||a.sector.toLowerCase().includes(search));
+  if(search)list=list.filter(a=>a.name.toLowerCase().includes(search)||(a.cf+' '+a.cl).toLowerCase().includes(search)||(a.sector||'').toLowerCase().includes(search));
+
+  // Sorteren
+  if(accSortField){
+    list.sort((a,b)=>{
+      let va='',vb='';
+      if(accSortField==='status'){va=accClientStatus(a)||'';vb=accClientStatus(b)||'';}
+      else if(accSortField==='seg'){va=a.seg||'';vb=b.seg||'';}
+      else if(accSortField==='pipe'){va=accClientPipe(a)||'';vb=accClientPipe(b)||'';}
+      else if(accSortField==='val'){return((parseFloat(accClientVal(b))||0)-(parseFloat(accClientVal(a))||0))*accSortDir;}
+      return va.localeCompare(vb)*accSortDir;
+    });
+  }
+
   const tbody=document.getElementById('acc-tbody');
   tbody.innerHTML='';
   document.getElementById('acc-empty').style.display=list.length?'none':'block';
   list.forEach(a=>{
     const [bg,fg]=CLRS[a.color%CLRS.length];
     const contact=[a.cf,a.cl].filter(Boolean).join(' ')||'—';
+    const hasContact=!!(a.cf||a.cl);
     const ownerHtml=a.owner==='BOTH'?`<div style="display:flex;"><div class="av ma lg">MA</div><div class="av jk lg" style="margin-left:-4px;">JK</div></div>`:`<div class="av ${a.owner.toLowerCase()} lg">${a.owner}</div>`;
     const status=accClientStatus(a);
     const pipe=accClientPipe(a);
     const val=accClientVal(a);
     const linkedCount=Object.keys(a.clientLinks||{}).length;
+
+    // Laatste activiteit tijdstip
+    const lastNote=(a.notes||[]).length?[...(a.notes)].reverse()[0]:null;
+    const lastContactStr=lastNote?`<div style="font-size:10px;color:var(--text3);margin-top:1px;">${lastNote.time}</div>`:'';
+
     const tr=document.createElement('tr');
     tr.onclick=()=>openDetail(a.id);
     tr.innerHTML=`
@@ -2888,9 +2958,11 @@ function renderAccList(){
           <div style="font-size:11px;color:var(--text3);display:flex;gap:4px;flex-wrap:wrap;margin-top:2px;">${clientBadges(a)}</div>
         </div>
       </div></td>
-      <td><span class="badge ${status}">${slbl(status)}</span></td>
-      <td style="color:var(--text2);">${a.seg||'—'}</td>
-      <td style="color:var(--text2);">${contact}</td>
+      <td><span class="badge ${status}" style="cursor:pointer;" onclick="event.stopPropagation();setFilter('${status}')">${slbl(status)}</span></td>
+      <td style="color:var(--text2);cursor:pointer;" onclick="event.stopPropagation();document.getElementById('filter-owner').value='all';setSegFilter('${a.seg||''}');renderAccList();">${a.seg||'—'}</td>
+      <td style="color:${hasContact?'var(--blue)':'var(--text3)'};cursor:${hasContact?'pointer':'default'};" onclick="${hasContact?`event.stopPropagation();openDetail(${a.id});setTimeout(()=>switchTab('contacts'),200)`:''}">
+        ${contact}${lastContactStr}
+      </td>
       <td>${ownerHtml}</td>
       <td style="font-size:12px;color:${PCLRS[pipe]?PCLRS[pipe][1]:'var(--text2)'};">${pipe||'—'}</td>
       <td style="font-weight:600;color:var(--green-t);">${val?'€ '+parseInt(val).toLocaleString('nl-NL'):'—'}</td>
@@ -2902,6 +2974,10 @@ function renderAccList(){
     tbody.appendChild(tr);
   });
 }
+
+let curSegFilter='';
+function setSegFilter(seg){ curSegFilter=seg; }
+
 
 function renderPipeline(){
   const ownerF=document.getElementById('pipe-owner').value;
@@ -3081,20 +3157,43 @@ function saveTodo(){
 function saveNote(){
   if(!curAcc)return;
   const text=document.getElementById('n-text').value.trim();
-  if(!text)return;
+  if(!text){alert('Schrijf eerst een notitie.');return;}
+  const contact=document.getElementById('n-contact-sel').value;
+  if(!contact){alert('Kies een contactpersoon.');return;}
   if(!curAcc.notes)curAcc.notes=[];
   const type=document.getElementById('n-type').value;
   const dur=parseInt(document.getElementById('n-dur').value)||0;
-  const contact=document.getElementById('n-contact').value||'';
-  const icons={'notitie':'◈','gesprek':'◷','email':'✉','voicemail':'🎙','mailshot':'📨','taak':'◻'};
-  const durText=dur?` (${dur} min)`:'';
-  const note={id:Date.now(),text,type,by:CU,dur:dur||null,contact:contact||null,
-    time:new Date().toLocaleDateString('nl-NL',{day:'numeric',month:'short',year:'numeric'})};
-  curAcc.notes.push(note);
+  const vmStatus=document.querySelector('input[name="vm-status"]:checked');
+  const editId=parseInt(document.getElementById('m-note').dataset.editId)||null;
+
+  // Voicemail tekst aanpassen op basis van status
+  let finalText=text;
+  if(type==='voicemail'&&vmStatus){
+    const prefix=vmStatus.value==='ingesproken'?'[Ingesproken] ':'[Niet ingesproken] ';
+    if(!finalText.startsWith('[')) finalText=prefix+finalText;
+  }
+
+  if(editId){
+    // Bewerken van bestaande notitie
+    const idx=curAcc.notes.findIndex(n=>n.id===editId);
+    if(idx>=0){
+      curAcc.notes[idx]={...curAcc.notes[idx],text:finalText,contact,type};
+    }
+  } else {
+    // Nieuwe notitie
+    const note={id:Date.now(),text:finalText,type,by:CU,dur:dur||null,contact,
+      time:new Date().toLocaleDateString('nl-NL',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})};
+    curAcc.notes.push(note);
+    addActivity(`<strong>${CU==='MA'?'Mees':'Julian'}</strong> voegde ${actStijl(type).label} toe bij <strong>${curAcc.name}</strong>`,'◈',CLRS[curAcc.color%CLRS.length][0]);
+    _saveNote(curAcc.id,note).catch(e=>console.warn('note:',e));
+  }
+
   const idx=accs.findIndex(a=>a.id===curAcc.id);
   accs[idx]=curAcc;ss('ix_accs',accs);
-  addActivity(`<strong>${CU==='MA'?'Mees':'Julian'}</strong> voegde ${type} toe bij <strong>${curAcc.name}</strong>${durText}`,'◈',CLRS[curAcc.color%CLRS.length][0]);
-  _saveNote(curAcc.id,note).catch(e=>console.warn('note:',e));closeM('m-note');renderTab('activity');
+  document.getElementById('note-bubble').style.display='none';
+  closeM('m-note');
+  renderTab('activity');
+  if(document.getElementById('p-dashboard').classList.contains('on'))renderDash();
 }
 
 function saveContact(){
@@ -3189,69 +3288,78 @@ async function openEditAcc(id){
   }catch(e){}document.getElementById('f-name').value=a.name;document.getElementById('f-status').value=a.status;document.getElementById('f-sector').value=a.sector||'';document.getElementById('f-seg').value=a.seg||'';document.getElementById('f-web').value=a.web||'';document.getElementById('f-li').value=a.li||'';document.getElementById('f-phone').value=a.phone||'';document.getElementById('f-kvk').value=a.kvk||'';document.getElementById('f-addr').value=a.addr||'';document.getElementById('f-pipe').value=a.pipe||'Nieuw';document.getElementById('f-val').value=a.val||'';document.getElementById('f-cf').value=a.cf||'';document.getElementById('f-cl').value=a.cl||'';document.getElementById('f-cr').value=a.cr||'';document.getElementById('f-cp').value=a.cp||'';document.getElementById('f-ce').value=a.ce||'';document.getElementById('f-note').value=a.note||'';selOwner(a.owner||'MA','asgn-acc');renderClientCheckboxes(a.clientLinks||{});document.getElementById('m-acc').classList.add('on');}
 function openAddTodo(){document.getElementById('t-title').value='';document.getElementById('t-prio').value='medium';document.getElementById('t-due').value='';const sel=document.getElementById('t-acc');sel.innerHTML='<option value="">— geen —</option>';accs.forEach(a=>sel.innerHTML+=`<option value="${a.id}">${a.name}</option>`);selOwner(CU,'asgn-todo');document.getElementById('m-todo').classList.add('on');}
 function openAddTodoForAcc(id){openAddTodo();document.getElementById('t-acc').value=id;}
-function openAddNote(){ openQuickNote('notitie'); }
+function vulContactDropdown() {
+  if (!curAcc) return;
+  const sel = document.getElementById('n-contact-sel');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— kies contactpersoon —</option>';
+  // Primaire contact
+  const primair = [curAcc.cf, curAcc.cl].filter(Boolean).join(' ');
+  if (primair) sel.innerHTML += `<option value="${primair}">${primair}${curAcc.cr?' ('+curAcc.cr+')':''}</option>`;
+  // Extra contacten
+  (curAcc.contacts||[]).forEach(ct => {
+    const naam = [ct.first, ct.last].filter(Boolean).join(' ');
+    if (naam) sel.innerHTML += `<option value="${naam}">${naam}${ct.role?' ('+ct.role+')':''}</option>`;
+  });
+}
+
+function minimaliseerNote() {
+  document.getElementById('m-note').classList.remove('on');
+  document.getElementById('note-bubble').style.display = 'block';
+}
+
+function herstelNote() {
+  document.getElementById('note-bubble').style.display = 'none';
+  document.getElementById('m-note').classList.add('on');
+}
 
 function openQuickNote(type){
   if(!curAcc) return;
-  const contact = [curAcc.cf, curAcc.cl].filter(Boolean).join(' ');
-  // Reset modal
   document.getElementById('n-text').value = '';
   document.getElementById('n-dur').value = '';
-  document.getElementById('n-contact').value = contact || '—';
+  document.getElementById('m-note').dataset.editId = '';
+  vulContactDropdown();
+
+  // Reset alle rijen
+  document.getElementById('n-type-row').style.display = 'none';
+  document.getElementById('n-dur-row').style.display = 'none';
+  document.getElementById('n-voicemail-row').style.display = 'none';
 
   if(type === 'voicemail'){
     document.getElementById('m-note-title').textContent = 'Voicemail vastleggen';
-    document.getElementById('m-note-sub').textContent = curAcc.name;
-    document.getElementById('n-contact-row').style.display = '';
-    document.getElementById('n-type-row').style.display = 'none';
-    document.getElementById('n-dur-row').style.display = '';
-    document.getElementById('n-dur-label').textContent = 'Duur voicemail';
     document.getElementById('n-text-label').textContent = 'Boodschap / toelichting';
     document.getElementById('n-text').placeholder = 'Waar ging de voicemail over…';
     document.getElementById('n-type').value = 'voicemail';
+    document.getElementById('n-voicemail-row').style.display = '';
     document.getElementById('m-note-save-btn').textContent = '🎙 Opslaan';
   } else if(type === 'mailshot'){
     document.getElementById('m-note-title').textContent = 'Mailshot vastleggen';
-    document.getElementById('m-note-sub').textContent = curAcc.name;
-    document.getElementById('n-contact-row').style.display = '';
-    document.getElementById('n-type-row').style.display = 'none';
-    document.getElementById('n-dur-row').style.display = 'none';
     document.getElementById('n-text-label').textContent = 'Onderwerp / inhoud';
     document.getElementById('n-text').placeholder = 'Welke mail gestuurd, campagne, onderwerp…';
     document.getElementById('n-type').value = 'mailshot';
     document.getElementById('m-note-save-btn').textContent = '✉ Opslaan';
   } else if(type === 'opvolg_mailshot'){
     document.getElementById('m-note-title').textContent = 'Opvolg Mailshot vastleggen';
-    document.getElementById('m-note-sub').textContent = curAcc.name;
-    document.getElementById('n-contact-row').style.display = '';
-    document.getElementById('n-type-row').style.display = 'none';
-    document.getElementById('n-dur-row').style.display = 'none';
     document.getElementById('n-text-label').textContent = 'Onderwerp / inhoud opvolging';
-    document.getElementById('n-text').placeholder = 'Welke opvolg mail gestuurd, op welke mail een reactie…';
+    document.getElementById('n-text').placeholder = 'Welke opvolg mail gestuurd…';
     document.getElementById('n-type').value = 'opvolg_mailshot';
     document.getElementById('m-note-save-btn').textContent = '↩ Opslaan';
   } else if(type === 'linkshot'){
     document.getElementById('m-note-title').textContent = 'LinkedIn bericht vastleggen';
-    document.getElementById('m-note-sub').textContent = curAcc.name;
-    document.getElementById('n-contact-row').style.display = '';
-    document.getElementById('n-type-row').style.display = 'none';
-    document.getElementById('n-dur-row').style.display = 'none';
     document.getElementById('n-text-label').textContent = 'Bericht / inhoud';
     document.getElementById('n-text').placeholder = 'Wat heb je gestuurd via LinkedIn…';
     document.getElementById('n-type').value = 'linkshot';
-    document.getElementById('m-note-save-btn').textContent = 'in Opslaan';
+    document.getElementById('m-note-save-btn').textContent = 'Opslaan';
   } else {
-    document.getElementById('m-note-title').textContent = 'Notitie toevoegen';
-    document.getElementById('m-note-sub').textContent = curAcc.name;
-    document.getElementById('n-contact-row').style.display = 'none';
-    document.getElementById('n-type-row').style.display = '';
-    document.getElementById('n-dur-row').style.display = '';
-    document.getElementById('n-dur-label').textContent = 'Gespreksduur';
+    document.getElementById('m-note-title').textContent = 'Activiteit loggen';
     document.getElementById('n-text-label').textContent = 'Notitie';
     document.getElementById('n-text').placeholder = 'Schrijf hier je notitie…';
     document.getElementById('n-type').value = 'notitie';
+    document.getElementById('n-type-row').style.display = '';
+    document.getElementById('n-dur-row').style.display = '';
     document.getElementById('m-note-save-btn').textContent = 'Opslaan';
   }
+  document.getElementById('m-note-sub').textContent = curAcc.name;
   document.getElementById('m-note').classList.add('on');
 }
 function openAddContact(){['c-first','c-last','c-role','c-dept','c-email','c-phone','c-li','c-note'].forEach(id=>document.getElementById(id).value='');document.getElementById('m-contact').classList.add('on');}
@@ -4581,7 +4689,83 @@ window.addEventListener('popstate', applyHash);
 })();
 
 
-// ══════════════ SCRAPER ══════════════
+// ══ ACTIVITEIT KLEUREN ══
+const ACT_STIJL = {
+  notitie:        { kleur:'var(--navy)',      bg:'var(--navy-fade)',    label:'Notitie' },
+  gesprek:        { kleur:'var(--green)',     bg:'var(--green-bg)',     label:'Gesprek' },
+  email:          { kleur:'var(--blue)',      bg:'var(--blue-bg)',      label:'E-mail' },
+  whatsapp:       { kleur:'#25D366',          bg:'#e8fdf0',             label:'WhatsApp' },
+  voicemail:      { kleur:'var(--teal)',      bg:'var(--teal-bg)',      label:'Voicemail' },
+  mailshot:       { kleur:'var(--blue)',      bg:'var(--blue-bg)',      label:'Mailshot' },
+  opvolg_mailshot:{ kleur:'var(--teal)',      bg:'var(--teal-bg)',      label:'Opvolg Mailshot' },
+  linkshot:       { kleur:'#0a66c2',          bg:'#e8f4fd',             label:'Linkshot' },
+  directe_mail:   { kleur:'var(--blue)',      bg:'var(--blue-bg)',      label:'Directe mail' },
+  taak:           { kleur:'var(--amber)',     bg:'var(--amber-bg)',     label:'Taak' },
+};
+
+function actStijl(type) {
+  return ACT_STIJL[type] || { kleur:'var(--text3)', bg:'var(--surface2)', label: type };
+}
+
+function actBadge(type) {
+  const s = actStijl(type);
+  return `<span style="font-size:10px;font-weight:700;text-transform:uppercase;padding:2px 7px;border-radius:4px;background:${s.bg};color:${s.kleur};">${s.label}</span>`;
+}
+
+function renderActiviteitBalk(n, ingeklapt = true, toonBewerken = true) {
+  const s = actStijl(n.type);
+  const id = 'act-'+n.id;
+  const contactHtml = n.contact ? `<span style="color:var(--blue);cursor:pointer;" onclick="event.stopPropagation();zoekContact('${n.contact}')">${n.contact}</span>` : '';
+  return `
+  <div style="border:1px solid var(--border);border-left:3px solid ${s.kleur};border-radius:var(--r);margin-bottom:6px;overflow:hidden;">
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;background:${s.bg}20;" onclick="toggleAct('${id}')">
+      ${actBadge(n.type)}
+      ${contactHtml ? `<span style="font-size:12px;color:var(--text3);">met</span>${contactHtml}` : ''}
+      <span style="font-size:11px;color:var(--text3);margin-left:auto;white-space:nowrap;">${n.time}</span>
+      <div class="av ${(n.by||'').toLowerCase()} lg" style="flex-shrink:0;">${n.by||''}</div>
+      <span style="font-size:10px;color:var(--text3);" id="${id}-chev">${ingeklapt?'▸':'▾'}</span>
+    </div>
+    <div id="${id}-body" style="display:${ingeklapt?'none':'block'};padding:10px 14px;border-top:1px solid var(--border);">
+      <div style="font-size:13px;color:var(--text);line-height:1.65;white-space:pre-wrap;">${n.text}</div>
+      ${toonBewerken ? `<div style="margin-top:8px;display:flex;gap:6px;">
+        <button class="btn xs ghost" onclick="event.stopPropagation();bewerkNote(${n.id})">Bewerken</button>
+      </div>` : ''}
+    </div>
+  </div>`;
+}
+
+function toggleAct(id) {
+  const body = document.getElementById(id+'-body');
+  const chev = document.getElementById(id+'-chev');
+  if (!body) return;
+  const open = body.style.display === 'block';
+  body.style.display = open ? 'none' : 'block';
+  if (chev) chev.textContent = open ? '▸' : '▾';
+}
+
+function zoekContact(naam) {
+  if (!curAcc) return;
+  switchTab('contacts');
+}
+
+function bewerkNote(noteId) {
+  if (!curAcc) return;
+  const note = (curAcc.notes||[]).find(n => n.id === noteId);
+  if (!note) return;
+
+  // Vul het note modal met bestaande data
+  vulContactDropdown();
+  document.getElementById('n-text').value = note.text;
+  document.getElementById('n-type').value = note.type || 'notitie';
+  document.getElementById('m-note-title').textContent = 'Activiteit bewerken';
+  document.getElementById('m-note-sub').textContent = curAcc.name;
+
+  // Sla note id op zodat saveNote hem kan updaten
+  document.getElementById('m-note').dataset.editId = noteId;
+  document.getElementById('m-note').classList.add('on');
+}
+
+
 const SCRAPER_KEY='ix_scraper_settings';
 const SCRAPER_HISTORY_KEY='ix_scraper_history';
 const scraperDefaults={partner:'Audio Obscura',leadsPerRun:100,regio:'Zuid-Holland',minMedewerkers:'10',dag:'Zondag',tijd:'02:00',herhaling:'Wekelijks',quickRun:'100'};
