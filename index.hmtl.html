@@ -3095,19 +3095,42 @@ function toggleSort(field) {
 
 function adresStad(a) {
   if (!a.addr) return '<span style="color:var(--text3);">—</span>';
-  const delen = a.addr.split(',').map(s => s.trim());
-  let stad = '';
-  if (delen.length >= 2) {
-    const laatste = delen[delen.length - 1];
-    const m = laatste.match(/\d{4}\s*[A-Z]{2}\s+(.+)/);
-    stad = m ? m[1] : laatste;
-  } else {
-    const m = a.addr.match(/\d{4}\s*[A-Z]{2}\s+(.+)/);
-    stad = m ? m[1] : a.addr;
+
+  // Bekende Nederlandse steden/plaatsen lijst voor matching
+  const STEDEN = ['Amsterdam','Rotterdam','Den Haag','Utrecht','Eindhoven','Tilburg','Groningen',
+    'Almere','Breda','Nijmegen','Enschede','Apeldoorn','Haarlem','Arnhem','Zaanstad','Amersfoort',
+    'Haarlemmermeer','\'s-Hertogenbosch','Zwolle','Zoetermeer','Leiden','Maastricht','Dordrecht',
+    'Ede','Westland','Deventer','Delft','Alkmaar','Emmen','Venlo','Leeuwarden','Helmond','Hilversum',
+    'Heerlen','Assen','Roosendaal','Purmerend','Middleburg','Sittard','Vlaardingen','Spijkenisse',
+    'Gouda','Lelystad','Hoorn','Alblasserdam','Capelle','Schiedam','Nieuwegein','Alphen','Zeist',
+    'Weert','Bergen op Zoom','Oss','Hardenberg','Hoogeveen','Veenendaal','Doetinchem','Amstelveen',
+    'Heerhugowaard','Landgraaf','Barendrecht','Den Bosch','s-Hertogenbosch','Hengelo','Harderwijk',
+    'Woerden','Ridderkerk','Meppel','Waalwijk','Terneuzen','Kampen','Drachten','Goes','Roermond',
+    'Heemskerk','Veldhoven','Winschoten','Sneek','Tiel','Bussum','Huizen','Naarden'];
+
+  const tekst = a.addr;
+
+  // Zoek bekende stad in het adres
+  for (const stad of STEDEN) {
+    if (tekst.toLowerCase().includes(stad.toLowerCase())) {
+      const url = a.addrUrl || ('https://www.google.com/maps/search/?q=' + encodeURIComponent(tekst));
+      return '<a href="' + url + '" target="_blank" onclick="event.stopPropagation()" style="color:var(--blue);text-decoration:none;">' + stad + '</a>';
+    }
   }
-  stad = stad.trim() || a.addr;
-  const url = a.addrUrl || ('https://www.google.com/maps/search/?q=' + encodeURIComponent(a.addr));
-  return '<a href="' + url + '" target="_blank" onclick="event.stopPropagation()" style="color:var(--blue);text-decoration:none;">' + stad + '</a>';
+
+  // Geen bekende stad gevonden — probeer postcode patroon: "1234 AB Plaatsnaam"
+  const postcodeMatch = tekst.match(/\d{4}\s*[A-Z]{2}\s+([A-Za-zÀ-ÿ\s\-\']+?)(?:,|$)/);
+  if (postcodeMatch) {
+    const stad = postcodeMatch[1].trim();
+    const url = a.addrUrl || ('https://www.google.com/maps/search/?q=' + encodeURIComponent(tekst));
+    return '<a href="' + url + '" target="_blank" onclick="event.stopPropagation()" style="color:var(--blue);text-decoration:none;">' + stad + '</a>';
+  }
+
+  // Laatste deel na laatste komma
+  const delen = tekst.split(',').map(s => s.trim());
+  const laatste = delen[delen.length - 1] || tekst;
+  const url = a.addrUrl || ('https://www.google.com/maps/search/?q=' + encodeURIComponent(tekst));
+  return '<a href="' + url + '" target="_blank" onclick="event.stopPropagation()" style="color:var(--blue);text-decoration:none;">' + laatste + '</a>';
 }
 
 function renderAccList(){
