@@ -1915,7 +1915,7 @@ function renderTab(t){
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
         <div>
           <div class="ds"><div class="ds-title">Organisatie</div>
-            ${df('Sector',a.sector)}${df('Segment',a.seg)}${a.addr?(a.addrUrl?`<div class="df"><span class="dl">Adres</span><a href="${a.addrUrl}" target="_blank" style="color:var(--blue);font-size:12.5px;text-decoration:none;">${a.addr}</a></div>`:`<div class="df"><span class="dl">Adres</span><span>${a.addr}</span></div>`):''}${df('Telefoon',a.phone)}
+            ${df('Sector',a.sector)}${df('Segment',a.seg)}${a.addr?`<div class="df"><span class="dl">Adres</span><a href="${a.addrUrl||('https://www.google.com/maps/search/?q='+encodeURIComponent(a.addr))}" target="_blank" style="color:var(--blue);font-size:12.5px;text-decoration:none;">${a.addr}</a></div>`:''}${df('Telefoon',a.phone)}
             ${a.web?df('Website',`<a href="${a.web}" target="_blank">${a.web}</a>`):''}
             ${a.li?df('LinkedIn',`<a href="https://${a.li}" target="_blank">${a.li}</a>`):''}
             ${df('KvK',a.kvk)}
