@@ -124,6 +124,7 @@ tbody tr:last-child{border-bottom:none;}
 .badge.prospect{background:var(--blue-bg);color:var(--blue-t);}
 .badge.klant{background:var(--green-bg);color:var(--green-t);}
 .badge.inactief{background:var(--surface2);color:var(--text3);border:1px solid var(--border);}
+.badge.opdrachtgever{background:#f3e8ff;color:#6b21a8;}
 .badge.qualified{background:var(--navy-fade);color:var(--navy);}
 .tag{display:inline-flex;align-items:center;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:500;background:var(--surface2);color:var(--text2);border:1px solid var(--border);}
 
@@ -638,6 +639,7 @@ textarea{resize:vertical;min-height:75px;}
         <button class="fchip" data-f="qualified" onclick="setFilter('qualified')"><span class="dot" style="background:var(--purple)"></span>Qualified <span id="fc-qualified"></span></button>
         <button class="fchip" data-f="prospect" onclick="setFilter('prospect')"><span class="dot" style="background:var(--blue)"></span>Prospects <span id="fc-prospect"></span></button>
         <button class="fchip" data-f="klant" onclick="setFilter('klant')"><span class="dot" style="background:var(--green)"></span>Klanten <span id="fc-klant"></span></button>
+        <button class="fchip" data-f="opdrachtgever" onclick="setFilter('opdrachtgever')"><span class="dot" style="background:#6b21a8"></span>Opdrachtgevers <span id="fc-opdrachtgever"></span></button>
         <button class="fchip" data-f="inactief" onclick="setFilter('inactief')"><span class="dot" style="background:var(--text3)"></span>Inactief <span id="fc-inactief"></span></button>
         <div style="margin-left:auto;display:flex;gap:6px;">
           <select id="filter-owner" onchange="renderAccList()" style="width:130px;font-size:12px;padding:4px 8px;">
@@ -892,7 +894,7 @@ textarea{resize:vertical;min-height:75px;}
       <div class="fdiv">Organisatie</div>
       <div class="fr">
         <div class="fg"><label class="fl">Bedrijfsnaam *</label><input type="text" id="f-name" placeholder="Acme B.V."></div>
-        <div class="fg"><label class="fl">Status</label><select id="f-status"><option value="lead">Lead</option><option value="qualified">Qualified Lead</option><option value="prospect">Prospect</option><option value="klant">Klant</option><option value="inactief">Inactief</option></select></div>
+        <div class="fg"><label class="fl">Status</label><select id="f-status"><option value="lead">Lead</option><option value="qualified">Qualified Lead</option><option value="prospect">Prospect</option><option value="klant">Klant</option><option value="opdrachtgever">Opdrachtgever</option><option value="inactief">Inactief</option></select></div>
       </div>
       <div class="fr">
         <div class="fg"><label class="fl">Sector / Branche</label><input type="text" id="f-sector" placeholder="bijv. Technologie"></div>
@@ -3681,7 +3683,7 @@ function globalSearch(q) {
   </div>`;
 }
 function initials(s){return(s||'').split(' ').map(w=>w[0]).filter(Boolean).slice(0,2).join('').toUpperCase()||'?';}
-function slbl(s){return{lead:'Lead',qualified:'Qualified',prospect:'Prospect',klant:'Klant',inactief:'Inactief'}[s]||s;}
+function slbl(s){return{lead:'Lead',qualified:'Qualified',prospect:'Prospect',klant:'Klant',inactief:'Inactief',opdrachtgever:'Opdrachtgever'}[s]||s;}
 function fmtDate(d){if(!d)return'—';return new Date(d).toLocaleDateString('nl-NL',{day:'numeric',month:'short'});}
 
 // ══════════════ EVENTS / AGENDA ══════════════
@@ -5120,12 +5122,13 @@ function acAnalyseerAccount(a) {
     if(aantalContact===0){
       suggesties.push({prioriteit:60+prioriteit,tekst:'Nog geen contact gelegd',actie:'Stuur eerste mailshot',type:'mailshot',kleur:'#c0392b'});
     }
-    if(aantalContact>0&&dagen>=14){
+    if(aantalContact>0&&dagen>=7){
       const actie = aantalMailshots>=3&&aantalGesprekken===0 ? 'Bel op' :
                     aantalMailshots>=2 ? 'Probeer LinkedIn' : 'Stuur opvolg mailshot';
       const type = aantalMailshots>=3&&aantalGesprekken===0 ? 'gesprek' :
                    aantalMailshots>=2 ? 'linkshot' : 'opvolg_mailshot';
-      suggesties.push({prioriteit:50+prioriteit,tekst:`${dagen} dagen geen contact · ${pipe||'onbekende fase'}`,actie,type,kleur:'#c2410c'});
+      const dagenTekst = dagen<999 ? `${dagen} dagen geen contact` : 'Nog geen contact';
+      suggesties.push({prioriteit:50+prioriteit,tekst:`${dagenTekst} · ${pipe||'onbekende fase'}`,actie,type,kleur:'#c2410c'});
     }
     if(warmte.score>=4&&!heeftAfspraak&&aantalGesprekken>=1&&(pipe==='Voorstel verstuurd'||pipe==='Onderhandeling')){
       suggesties.push({prioriteit:70+prioriteit,tekst:`Warm contact in ${pipe} — geen afspraak`,actie:'Plan afspraak in',type:'afspraak',kleur:'#1a5fb4'});
@@ -5140,13 +5143,13 @@ function acAnalyseerAccount(a) {
 
   // === ACCOUNT MANAGEMENT suggesties ===
   if(categorie==='accountmanagement'){
-    // Opdrachtgevers — laagste drempel, worden toch al veel gesproken
-    if(status==='opdrachtgever'&&dagen>=30){
-      suggesties.push({prioriteit:20,tekst:`Opdrachtgever — ${dagen} dagen geen gelogd contact`,actie:'Check in',type:'gesprek',kleur:'#14532d'});
+    if(status==='opdrachtgever'&&(dagen>=30||dagen===999)){
+      const dagenTekst = dagen<999 ? `${dagen} dagen` : '';
+      suggesties.push({prioriteit:20,tekst:`Opdrachtgever${dagenTekst?' — '+dagenTekst:''} geen gelogd contact`,actie:'Check in',type:'gesprek',kleur:'#14532d'});
     }
-    // Klanten — afhankelijk van context
-    if(status==='klant'&&dagen>=21){
-      suggesties.push({prioriteit:30,tekst:`Klant — ${dagen} dagen geen contact`,actie:'Korte check-in',type:'gesprek',kleur:'#1a5fb4'});
+    if(status==='klant'&&(dagen>=21||dagen===999)){
+      const dagenTekst = dagen<999 ? `${dagen} dagen` : '';
+      suggesties.push({prioriteit:30,tekst:`Klant${dagenTekst?' — '+dagenTekst:''} geen contact`,actie:'Korte check-in',type:'gesprek',kleur:'#1a5fb4'});
     }
   }
 
