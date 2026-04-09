@@ -1561,7 +1561,7 @@ async function _sbUpsert(t,d,conflict){
 }
 
 // ── DATA MAPPERS ──────────────────────────────
-function _mapAcc(r){return{id:r.id,name:r.name,status:r.status||'lead',sector:r.sector||'',seg:r.segment||'',web:r.website||'',li:r.linkedin||'',phone:r.phone||'',kvk:r.kvk||'',addr:r.address||'',pipe:r.pipeline_stage||'Nieuw',val:r.value?String(r.value):'',owner:r.owner||'MA',note:r.note||'',color:r.color_index||0,added:r.added_date||'',cf:r.contact_first||'',cl:r.contact_last||'',cr:r.contact_role||'',cp:r.contact_phone||'',ce:r.contact_email||'',contacts:[],deals:[],proposals:[],notes:[],docs:[],clientLinks:{}};}
+function _mapAcc(r){return{id:r.id,name:r.name,status:r.status||'lead',sector:r.sector||'',seg:r.segment||'',web:r.website||'',li:r.linkedin||'',phone:r.phone||'',kvk:r.kvk||'',addr:r.address||'',addrUrl:r.address_url||'',pipe:r.pipeline_stage||'Nieuw',val:r.value?String(r.value):'',owner:r.owner||'MA',note:r.note||'',color:r.color_index||0,added:r.added_date||'',cf:r.contact_first||'',cl:r.contact_last||'',cr:r.contact_role||'',cp:r.contact_phone||'',ce:r.contact_email||'',contacts:[],deals:[],proposals:[],notes:[],docs:[],clientLinks:{}};}
 function _mapTodo(r){return{id:r.id,title:r.title,done:r.done||false,prio:r.priority||'medium',due:r.due_date||'',acc:r.account_id||null,owner:r.owner||'MA',auto:r.is_auto||false,ruleId:r.rule_id||null,clientId:r.client_id||null,doneDate:r.done_date||null};}
 function _mapEv(r){return{id:r.id,title:r.title,type:r.type||'Kennismaking',date:r.event_date,time:r.start_time||'',dur:r.duration_minutes||60,loc:r.location||'',acc:r.account_id||null,owner:r.owner||'MA',note:r.note||'',contactName:r.contact_name||'',contactEmail:r.contact_email||''};}
 function _mapClient(r){return{id:r.id,name:r.name,sector:r.sector||'',contact:r.contact_person||'',email:r.email||'',color:r.color||'#0d1f3c',note:r.note||''};}
@@ -1622,6 +1622,7 @@ async function _loadFromSupabase(){
     clients=clientR.map(_mapClient);
     templates=tplR.map(_mapTpl);
     activity=actR.map(_mapAct);
+    await _loadLijsten();
     // Clean up any leftover demo data (accounts with old integer IDs < 10)
     // Real data from migration will have Supabase bigserial IDs (large numbers)
     // Ensure Intersect is always in clients list
@@ -1645,7 +1646,7 @@ async function _loadFromSupabase(){
 
 // ── SUPABASE SAVE HELPERS ─────────────────────
 async function _saveAcc(a){
-  const d={name:a.name,status:a.status,sector:a.sector||'',segment:a.seg||'',website:a.web||'',linkedin:a.li||'',phone:a.phone||'',kvk:a.kvk||'',address:a.addr||'',pipeline_stage:a.pipe||'Nieuw',value:parseFloat(a.val)||null,owner:a.owner||'MA',note:a.note||'',color_index:a.color||0,added_date:a.added||new Date().toISOString().split('T')[0],contact_first:a.cf||'',contact_last:a.cl||'',contact_role:a.cr||'',contact_phone:a.cp||'',contact_email:a.ce||''};
+  const d={name:a.name,status:a.status,sector:a.sector||'',segment:a.seg||'',website:a.web||'',linkedin:a.li||'',phone:a.phone||'',kvk:a.kvk||'',address:a.addr||'',address_url:a.addrUrl||'',pipeline_stage:a.pipe||'Nieuw',value:parseFloat(a.val)||null,owner:a.owner||'MA',note:a.note||'',color_index:a.color||0,added_date:a.added||new Date().toISOString().split('T')[0],contact_first:a.cf||'',contact_last:a.cl||'',contact_role:a.cr||'',contact_phone:a.cp||'',contact_email:a.ce||''};
   let id=a.id;
   if(id&&typeof id==='number'&&id<2000000000){await _sbPatch('accounts',id,d);}
   else{const[r]=await _sbPost('accounts',d);id=r.id;a.id=id;}
@@ -5494,9 +5495,46 @@ function startReminderEngine() {
 
 // ══════════════ LIJSTEN ══════════════
 
-let lijsten = ls('ix_lijsten') || [];
+let lijsten = [];
 
-function saveLijsten() { ss('ix_lijsten', lijsten); }
+async function _loadLijsten() {
+  try {
+    const data = await _sbGet('lists', '?select=*&order=created_at.asc');
+    lijsten = (data || []).map(l => ({
+      id: l.id,
+      naam: l.name,
+      beschrijving: l.description || '',
+      accounts: l.account_ids || [],
+    }));
+  } catch(e) {
+    console.warn('Lijsten laden mislukt:', e);
+    lijsten = [];
+  }
+}
+
+async function _saveLijst(lijst) {
+  const d = { name: lijst.naam, description: lijst.beschrijving || '', account_ids: lijst.accounts || [] };
+  if (lijst.id && typeof lijst.id === 'number' && lijst.id < 2000000000) {
+    await _sbPatch('lists', lijst.id, d);
+  } else {
+    const [r] = await _sbPost('lists', d);
+    lijst.id = r.id;
+  }
+}
+
+async function _deleteLijst(id) {
+  try {
+    await fetch(`${SB_URL}/rest/v1/lists?id=eq.${id}`, {
+      method: 'DELETE',
+      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY },
+    });
+  } catch(e) { console.warn('Delete lijst:', e); }
+}
+
+function saveLijsten() {
+  // Sla alle lijsten op naar Supabase
+  lijsten.forEach(l => _saveLijst(l).catch(e => console.warn('Save lijst:', e)));
+}
 
 function renderLijsten() {
   const el = document.getElementById('p-lijsten');
@@ -5644,11 +5682,16 @@ function slaLijstOp() {
   const editId = parseInt(document.getElementById('m-lijst-nieuw').dataset.editId) || null;
   if (editId) {
     const idx = lijsten.findIndex(l => l.id === editId);
-    if (idx >= 0) { lijsten[idx].naam = naam; lijsten[idx].beschrijving = beschrijving; }
+    if (idx >= 0) {
+      lijsten[idx].naam = naam;
+      lijsten[idx].beschrijving = beschrijving;
+      _saveLijst(lijsten[idx]).catch(e => console.warn('Save lijst:', e));
+    }
   } else {
-    lijsten.push({ id: Date.now(), naam, beschrijving, accounts: [] });
+    const nieuw = { id: Date.now(), naam, beschrijving, accounts: [] };
+    lijsten.push(nieuw);
+    _saveLijst(nieuw).catch(e => console.warn('Save lijst:', e));
   }
-  saveLijsten();
   sluitLijstModal();
   renderLijsten();
 }
@@ -5656,7 +5699,7 @@ function slaLijstOp() {
 function verwijderLijst(id) {
   if (!confirm('Lijst verwijderen?')) return;
   lijsten = lijsten.filter(l => l.id !== id);
-  saveLijsten();
+  _deleteLijst(id).catch(e => console.warn('Delete lijst:', e));
   const el = document.getElementById('p-lijsten');
   if (el && parseInt(el.dataset.curLijst) === id) el.dataset.curLijst = '';
   renderLijsten();
@@ -5706,7 +5749,7 @@ function toggleLijstAccount(lijstId, accId) {
   const idx = lijst.accounts.indexOf(accId);
   if (idx >= 0) lijst.accounts.splice(idx, 1);
   else lijst.accounts.push(accId);
-  saveLijsten();
+  _saveLijst(lijst).catch(e => console.warn('Save lijst:', e));
   filterLijstAccounts(document.getElementById('lijst-acc-zoek')?.value || '');
 }
 
@@ -5714,7 +5757,7 @@ function verwijderUitLijst(lijstId, accId) {
   const lijst = lijsten.find(l => l.id === lijstId);
   if (!lijst) return;
   lijst.accounts = (lijst.accounts||[]).filter(id => id !== accId);
-  saveLijsten();
+  _saveLijst(lijst).catch(e => console.warn('Save lijst:', e));
   renderLijsten();
 }
 
@@ -5745,8 +5788,8 @@ function updateLijstenVoorAccount(accId) {
     const idx = lijst.accounts.indexOf(accId);
     if (cb.checked && idx < 0) lijst.accounts.push(accId);
     if (!cb.checked && idx >= 0) lijst.accounts.splice(idx, 1);
+    _saveLijst(lijst).catch(e => console.warn('Save lijst:', e));
   });
-  saveLijsten();
 }
 
 function updateActieBadge() {
