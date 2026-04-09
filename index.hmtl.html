@@ -3750,13 +3750,22 @@ function handleCSV(input){
 }
 function doImport(){
   let added=0;
+  const nieuweAccs=[];
   csvRows.forEach(r=>{
     const name=r['naam']||r['name']||r['bedrijf']||r['company']||Object.values(r)[0];
     if(!name)return;
-    const a={id:Date.now()+Math.random(),name,status:r['status']||'lead',sector:r['sector']||r['branche']||'',seg:r['segment']||'',web:r['website']||r['web']||'',li:r['linkedin']||'',phone:r['telefoon']||r['phone']||'',kvk:'',addr:r['adres']||r['address']||'',pipe:'Nieuw',val:r['waarde']||r['value']||'',forClient:'',cf:r['voornaam']||r['first']||'',cl:r['achternaam']||r['last']||'',cr:r['functie']||r['role']||'',cp:'',ce:r['email']||r['e-mail']||'',note:'',owner:CU,added:localISO(),color:accs.length%CLRS.length,contacts:[],deals:[],proposals:[],notes:[],docs:[]};
-    accs.push(a);added++;
+    const contactNaam=(r['contactpersoon']||r['contact']||'').trim();
+    const naamDelen=contactNaam.split(' ');
+    const cf=naamDelen[0]||'';
+    const cl=naamDelen.slice(1).join(' ')||'';
+    const a={id:Date.now()+Math.floor(Math.random()*10000)+added,name,status:r['status']||'lead',sector:r['sector']||r['branche']||'',seg:r['segment']||'',web:r['website']||r['web']||'',li:r['linkedin']||'',phone:r['telefoon']||r['phone']||'',kvk:'',addr:r['adres']||r['address']||'',addrUrl:'',pipe:'Nieuw',val:r['waarde']||r['value']||'',cf,cl,cr:r['functie']||r['role']||'',cp:'',ce:r['email']||r['e-mail']||'',note:'',owner:CU,added:localISO(),color:accs.length%CLRS.length,contacts:[],deals:[],proposals:[],notes:[],docs:[],clientLinks:{}};
+    accs.push(a);
+    nieuweAccs.push(a);
+    added++;
   });
   ss('ix_accs',accs);
+  // Sla ook op naar Supabase
+  nieuweAccs.forEach(a=>_saveAcc(a).catch(e=>console.warn('Import save:',e)));
   addActivity(`<strong>${CU==='MA'?'Mees':'Julian'}</strong> importeerde ${added} accounts via CSV`,'↑','#e8f0fb');
   closeM('m-import');nav('accounts');
   alert(`✓ ${added} accounts geïmporteerd!`);
