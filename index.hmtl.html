@@ -406,7 +406,7 @@ textarea{resize:vertical;min-height:75px;}
       <button class="sb-item" onclick="nav('actiecenter')">Actie Center<span class="sb-badge" id="actie-badge" style="display:none;">0</span></button>
       <button class="sb-item" onclick="nav('agenda')">Agenda</button>
       <button class="sb-item" onclick="nav('pipeline')">Pipeline</button>
-      <button class="sb-item" onclick="nav('todos')">To-do's<span class="sb-badge" id="todo-badge">0</span></button>
+      <button class="sb-item" onclick="nav('todos')">To-do's</button>
     </div>
     <div class="sb-sec">
       <div class="sb-lbl">Accounts</div>
@@ -3561,7 +3561,7 @@ function doImport(){
 
 // ══════════════ HELPERS ══════════════
 function toggleTodo(id){const t=todos.find(x=>x.id===id);if(t){t.done=!t.done;if(t.done)t.doneDate=localISO();if(t.auto&&t.done&&t.ruleId&&t.acc){const a=accs.find(x=>x.id===t.acc);if(a)recordLearnTrigger(t.ruleId,daysSince(lastActivityDate(a)));ss('ix_wflearn',wfLearning);}ss('ix_todos',todos);_saveTodo(t).catch(e=>console.warn('todo:',e));updateBadge();updateWfBadge();if(document.getElementById('p-todos').classList.contains('on'))renderTodos();if(document.getElementById('p-dashboard').classList.contains('on')){renderDash();}if(curAcc&&document.getElementById('p-detail').classList.contains('on'))renderTab(curTab);}}
-function updateBadge(){const n=todos.filter(t=>!t.done).length;const b=document.getElementById('todo-badge');b.textContent=n;b.style.display=n?'inline':'none';}
+function updateBadge(){updateActieBadge();}
 function addActivity(text,ico,bg,clientId=null){activity.unshift({text,time:'Zojuist',ico,bg,clientId});if(activity.length>50)activity.pop();ss('ix_act',activity);}
 function updateCounts(){const base=clientAccs();['all','lead','qualified','prospect','klant','inactief'].forEach(f=>{const el=document.getElementById('fc-'+f);if(el)el.textContent=f==='all'?`(${base.length})`:`(${base.filter(a=>accClientStatus(a)===f).length})`;});}
 function setFilter(f){curFilter=f;document.querySelectorAll('.fchip').forEach(c=>c.classList.toggle('on',c.dataset.f===f));renderAccList();}
