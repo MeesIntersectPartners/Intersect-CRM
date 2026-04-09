@@ -991,6 +991,7 @@ textarea{resize:vertical;min-height:75px;}
           <option value="taak">Taak</option>
         </select>
       </div>
+      <input type="hidden" id="n-type-actual" value="notitie">
       <!-- Gesprek chat UI -->
       <div id="n-chat-wrap" style="display:none;">
         <label class="fl" style="margin-bottom:8px;">Berichten</label>
@@ -3162,7 +3163,7 @@ function saveTodo(){
 
 function saveNote(){
   if(!curAcc)return;
-  const type=document.getElementById('n-type').value;
+  const type=document.getElementById('n-type-actual').value;
   const contact=document.getElementById('n-contact-sel').value;
   if(!contact){alert('Kies een contactpersoon.');return;}
 
@@ -3306,6 +3307,7 @@ let chatBerichten = [];
 
 function onNoteTypeChange() {
   const type = document.getElementById('n-type').value;
+  document.getElementById('n-type-actual').value = type;
   const chatWrap = document.getElementById('n-chat-wrap');
   const textWrap = document.getElementById('n-text-wrap');
   const durRow = document.getElementById('n-dur-row');
@@ -3395,7 +3397,7 @@ function openQuickNote(type){
     document.getElementById('m-note-title').textContent = 'Voicemail vastleggen';
     document.getElementById('n-text-label').textContent = 'Boodschap / toelichting';
     document.getElementById('n-text').placeholder = 'Waar ging de voicemail over…';
-    document.getElementById('n-type').value = 'voicemail';
+    document.getElementById('n-type-actual').value = 'voicemail';document.getElementById('n-type').value = 'voicemail';
     document.getElementById('n-type-row').style.display = 'none';
     document.getElementById('n-dur-row').style.display = 'none';
     document.getElementById('n-voicemail-row').style.display = '';
@@ -3405,7 +3407,7 @@ function openQuickNote(type){
     document.getElementById('m-note-title').textContent = 'Mailshot vastleggen';
     document.getElementById('n-text-label').textContent = 'Onderwerp / inhoud';
     document.getElementById('n-text').placeholder = 'Welke mail gestuurd, campagne, onderwerp…';
-    document.getElementById('n-type').value = 'mailshot';
+    document.getElementById('n-type-actual').value = 'mailshot';document.getElementById('n-type').value = 'mailshot';
     document.getElementById('n-type-row').style.display = 'none';
     document.getElementById('n-dur-row').style.display = 'none';
     document.getElementById('n-voicemail-row').style.display = 'none';
@@ -3415,7 +3417,7 @@ function openQuickNote(type){
     document.getElementById('m-note-title').textContent = 'Opvolg Mailshot vastleggen';
     document.getElementById('n-text-label').textContent = 'Onderwerp / inhoud opvolging';
     document.getElementById('n-text').placeholder = 'Welke opvolg mail gestuurd…';
-    document.getElementById('n-type').value = 'opvolg_mailshot';
+    document.getElementById('n-type-actual').value = 'opvolg_mailshot';document.getElementById('n-type').value = 'opvolg_mailshot';
     document.getElementById('n-type-row').style.display = 'none';
     document.getElementById('n-dur-row').style.display = 'none';
     document.getElementById('n-voicemail-row').style.display = 'none';
@@ -3423,7 +3425,7 @@ function openQuickNote(type){
     document.getElementById('n-text-wrap').style.display = '';
   } else if(type === 'linkshot'){
     document.getElementById('m-note-title').textContent = 'LinkedIn bericht vastleggen';
-    document.getElementById('n-type').value = 'linkshot';
+    document.getElementById('n-type-actual').value = 'linkshot';document.getElementById('n-type').value = 'linkshot';
     document.getElementById('n-type-row').style.display = 'none';
     document.getElementById('n-dur-row').style.display = 'none';
     document.getElementById('n-voicemail-row').style.display = 'none';
@@ -3433,7 +3435,7 @@ function openQuickNote(type){
     renderChatBerichten();
   } else if(type === 'whatsapp'){
     document.getElementById('m-note-title').textContent = 'WhatsApp gesprek vastleggen';
-    document.getElementById('n-type').value = 'whatsapp';
+    document.getElementById('n-type-actual').value = 'whatsapp';document.getElementById('n-type').value = 'whatsapp';
     document.getElementById('n-type-row').style.display = 'none';
     document.getElementById('n-dur-row').style.display = 'none';
     document.getElementById('n-voicemail-row').style.display = 'none';
@@ -3445,7 +3447,7 @@ function openQuickNote(type){
     document.getElementById('m-note-title').textContent = 'Activiteit loggen';
     document.getElementById('n-text-label').textContent = 'Notitie';
     document.getElementById('n-text').placeholder = 'Schrijf hier je notitie…';
-    document.getElementById('n-type').value = 'notitie';
+    document.getElementById('n-type-actual').value = 'notitie';document.getElementById('n-type').value = 'notitie';
     document.getElementById('n-type-row').style.display = '';
     document.getElementById('n-dur-row').style.display = 'none';
     document.getElementById('n-voicemail-row').style.display = 'none';
