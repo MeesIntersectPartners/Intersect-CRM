@@ -319,36 +319,38 @@ textarea{resize:vertical;min-height:75px;}
 .week-th-num{font-family:'Syne',sans-serif;font-size:15px;font-weight:700;color:var(--text);margin-top:1px;}
 .week-th-num.today-n{background:var(--navy);color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:2px auto 0;font-size:13px;}
 .week-th-day.today-hd{background:rgba(13,31,60,.08);border-bottom:2px solid var(--navy);}
-.week-body{overflow-y:auto;max-height:calc(100vh - 200px);position:relative;}
-.week-row{display:grid;grid-template-columns:56px repeat(7,1fr);}
+.week-body{overflow-y:auto;max-height:calc(100vh - 200px);}
+.week-grid{position:relative;}
+.week-row{display:grid;grid-template-columns:56px repeat(7,1fr);height:24px;}
 .week-row-hour{border-top:1px solid var(--border);}
-.week-row-quarter{border-top:1px dashed rgba(0,0,0,.06);}
-.week-time-cell{padding:0 6px 0 0;font-size:10px;color:var(--text3);text-align:right;border-right:1px solid var(--border);height:16px;display:flex;align-items:center;justify-content:flex-end;padding-right:6px;background:var(--surface2);}
-.week-ev-cell{border-right:1px solid var(--border);height:16px;position:relative;cursor:pointer;transition:background .08s;}
+.week-row-quarter{border-top:1px dashed rgba(0,0,0,.07);}
+.week-time-cell{font-size:10px;color:var(--text3);text-align:right;border-right:1px solid var(--border);height:24px;display:flex;align-items:center;justify-content:flex-end;padding-right:6px;background:var(--surface2);box-sizing:border-box;}
+.week-ev-cell{border-right:1px solid var(--border);height:24px;position:relative;cursor:pointer;transition:background .08s;box-sizing:border-box;}
 .week-ev-cell:last-child{border-right:none;}
-.week-ev-cell:hover{background:rgba(13,31,60,.035);}
+.week-ev-cell:hover{background:rgba(13,31,60,.03);}
 .week-ev-cell.today-c{background:rgba(13,31,60,.025);}
-.w-ev{position:absolute;left:2px;right:2px;top:1px;border-radius:4px;padding:2px 5px;font-size:10.5px;font-weight:600;cursor:pointer;overflow:hidden;z-index:2;line-height:1.35;}
+.w-ev{position:absolute;left:1px;right:1px;top:1px;border-radius:4px;padding:2px 5px;font-size:10.5px;font-weight:600;cursor:pointer;overflow:hidden;z-index:2;line-height:1.3;}
 .w-ev:hover{filter:brightness(.94);}
-.cal-now-line{position:absolute;left:56px;right:0;height:2px;background:#c0392b;z-index:10;pointer-events:none;}
-.cal-now-dot{position:absolute;left:50px;width:8px;height:8px;border-radius:50%;background:#c0392b;margin-top:-3px;z-index:11;}
+.cal-now-line{position:absolute;right:0;height:2px;background:#c0392b;z-index:10;pointer-events:none;}
+.cal-now-dot{position:absolute;width:8px;height:8px;border-radius:50%;background:#c0392b;z-index:11;pointer-events:none;margin-top:-3px;}
 
 /* Day view */
 .day-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;}
 .day-hd{background:var(--navy);padding:14px 18px;display:flex;align-items:center;justify-content:space-between;}
-.day-body{overflow-y:auto;max-height:calc(100vh - 200px);position:relative;}
-.day-row{display:flex;border-top:none;}
+.day-body{overflow-y:auto;max-height:calc(100vh - 200px);}
+.day-grid{position:relative;}
+.day-row{display:flex;height:24px;box-sizing:border-box;}
 .day-row-hour{border-top:1px solid var(--border);}
-.day-row-quarter{border-top:1px dashed rgba(0,0,0,.06);}
-.day-tc{width:60px;flex-shrink:0;font-size:10px;color:var(--text3);text-align:right;border-right:1px solid var(--border);background:var(--surface2);height:16px;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;}
-.day-ec{flex:1;padding:1px 6px;cursor:pointer;transition:background .08s;height:16px;position:relative;}
+.day-row-quarter{border-top:1px dashed rgba(0,0,0,.07);}
+.day-tc{width:60px;flex-shrink:0;font-size:10px;color:var(--text3);text-align:right;border-right:1px solid var(--border);background:var(--surface2);height:24px;box-sizing:border-box;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;}
+.day-ec{flex:1;height:24px;box-sizing:border-box;position:relative;cursor:pointer;transition:background .08s;}
 .day-ec:hover{background:rgba(13,31,60,.03);}
-.d-ev{border-left:3px solid var(--navy);background:var(--navy-fade);border-radius:0 5px 5px 0;padding:5px 10px;margin-bottom:3px;cursor:pointer;transition:background .1s;}
-.d-ev:hover{background:rgba(13,31,60,.07);}
-.d-ev-title{font-size:12.5px;font-weight:600;color:var(--text);}
+.d-ev{position:absolute;left:4px;right:4px;top:1px;border-left:3px solid var(--navy);background:var(--navy-fade);border-radius:0 5px 5px 0;padding:4px 8px;cursor:pointer;overflow:hidden;z-index:2;}
+.d-ev:hover{filter:brightness(.96);}
+.d-ev-title{font-size:12px;font-weight:600;color:var(--text);}
 .d-ev-meta{font-size:11px;color:var(--text2);margin-top:1px;}
-.cal-day-now-line{position:absolute;left:60px;right:0;height:2px;background:#c0392b;z-index:10;pointer-events:none;}
-.cal-day-now-dot{position:absolute;left:54px;width:8px;height:8px;border-radius:50%;background:#c0392b;margin-top:-3px;z-index:11;}
+.cal-day-now-line{position:absolute;right:0;height:2px;background:#c0392b;z-index:10;pointer-events:none;}
+.cal-day-now-dot{position:absolute;width:8px;height:8px;border-radius:50%;background:#c0392b;z-index:11;pointer-events:none;margin-top:-3px;}
 
 /* Month view */
 .month-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;}
@@ -2753,7 +2755,7 @@ function renderWeekView(evs){
       <div class="week-th-label">${dayNames[i]}</div>${numEl}
     </div>`;
   });
-  html+=`</div><div class="week-body" id="week-body-scroll">`;
+  html+=`</div><div class="week-body" id="week-body-scroll"><div class="week-grid" id="week-grid-inner">`;
 
   // Rows — kwartierslots
   SLOTS.forEach(slot=>{
@@ -2786,15 +2788,14 @@ function renderWeekView(evs){
     });
     html+=`</div>`;
   });
-  html+=`</div></div>`;
+  html+=`</div></div></div>`;
   document.getElementById('agenda-view').innerHTML=html;
 
-  // Live tijdlijn
+  // Live tijdlijn — werkt in zowel Chrome als Safari
   function tekenNuLijn(){
-    const body=document.getElementById('week-body-scroll');
-    if(!body)return;
-    // Verwijder oude lijn
-    body.querySelectorAll('.cal-now-line,.cal-now-dot').forEach(el=>el.remove());
+    document.querySelectorAll('.cal-now-line,.cal-now-dot').forEach(el=>el.remove());
+    const grid=document.getElementById('week-grid-inner');
+    if(!grid)return;
     const nu=new Date();
     const todayKolom=days.findIndex(d=>{
       const ds=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -2802,21 +2803,21 @@ function renderWeekView(evs){
     });
     if(todayKolom<0)return;
     const minVanaf7=(nu.getHours()-7)*60+nu.getMinutes();
-    if(minVanaf7<0)return;
+    if(minVanaf7<0||minVanaf7>840)return;
     const top=Math.round(minVanaf7*PX_PER_MIN);
-    const kolBreedte=body.offsetWidth>0?(body.offsetWidth-56)/7:0;
-    const leftOffset=56+todayKolom*kolBreedte;
-    const lijn=document.createElement('div');
-    lijn.className='cal-now-line';
-    lijn.style.top=top+'px';
-    lijn.style.left=leftOffset+'px';
-    lijn.style.right='0';
+    // Gebruik grid breedte voor kolomberekening
+    const gridBreedte=grid.offsetWidth||grid.getBoundingClientRect().width;
+    const kolBreedte=gridBreedte>56?(gridBreedte-56)/7:100;
+    const leftPx=56+todayKolom*kolBreedte;
+
     const dot=document.createElement('div');
     dot.className='cal-now-dot';
-    dot.style.top=(top-3)+'px';
-    dot.style.left=(leftOffset-6)+'px';
-    body.appendChild(dot);
-    body.appendChild(lijn);
+    dot.style.cssText=`top:${top-3}px;left:${leftPx-4}px;`;
+    const lijn=document.createElement('div');
+    lijn.className='cal-now-line';
+    lijn.style.cssText=`top:${top}px;left:${leftPx}px;`;
+    grid.appendChild(dot);
+    grid.appendChild(lijn);
   }
 
   setTimeout(()=>{
@@ -2861,7 +2862,7 @@ function renderDayView(evs){
       </div>
       <button class="btn sm" style="background:var(--gold);border-color:var(--gold);color:var(--navy);font-weight:600;" onclick="openAddEventOnDate('${ds}','09:00')">+ Afspraak</button>
     </div>
-    <div class="day-body" id="day-body-scroll">`;
+    <div class="day-body" id="day-body-scroll"><div class="day-grid" id="day-grid-inner">`;
 
   SLOTS.forEach(slot=>{
     const {h,m}=slot;
@@ -2887,7 +2888,7 @@ function renderDayView(evs){
     });
     html+=`</div></div>`;
   });
-  html+=`</div></div>`;
+  html+=`</div></div></div>`;
   document.getElementById('agenda-view').innerHTML=html;
 
   setTimeout(()=>{
@@ -2898,20 +2899,20 @@ function renderDayView(evs){
       body.scrollTop=Math.max(0,Math.round(minVanaf7*PX_PER_MIN)-120);
     }
     if(isToday){
-      const body=document.getElementById('day-body-scroll');
-      if(!body)return;
+      const grid=document.getElementById('day-grid-inner');
+      if(!grid)return;
       const nu=new Date();
       const minVanaf7=(nu.getHours()-7)*60+nu.getMinutes();
-      if(minVanaf7<0)return;
+      if(minVanaf7<0||minVanaf7>840)return;
       const top=Math.round(minVanaf7*PX_PER_MIN);
-      const lijn=document.createElement('div');
-      lijn.className='cal-day-now-line';
-      lijn.style.top=top+'px';
       const dot=document.createElement('div');
       dot.className='cal-day-now-dot';
-      dot.style.top=(top-3)+'px';
-      body.appendChild(dot);
-      body.appendChild(lijn);
+      dot.style.cssText=`top:${top-3}px;left:52px;`;
+      const lijn=document.createElement('div');
+      lijn.className='cal-day-now-line';
+      lijn.style.cssText=`top:${top}px;left:60px;`;
+      grid.appendChild(dot);
+      grid.appendChild(lijn);
     }
   },50);
 }
