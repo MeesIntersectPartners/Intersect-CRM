@@ -423,6 +423,7 @@ textarea{resize:vertical;min-height:75px;}
       <button class="sb-item" onclick="nav('accounts');setFilter('lead')">Leads</button>
       <button class="sb-item" onclick="nav('accounts');setFilter('prospect')">Prospects</button>
       <button class="sb-item" onclick="nav('accounts');setFilter('klant')">Klanten</button>
+      <button class="sb-item" onclick="nav('lijsten')">Lijsten</button>
     </div>
     <div class="sb-sec">
       <div class="sb-lbl">Tools</div>
@@ -664,6 +665,7 @@ textarea{resize:vertical;min-height:75px;}
           <th style="cursor:pointer;user-select:none;" onclick="toggleSort('status')">Status <span id="sort-status"></span></th>
           <th style="cursor:pointer;user-select:none;" onclick="toggleSort('seg')">Segment <span id="sort-seg"></span></th>
           <th>Contactpersoon</th>
+          <th>Locatie</th>
           <th>Eigenaar</th>
           <th style="cursor:pointer;user-select:none;" onclick="toggleSort('pipe')">Pipeline <span id="sort-pipe"></span></th>
           <th style="cursor:pointer;user-select:none;" onclick="toggleSort('val')">Waarde <span id="sort-val"></span></th>
@@ -695,6 +697,9 @@ textarea{resize:vertical;min-height:75px;}
 
     <!-- ZOEKRESULTATEN -->
     <div class="page" id="p-zoek"></div>
+
+    <!-- LIJSTEN -->
+    <div class="page" id="p-lijsten"></div>
 
     <!-- PIPELINE -->
     <div class="page" id="p-pipeline">
@@ -945,6 +950,7 @@ textarea{resize:vertical;min-height:75px;}
         </div>
       </div>
       <div class="fg"><label class="fl">Interne notitie</label><textarea id="f-note" placeholder="Context, eerste indruk, volgende stap…"></textarea></div>
+      <div class="fg"><label class="fl">Lijsten</label><div id="f-lijsten-wrap" style="display:flex;flex-direction:column;gap:4px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);"></div></div>
     </div>
     <div class="mf"><button class="btn ghost" onclick="closeM('m-acc')">Annuleren</button><button class="btn pri" onclick="saveAcc()">Opslaan</button></div>
   </div>
@@ -1783,7 +1789,7 @@ function nav(id){
   if(el)el.classList.add('on');
   history.pushState(null,'','#'+id);
   document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('on'));
-  const titles={dashboard:'Dashboard',agenda:'Agenda',pipeline:'Pipeline',todos:"To-do's",accounts:'Accounts',contacts:'Contacten',outreach:'Outreach',activity:'Activiteit',rapport:'Klantrapport',scraper:'Lead Scraper',instellingen:'Instellingen',actiecenter:'Actie Center'};
+  const titles={dashboard:'Dashboard',agenda:'Agenda',pipeline:'Pipeline',todos:"To-do's",accounts:'Accounts',contacts:'Contacten',outreach:'Outreach',activity:'Activiteit',rapport:'Klantrapport',scraper:'Lead Scraper',instellingen:'Instellingen',actiecenter:'Actie Center',lijsten:'Lijsten'};
   document.getElementById('topbar-title').innerHTML=titles[id]||id;
   if(id==='dashboard')renderDash();
   if(id==='agenda'){
@@ -1802,6 +1808,7 @@ function nav(id){
   if(id==='scraper')renderScraper();
   if(id==='instellingen')renderInstellingen();
   if(id==='actiecenter')renderActieCenter();
+  if(id==='lijsten')renderLijsten();
   curAcc=null;
 }
 
@@ -3135,6 +3142,7 @@ function renderAccList(){
       <td style="color:${hasContact?'var(--blue)':'var(--text3)'};cursor:${hasContact?'pointer':'default'};" onclick="${hasContact?`event.stopPropagation();openDetail(${a.id});setTimeout(()=>switchTab('contacts'),200)`:''}">
         ${contact}${lastContactStr}
       </td>
+      <td style="font-size:12px;color:var(--text2);">${a.addr?a.addr.split(',')[0]:'—'}</td>
       <td>${ownerHtml}</td>
       <td style="font-size:12px;color:${PCLRS[pipe]?PCLRS[pipe][1]:'var(--text2)'};">${pipe||'—'}</td>
       <td style="font-weight:600;color:var(--green-t);">${val?'€ '+parseInt(val).toLocaleString('nl-NL'):'—'}</td>
@@ -3311,6 +3319,7 @@ function saveAcc(){
     addActivity(`<strong>${user}</strong> heeft <strong>${name}</strong> toegevoegd als ${slbl(a.status)}`,'◈',CLRS[a.color%CLRS.length][0]);
   }
   ss('ix_accs',accs);
+  updateLijstenVoorAccount(a.id);
   _saveAcc(a).then(()=>{
     _logAct(`<strong>${CU==='MA'?'Mees':'Julian'}</strong> heeft <strong>${a.name}</strong> ${editId?'bijgewerkt':'toegevoegd als '+slbl(a.status)}`,'◈',CLRS[a.color%CLRS.length][0]).catch(()=>{});
     activity.unshift({text:`<strong>${CU==='MA'?'Mees':'Julian'}</strong> heeft <strong>${a.name}</strong> ${editId?'bijgewerkt':'toegevoegd als '+slbl(a.status)}`,time:'Zojuist',ico:'◈',bg:CLRS[a.color%CLRS.length][0]});
@@ -3451,6 +3460,7 @@ async function openAddAcc(){
     }
   }catch(e){console.warn('Could not refresh clients:',e);}
   renderClientCheckboxes({});
+  renderLijstenCheckboxes(null);
   document.getElementById('m-acc').classList.add('on');
 }
 async function openEditAcc(id){
@@ -3465,7 +3475,7 @@ async function openEditAcc(id){
         clients.unshift({id:999999,name:'Intersect',sector:'Sales & Business Development',contact:'Mees & Julian',email:'mees@intersect-partners.com',color:'#c9a84c',note:'Onze eigen organisatie.'});
       }
     }
-  }catch(e){}document.getElementById('f-name').value=a.name;document.getElementById('f-status').value=a.status;document.getElementById('f-sector').value=a.sector||'';document.getElementById('f-seg').value=a.seg||'';document.getElementById('f-web').value=a.web||'';document.getElementById('f-li').value=a.li||'';document.getElementById('f-phone').value=a.phone||'';document.getElementById('f-kvk').value=a.kvk||'';document.getElementById('f-addr').value=a.addr||'';document.getElementById('f-pipe').value=a.pipe||'Nieuw';document.getElementById('f-val').value=a.val||'';document.getElementById('f-cf').value=a.cf||'';document.getElementById('f-cl').value=a.cl||'';document.getElementById('f-cr').value=a.cr||'';document.getElementById('f-cp').value=a.cp||'';document.getElementById('f-ce').value=a.ce||'';document.getElementById('f-note').value=a.note||'';selOwner(a.owner||'MA','asgn-acc');renderClientCheckboxes(a.clientLinks||{});document.getElementById('m-acc').classList.add('on');}
+  }catch(e){}document.getElementById('f-name').value=a.name;document.getElementById('f-status').value=a.status;document.getElementById('f-sector').value=a.sector||'';document.getElementById('f-seg').value=a.seg||'';document.getElementById('f-web').value=a.web||'';document.getElementById('f-li').value=a.li||'';document.getElementById('f-phone').value=a.phone||'';document.getElementById('f-kvk').value=a.kvk||'';document.getElementById('f-addr').value=a.addr||'';document.getElementById('f-pipe').value=a.pipe||'Nieuw';document.getElementById('f-val').value=a.val||'';document.getElementById('f-cf').value=a.cf||'';document.getElementById('f-cl').value=a.cl||'';document.getElementById('f-cr').value=a.cr||'';document.getElementById('f-cp').value=a.cp||'';document.getElementById('f-ce').value=a.ce||'';document.getElementById('f-note').value=a.note||'';selOwner(a.owner||'MA','asgn-acc');renderClientCheckboxes(a.clientLinks||{});renderLijstenCheckboxes(a.id);document.getElementById('m-acc').classList.add('on');}
 function openAddTodo(){document.getElementById('t-title').value='';document.getElementById('t-prio').value='medium';document.getElementById('t-due').value='';const sel=document.getElementById('t-acc');sel.innerHTML='<option value="">— geen —</option>';accs.forEach(a=>sel.innerHTML+=`<option value="${a.id}">${a.name}</option>`);selOwner(CU,'asgn-todo');document.getElementById('m-todo').classList.add('on');}
 function openAddTodoForAcc(id){openAddTodo();document.getElementById('t-acc').value=id;}
 let chatBerichten = [];
@@ -5437,6 +5447,263 @@ function startReminderEngine() {
   setInterval(agendaReminderCheck, 30000); // Check elke 30 seconden
 }
 
+// ══════════════ LIJSTEN ══════════════
+
+let lijsten = ls('ix_lijsten') || [];
+
+function saveLijsten() { ss('ix_lijsten', lijsten); }
+
+function renderLijsten() {
+  const el = document.getElementById('p-lijsten');
+  if (!el) return;
+
+  const curLijstId = el.dataset.curLijst ? parseInt(el.dataset.curLijst) : null;
+  const curLijst = lijsten.find(l => l.id === curLijstId);
+
+  el.innerHTML = `
+  <div style="display:grid;grid-template-columns:240px 1fr;gap:16px;align-items:start;">
+
+    <!-- Links: Lijsten menu -->
+    <div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--navy);">Mijn lijsten</div>
+        <button class="btn sm pri" onclick="openNieuweLijst()">+ Nieuw</button>
+      </div>
+      ${lijsten.length===0?`<div style="font-size:12.5px;color:var(--text3);padding:8px 0;">Nog geen lijsten. Maak een nieuwe lijst aan.</div>`:
+      lijsten.map(l=>`
+        <div style="display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:var(--r);cursor:pointer;margin-bottom:4px;background:${l.id===curLijstId?'var(--navy)':'var(--surface)'};border:1px solid ${l.id===curLijstId?'var(--navy)':'var(--border)'};" onclick="selectLijst(${l.id})">
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:13px;font-weight:600;color:${l.id===curLijstId?'#fff':'var(--text)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${l.naam}</div>
+            <div style="font-size:11px;color:${l.id===curLijstId?'rgba(255,255,255,.6)':'var(--text3)'};">${(l.accounts||[]).length} accounts</div>
+          </div>
+          <button onclick="event.stopPropagation();verwijderLijst(${l.id})" style="background:none;border:none;cursor:pointer;color:${l.id===curLijstId?'rgba(255,255,255,.5)':'var(--text3)'};font-size:14px;padding:2px 4px;">✕</button>
+        </div>`).join('')}
+    </div>
+
+    <!-- Rechts: Lijst inhoud -->
+    <div>
+      ${!curLijst ? `
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:40px;text-align:center;">
+          <div style="font-size:13px;color:var(--text3);">Selecteer een lijst of maak een nieuwe aan</div>
+        </div>` : `
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <div>
+            <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;color:var(--navy);">${curLijst.naam}</div>
+            ${curLijst.beschrijving?`<div style="font-size:12px;color:var(--text3);margin-top:2px;">${curLijst.beschrijving}</div>`:''}
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn sm ghost" onclick="openLijstBewerken(${curLijst.id})">Bewerken</button>
+            <button class="btn sm" style="background:#eaf1fd;border-color:#1a5fb4;color:#1a5fb4;" onclick="openAccountsToevoegen(${curLijst.id})">+ Accounts toevoegen</button>
+          </div>
+        </div>
+
+        ${(curLijst.accounts||[]).length===0?`
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:32px;text-align:center;">
+            <div style="font-size:13px;color:var(--text3);">Nog geen accounts in deze lijst. Voeg accounts toe.</div>
+          </div>` : `
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;">
+            <table style="width:100%;border-collapse:collapse;">
+              <thead>
+                <tr style="background:var(--surface2);border-bottom:2px solid var(--border);">
+                  <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;">Bedrijf</th>
+                  <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;">Contactpersoon</th>
+                  <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;">Telefoon</th>
+                  <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;">E-mail</th>
+                  <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;">Locatie</th>
+                  <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;">Status</th>
+                  <th style="width:32px;"></th>
+                </tr>
+              </thead>
+              <tbody>
+                ${curLijst.accounts.map(accId=>{
+                  const a = accs.find(x=>x.id===accId);
+                  if(!a) return '';
+                  const contact = [a.cf,a.cl].filter(Boolean).join(' ');
+                  return `<tr style="border-bottom:1px solid var(--border);cursor:pointer;" onmouseenter="this.style.background='var(--surface2)'" onmouseleave="this.style.background=''" onclick="openDetail(${a.id})">
+                    <td style="padding:10px 14px;">
+                      <div style="font-size:13px;font-weight:600;color:var(--navy);">${a.name}</div>
+                      ${a.sector?`<div style="font-size:11px;color:var(--text3);">${a.sector}</div>`:''}
+                    </td>
+                    <td style="padding:10px 14px;font-size:12.5px;color:var(--text);">${contact||'—'}</td>
+                    <td style="padding:10px 14px;font-size:12.5px;color:var(--text);">${a.cp||'—'}</td>
+                    <td style="padding:10px 14px;font-size:12.5px;color:var(--blue);">${a.ce?`<a href="mailto:${a.ce}" onclick="event.stopPropagation()" style="color:var(--blue);text-decoration:none;">${a.ce}</a>`:'—'}</td>
+                    <td style="padding:10px 14px;font-size:12.5px;color:var(--text);">${a.addr||'—'}</td>
+                    <td style="padding:10px 14px;"><span class="badge ${a.status}">${slbl(a.status)}</span></td>
+                    <td style="padding:10px 14px;" onclick="event.stopPropagation();verwijderUitLijst(${curLijst.id},${a.id})"><span style="color:var(--text3);cursor:pointer;font-size:13px;">✕</span></td>
+                  </tr>`;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>`}
+      `}
+    </div>
+  </div>
+
+  <!-- Nieuwe lijst modal -->
+  <div id="m-lijst-nieuw" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:500;display:none;align-items:center;justify-content:center;">
+    <div style="background:var(--surface);border-radius:var(--r-lg);padding:24px;width:400px;box-shadow:0 8px 32px rgba(0,0,0,.2);">
+      <div style="font-size:15px;font-weight:700;color:var(--navy);margin-bottom:16px;" id="m-lijst-title">Nieuwe lijst</div>
+      <div class="fg" style="margin-bottom:12px;"><label class="fl">Naam *</label><input type="text" id="lijst-naam" placeholder="bijv. Bel-lijst week 15, Mailshot Q2…"></div>
+      <div class="fg" style="margin-bottom:16px;"><label class="fl">Beschrijving</label><input type="text" id="lijst-beschrijving" placeholder="Optionele omschrijving…"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button class="btn ghost" onclick="sluitLijstModal()">Annuleren</button>
+        <button class="btn pri" onclick="slaLijstOp()">Opslaan</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Accounts toevoegen modal -->
+  <div id="m-lijst-accounts" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:500;align-items:center;justify-content:center;">
+    <div style="background:var(--surface);border-radius:var(--r-lg);padding:24px;width:500px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,.2);">
+      <div style="font-size:15px;font-weight:700;color:var(--navy);margin-bottom:12px;">Accounts toevoegen aan lijst</div>
+      <input type="text" id="lijst-acc-zoek" placeholder="Zoek op naam, sector…" oninput="filterLijstAccounts(this.value)" style="margin-bottom:10px;">
+      <div id="lijst-acc-results" style="flex:1;overflow-y:auto;max-height:400px;border:1px solid var(--border);border-radius:var(--r);"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
+        <button class="btn ghost" onclick="sluitLijstAccountsModal()">Sluiten</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function selectLijst(id) {
+  const el = document.getElementById('p-lijsten');
+  if (el) { el.dataset.curLijst = id; renderLijsten(); }
+}
+
+function openNieuweLijst() {
+  document.getElementById('lijst-naam').value = '';
+  document.getElementById('lijst-beschrijving').value = '';
+  document.getElementById('m-lijst-title').textContent = 'Nieuwe lijst';
+  document.getElementById('m-lijst-nieuw').dataset.editId = '';
+  document.getElementById('m-lijst-nieuw').style.display = 'flex';
+}
+
+function openLijstBewerken(id) {
+  const l = lijsten.find(x => x.id === id);
+  if (!l) return;
+  document.getElementById('lijst-naam').value = l.naam;
+  document.getElementById('lijst-beschrijving').value = l.beschrijving || '';
+  document.getElementById('m-lijst-title').textContent = 'Lijst bewerken';
+  document.getElementById('m-lijst-nieuw').dataset.editId = id;
+  document.getElementById('m-lijst-nieuw').style.display = 'flex';
+}
+
+function sluitLijstModal() {
+  document.getElementById('m-lijst-nieuw').style.display = 'none';
+}
+
+function slaLijstOp() {
+  const naam = document.getElementById('lijst-naam').value.trim();
+  if (!naam) { alert('Geef de lijst een naam.'); return; }
+  const beschrijving = document.getElementById('lijst-beschrijving').value.trim();
+  const editId = parseInt(document.getElementById('m-lijst-nieuw').dataset.editId) || null;
+  if (editId) {
+    const idx = lijsten.findIndex(l => l.id === editId);
+    if (idx >= 0) { lijsten[idx].naam = naam; lijsten[idx].beschrijving = beschrijving; }
+  } else {
+    lijsten.push({ id: Date.now(), naam, beschrijving, accounts: [] });
+  }
+  saveLijsten();
+  sluitLijstModal();
+  renderLijsten();
+}
+
+function verwijderLijst(id) {
+  if (!confirm('Lijst verwijderen?')) return;
+  lijsten = lijsten.filter(l => l.id !== id);
+  saveLijsten();
+  const el = document.getElementById('p-lijsten');
+  if (el && parseInt(el.dataset.curLijst) === id) el.dataset.curLijst = '';
+  renderLijsten();
+}
+
+let _curLijstAccId = null;
+
+function openAccountsToevoegen(lijstId) {
+  _curLijstAccId = lijstId;
+  document.getElementById('lijst-acc-zoek').value = '';
+  document.getElementById('m-lijst-accounts').style.display = 'flex';
+  filterLijstAccounts('');
+}
+
+function sluitLijstAccountsModal() {
+  document.getElementById('m-lijst-accounts').style.display = 'none';
+  renderLijsten();
+}
+
+function filterLijstAccounts(q) {
+  const lijst = lijsten.find(l => l.id === _curLijstAccId);
+  if (!lijst) return;
+  const zoek = q.toLowerCase();
+  const gefilterd = accs.filter(a =>
+    a.name.toLowerCase().includes(zoek) ||
+    (a.sector||'').toLowerCase().includes(zoek) ||
+    ([a.cf,a.cl].filter(Boolean).join(' ')).toLowerCase().includes(zoek)
+  );
+  const container = document.getElementById('lijst-acc-results');
+  container.innerHTML = gefilterd.map(a => {
+    const inLijst = (lijst.accounts||[]).includes(a.id);
+    return `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--border);cursor:pointer;" onclick="toggleLijstAccount(${lijst.id},${a.id})">
+      <input type="checkbox" ${inLijst?'checked':''} onclick="event.stopPropagation();toggleLijstAccount(${lijst.id},${a.id})" style="flex-shrink:0;">
+      <div style="flex:1;">
+        <div style="font-size:13px;font-weight:600;color:var(--text);">${a.name}</div>
+        <div style="font-size:11px;color:var(--text3);">${[a.sector,[a.cf,a.cl].filter(Boolean).join(' ')].filter(Boolean).join(' · ')}</div>
+      </div>
+      <span class="badge ${a.status}">${slbl(a.status)}</span>
+    </div>`;
+  }).join('') || '<div style="padding:16px;font-size:13px;color:var(--text3);">Geen accounts gevonden</div>';
+}
+
+function toggleLijstAccount(lijstId, accId) {
+  const lijst = lijsten.find(l => l.id === lijstId);
+  if (!lijst) return;
+  if (!lijst.accounts) lijst.accounts = [];
+  const idx = lijst.accounts.indexOf(accId);
+  if (idx >= 0) lijst.accounts.splice(idx, 1);
+  else lijst.accounts.push(accId);
+  saveLijsten();
+  filterLijstAccounts(document.getElementById('lijst-acc-zoek')?.value || '');
+}
+
+function verwijderUitLijst(lijstId, accId) {
+  const lijst = lijsten.find(l => l.id === lijstId);
+  if (!lijst) return;
+  lijst.accounts = (lijst.accounts||[]).filter(id => id !== accId);
+  saveLijsten();
+  renderLijsten();
+}
+
+// Lijsten veld in account modal
+function renderLijstenCheckboxes(accId) {
+  const container = document.getElementById('f-lijsten-wrap');
+  if (!container) return;
+  if (lijsten.length === 0) {
+    container.innerHTML = '<div style="font-size:12px;color:var(--text3);">Nog geen lijsten aangemaakt. Ga naar Lijsten om een lijst te maken.</div>';
+    return;
+  }
+  container.innerHTML = lijsten.map(l => {
+    const inLijst = (l.accounts||[]).includes(accId);
+    return `<label style="display:flex;align-items:center;gap:7px;font-size:12.5px;cursor:pointer;padding:3px 0;">
+      <input type="checkbox" data-lijst-id="${l.id}" ${inLijst?'checked':''}>
+      ${l.naam} <span style="font-size:11px;color:var(--text3);">(${(l.accounts||[]).length})</span>
+    </label>`;
+  }).join('');
+}
+
+function updateLijstenVoorAccount(accId) {
+  const checkboxes = document.querySelectorAll('#f-lijsten-wrap input[type=checkbox]');
+  checkboxes.forEach(cb => {
+    const lijstId = parseInt(cb.dataset.lijstId);
+    const lijst = lijsten.find(l => l.id === lijstId);
+    if (!lijst) return;
+    if (!lijst.accounts) lijst.accounts = [];
+    const idx = lijst.accounts.indexOf(accId);
+    if (cb.checked && idx < 0) lijst.accounts.push(accId);
+    if (!cb.checked && idx >= 0) lijst.accounts.splice(idx, 1);
+  });
+  saveLijsten();
+}
+
 function updateActieBadge() {
   const mijnAccs = clientAccs().filter(a => a.status !== 'inactief' && (a.owner === CU || a.owner === 'BOTH'));
   const analyses = mijnAccs.filter(a => acAnalyseerAccount(a).suggesties.length > 0);
@@ -5654,6 +5921,7 @@ function openMailCompose(type, prefillAan, prefillOnderwerp) {
   mcBijlages = [];
   document.getElementById('mc-file-list').innerHTML = '';
   document.getElementById('mc-body').innerHTML = '';
+  document.getElementById('mc-ai-input').value = '';
   document.getElementById('mc-to').value = prefillAan || (curAcc ? curAcc.ce || '' : '');
   document.getElementById('mc-cc').value = '';
   document.getElementById('mc-subject').value = prefillOnderwerp || '';
@@ -5735,6 +6003,8 @@ async function mcGenereerSuggestie() {
       proposals: curAcc.proposals || [],
     };
 
+    const aiInput = document.getElementById('mc-ai-input')?.value?.trim() || '';
+
     const res = await fetch('/api/mail-suggest', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -5742,6 +6012,7 @@ async function mcGenereerSuggestie() {
         account: accountContext,
         mailType: mcType,
         user: CU,
+        aiInput,
       }),
     });
 
@@ -6130,6 +6401,10 @@ function renderInstellingen() {
           <span>Inhoud</span>
           <button type="button" class="btn xs" id="mc-suggest-btn" onclick="mcGenereerSuggestie()" style="background:var(--gold);border-color:var(--gold);color:var(--navy);font-weight:600;">✦ Genereer suggestie</button>
         </label>
+        <!-- AI instructies -->
+        <div style="margin-bottom:8px;">
+          <textarea id="mc-ai-input" style="min-height:52px;font-size:12px;border:1px solid var(--border);border-radius:var(--r);padding:8px 10px;width:100%;resize:vertical;color:var(--text);background:var(--surface2);" placeholder="Geef de AI instructies mee: bijv. 'Vermeld call to action voor een belafspraak, niet te formeel, benadruk dat we beperkte plekken hebben'…"></textarea>
+        </div>
         <div id="mc-suggest-toelichting" style="display:none;background:var(--gold-pale);border:1px solid rgba(201,168,76,.25);border-radius:var(--r);padding:8px 12px;font-size:12px;color:var(--amber-t);margin-bottom:6px;"></div>
         <div style="border:1px solid var(--border2);border-radius:var(--r);overflow:hidden;">
           <!-- Mini toolbar -->
