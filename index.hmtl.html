@@ -3707,58 +3707,47 @@ function globalSearch(q) {
   document.getElementById('p-zoek').classList.add('on');
   document.getElementById('topbar-title').innerHTML=`Zoekresultaten voor "<strong>${q}</strong>"`;
 
-  // Zoek in accounts
+  // Zoek in accounts (naam, sector)
   const accResults = accs.filter(a =>
     a.name.toLowerCase().includes(zoek) ||
-    (a.sector||'').toLowerCase().includes(zoek) ||
-    (a.seg||'').toLowerCase().includes(zoek) ||
-    ([a.cf,a.cl].filter(Boolean).join(' ')).toLowerCase().includes(zoek) ||
-    (a.note||'').toLowerCase().includes(zoek)
+    (a.sector||'').toLowerCase().includes(zoek)
   );
 
-  // Zoek in contactpersonen (alle extra contacten)
+  // Zoek in contactpersonen
   const contactResults = [];
   accs.forEach(a => {
+    // Primaire contactpersoon
+    const primair = [a.cf,a.cl].filter(Boolean).join(' ');
+    if(primair.toLowerCase().includes(zoek)) {
+      contactResults.push({naam:primair, role:a.cr, email:a.ce, acc:a, primair:true});
+    }
+    // Extra contactpersonen
     (a.contacts||[]).forEach(ct => {
       const naam = [ct.first,ct.last].filter(Boolean).join(' ');
-      if(naam.toLowerCase().includes(zoek) || (ct.role||'').toLowerCase().includes(zoek) || (ct.email||'').toLowerCase().includes(zoek)) {
-        contactResults.push({contact:ct, acc:a, naam});
-      }
-    });
-    // Primaire contact
-    const primair = [a.cf,a.cl].filter(Boolean).join(' ');
-    if(primair.toLowerCase().includes(zoek) && !accResults.find(x=>x.id===a.id)) {
-      contactResults.push({contact:{first:a.cf,last:a.cl,role:a.cr,email:a.ce,phone:a.cp}, acc:a, naam:primair, primair:true});
-    }
-  });
-
-  // Zoek in activiteiten/notities
-  const actResults = [];
-  accs.forEach(a => {
-    (a.notes||[]).forEach(n => {
-      if((n.text||'').toLowerCase().includes(zoek) || (n.contact||'').toLowerCase().includes(zoek)) {
-        actResults.push({note:n, acc:a});
+      if(naam.toLowerCase().includes(zoek) || (ct.role||'').toLowerCase().includes(zoek)) {
+        contactResults.push({naam, role:ct.role, email:ct.email, acc:a});
       }
     });
   });
 
   const el = document.getElementById('p-zoek');
+  const totaal = accResults.length + contactResults.length;
+
   el.innerHTML = `
-  <div style="max-width:800px;">
+  <div style="max-width:700px;">
 
     ${accResults.length>0?`
-    <div style="margin-bottom:20px;">
+    <div style="margin-bottom:24px;">
       <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--navy);display:flex;align-items:center;gap:7px;margin-bottom:10px;">
         <span style="display:block;width:3px;height:13px;background:var(--gold);border-radius:2px;"></span>Accounts <span style="font-size:11px;font-weight:400;color:var(--text3);">${accResults.length} resultaten</span>
       </div>
       ${accResults.map(a=>{
         const [bg,fg]=CLRS[a.color%CLRS.length];
-        const contact=[a.cf,a.cl].filter(Boolean).join(' ');
         return`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:12px 16px;margin-bottom:6px;display:flex;align-items:center;gap:12px;cursor:pointer;" onclick="openDetail(${a.id})" onmouseenter="this.style.borderColor='var(--navy)'" onmouseleave="this.style.borderColor='var(--border)'">
-          <div style="width:32px;height:32px;border-radius:7px;background:${bg};color:${fg};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;font-family:'Syne',sans-serif;">${initials(a.name)}</div>
+          <div style="width:34px;height:34px;border-radius:8px;background:${bg};color:${fg};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;font-family:'Syne',sans-serif;">${initials(a.name)}</div>
           <div style="flex:1;">
-            <div style="font-size:13.5px;font-weight:600;color:var(--text);">${a.name}</div>
-            <div style="font-size:12px;color:var(--text3);">${[a.sector,a.seg,contact].filter(Boolean).join(' · ')}</div>
+            <div style="font-size:14px;font-weight:600;color:var(--text);">${a.name}</div>
+            <div style="font-size:12px;color:var(--text3);">${[a.sector,a.seg].filter(Boolean).join(' · ')}</div>
           </div>
           <span class="badge ${a.status}">${slbl(a.status)}</span>
         </div>`;
@@ -3766,43 +3755,25 @@ function globalSearch(q) {
     </div>`:''}
 
     ${contactResults.length>0?`
-    <div style="margin-bottom:20px;">
+    <div style="margin-bottom:24px;">
       <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--navy);display:flex;align-items:center;gap:7px;margin-bottom:10px;">
         <span style="display:block;width:3px;height:13px;background:#1a5fb4;border-radius:2px;"></span>Contactpersonen <span style="font-size:11px;font-weight:400;color:var(--text3);">${contactResults.length} resultaten</span>
       </div>
       ${contactResults.map(r=>`
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:12px 16px;margin-bottom:6px;display:flex;align-items:center;gap:12px;cursor:pointer;" onclick="openDetail(${r.acc.id});setTimeout(()=>switchTab('contacts'),200)" onmouseenter="this.style.borderColor='var(--navy)'" onmouseleave="this.style.borderColor='var(--border)'">
-          <div style="width:32px;height:32px;border-radius:50%;background:#eaf1fd;color:#1a5fb4;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;">${initials(r.naam)}</div>
+          <div style="width:34px;height:34px;border-radius:50%;background:#eaf1fd;color:#1a5fb4;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;">${initials(r.naam)}</div>
           <div style="flex:1;">
-            <div style="font-size:13.5px;font-weight:600;color:var(--text);">${r.naam}</div>
-            <div style="font-size:12px;color:var(--text3);">${[r.contact.role,r.acc.name].filter(Boolean).join(' · ')}</div>
+            <div style="font-size:14px;font-weight:600;color:var(--text);">${r.naam}</div>
+            <div style="font-size:12px;color:var(--text3);">${[r.role,r.acc.name].filter(Boolean).join(' · ')}</div>
           </div>
-          ${r.contact.email?`<span style="font-size:12px;color:var(--blue);">${r.contact.email}</span>`:''}
+          ${r.email?`<span style="font-size:12px;color:var(--blue);">${r.email}</span>`:''}
         </div>`).join('')}
     </div>`:''}
 
-    ${actResults.length>0?`
-    <div style="margin-bottom:20px;">
-      <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--navy);display:flex;align-items:center;gap:7px;margin-bottom:10px;">
-        <span style="display:block;width:3px;height:13px;background:#8a6200;border-radius:2px;"></span>Activiteiten <span style="font-size:11px;font-weight:400;color:var(--text3);">${actResults.length} resultaten</span>
-      </div>
-      ${actResults.slice(0,10).map(r=>{
-        const s=actStijl(r.note.type);
-        const preview=(r.note.text||'').substring(0,120);
-        return`<div style="background:var(--surface);border:1px solid var(--border);border-left:3px solid ${s.kleur};border-radius:var(--r-lg);padding:12px 16px;margin-bottom:6px;cursor:pointer;" onclick="openDetail(${r.acc.id});setTimeout(()=>switchTab('activity'),200)" onmouseenter="this.style.background='var(--surface2)'" onmouseleave="this.style.background='var(--surface)'">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-            <span style="font-size:11px;font-weight:700;padding:2px 7px;border-radius:4px;background:${s.bg};color:${s.kleur};">${s.label}</span>
-            <span style="font-size:12px;font-weight:500;color:var(--blue);">${r.acc.name}</span>
-            <span style="font-size:11px;color:var(--text3);margin-left:auto;">${r.note.time||''}</span>
-          </div>
-          <div style="font-size:12.5px;color:var(--text2);">${preview}${(r.note.text||'').length>120?'…':''}</div>
-        </div>`;
-      }).join('')}
-    </div>`:''}
-
-    ${accResults.length===0&&contactResults.length===0&&actResults.length===0?`
+    ${totaal===0?`
       <div style="text-align:center;padding:48px 20px;">
-        <div style="font-size:14px;color:var(--text3);">Geen resultaten gevonden voor "<strong style="color:var(--text);">${q}</strong>"</div>
+        <div style="font-size:14px;color:var(--text3);">Geen resultaten voor "<strong style="color:var(--text);">${q}</strong>"</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:6px;">Probeer een andere naam of bedrijfsnaam</div>
       </div>`:''}
   </div>`;
 }
