@@ -7,6 +7,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
+@keyframes notifSlideIn{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}}
 :root{
   /* ── Intersect brand: navy + goud ── */
   --navy:#0d1f3c;--navy-mid:#1a3358;--navy-light:#243f6a;--navy-fade:rgba(13,31,60,.06);
@@ -1297,6 +1298,25 @@ textarea{resize:vertical;min-height:75px;}
           <textarea id="ev-note" style="min-height:55px;" placeholder="Gespreksonderwerpen, voorbereiding…"></textarea>
         </div>
 
+        <!-- Reminders -->
+        <div class="fg">
+          <label class="fl">Reminders</label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
+              <input type="checkbox" id="ev-rem-5" checked> 5 min van tevoren
+            </label>
+            <label style="display:flex;align-items:center;gap=6px;font-size:13px;cursor:pointer;">
+              <input type="checkbox" id="ev-rem-0" checked> Bij aanvang
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
+              <input type="checkbox" id="ev-rem-15"> 15 min van tevoren
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
+              <input type="checkbox" id="ev-rem-30"> 30 min van tevoren
+            </label>
+          </div>
+        </div>
+
         <!-- Bevestigingsmail -->
         <div style="background:var(--gold-pale);border:1px solid rgba(201,168,76,.25);border-radius:var(--r-lg);padding:14px 16px;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
@@ -1325,6 +1345,9 @@ textarea{resize:vertical;min-height:75px;}
     </div>
   </div>
 </div>
+
+<!-- AGENDA NOTIFICATIES -->
+<div id="agenda-notif-container" style="position:fixed;top:16px;right:16px;z-index:9999;display:flex;flex-direction:column;gap:8px;max-width:320px;pointer-events:none;"></div>
 
 <script>
 // ══════════════ AUTH LAYER ══════════════
@@ -3945,7 +3968,13 @@ function saveEvent(){
   const owner=document.querySelector('#asgn-event .asgn-opt.on')?.dataset.u||CU;
   const accId=parseInt(document.getElementById('ev-acc-id').value)||null;
   const contactName=document.getElementById('ev-contact-name').value;
-  const ev={id:Date.now(),title,type,date:document.getElementById('ev-date').value,time:document.getElementById('ev-time').value,dur:parseInt(document.getElementById('ev-dur').value)||60,loc:document.getElementById('ev-loc').value.trim(),acc:accId,owner,note:document.getElementById('ev-note').value.trim(),contactName};
+  // Reminders
+  const reminders=[];
+  if(document.getElementById('ev-rem-30')?.checked)reminders.push(30);
+  if(document.getElementById('ev-rem-15')?.checked)reminders.push(15);
+  if(document.getElementById('ev-rem-5')?.checked)reminders.push(5);
+  if(document.getElementById('ev-rem-0')?.checked)reminders.push(0);
+  const ev={id:Date.now(),title,type,date:document.getElementById('ev-date').value,time:document.getElementById('ev-time').value,dur:parseInt(document.getElementById('ev-dur').value)||60,loc:document.getElementById('ev-loc').value.trim(),acc:accId,owner,note:document.getElementById('ev-note').value.trim(),contactName,reminders};
   calEvents.push(ev);ss('ix_events',calEvents);_saveEvent(ev).catch(e=>console.warn('event:',e));
   const acc=accs.find(a=>a.id===accId);
   addActivity(`<strong>${CU==='MA'?'Mees':'Julian'}</strong> pland afspraak: <strong>${title}</strong>${acc?' · '+acc.name:''}`,'◈','#e8f0fb');
@@ -5302,6 +5331,112 @@ function acSnelActie(accId, type) {
   else openQuickNote(type);
 }
 
+// ══════════════ AGENDA REMINDERS ══════════════
+
+const _getoondReminders = new Set(); // bijhoudt welke reminders al getoond zijn
+
+function agendaReminderCheck() {
+  const nu = new Date();
+  const todayISO = `${nu.getFullYear()}-${String(nu.getMonth()+1).padStart(2,'0')}-${String(nu.getDate()).padStart(2,'0')}`;
+
+  calEvents.forEach(ev => {
+    if (!ev.date || !ev.time) return;
+    if (ev.date !== todayISO) return;
+    // Alleen eigen afspraken
+    if (ev.owner && ev.owner !== CU && ev.owner !== 'BOTH') return;
+
+    const [eh, em] = ev.time.split(':').map(Number);
+    const evMinuten = eh * 60 + em;
+    const nuMinuten = nu.getHours() * 60 + nu.getMinutes();
+    const reminders = ev.reminders || [5, 0];
+
+    reminders.forEach(minVoor => {
+      const triggerMinuten = evMinuten - minVoor;
+      const key = `${ev.id}_${minVoor}`;
+      if (_getoondReminders.has(key)) return;
+      // Trigger als we binnen 1 minuut van het trigger moment zitten
+      if (nuMinuten >= triggerMinuten && nuMinuten < triggerMinuten + 2) {
+        _getoondReminders.add(key);
+        toonAgendaNotificatie(ev, minVoor);
+      }
+    });
+  });
+}
+
+function toonAgendaNotificatie(ev, minVoor) {
+  const container = document.getElementById('agenda-notif-container');
+  if (!container) return;
+  const acc = ev.acc ? accs.find(a => a.id === ev.acc) : null;
+  const [bg, fg] = acc ? CLRS[acc.color % CLRS.length] : ['#eaf1fd', '#1a5fb4'];
+  const label = minVoor === 0 ? 'Nu gestart' : `Over ${minVoor} min`;
+  const urgentie = minVoor === 0;
+
+  const notif = document.createElement('div');
+  notif.id = `notif-${ev.id}-${minVoor}`;
+  notif.style.cssText = `
+    background:${urgentie ? 'var(--navy)' : 'var(--surface)'};
+    border:2px solid ${urgentie ? 'var(--gold)' : 'var(--navy)'};
+    border-radius:12px;
+    padding:14px 16px;
+    box-shadow:0 4px 20px rgba(13,31,60,.25);
+    pointer-events:all;
+    animation:notifSlideIn .3s ease;
+    position:relative;
+  `;
+  notif.innerHTML = `
+    <div style="display:flex;align-items:flex-start;gap:10px;">
+      <div style="width:36px;height:36px;border-radius:8px;background:${bg};color:${fg};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;font-family:'Syne',sans-serif;">${initials(ev.title)}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:11px;font-weight:700;color:${urgentie?'var(--gold)':'var(--navy)'};text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">${label}</div>
+        <div style="font-size:13.5px;font-weight:700;color:${urgentie?'#fff':'var(--text)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${ev.title}</div>
+        <div style="font-size:12px;color:${urgentie?'rgba(255,255,255,.65)':'var(--text3)'};margin-top:2px;">${ev.time}${ev.dur?' · '+ev.dur+' min':''}${acc?' · '+acc.name:''}</div>
+        ${ev.loc?`<div style="font-size:11.5px;color:${urgentie?'rgba(255,255,255,.5)':'var(--text3)'};margin-top:1px;">${ev.loc}</div>`:''}
+      </div>
+    </div>
+    <div style="display:flex;gap:6px;margin-top:10px;">
+      ${minVoor > 0 ? `<button onclick="toonAgendaNotificatieNu(${ev.id},${minVoor})" style="flex:1;padding:6px;font-size:12px;font-weight:600;border-radius:7px;border:1.5px solid ${urgentie?'rgba(255,255,255,.3)':'var(--navy)'};background:${urgentie?'rgba(255,255,255,.1)':'var(--navy)'};color:${urgentie?'#fff':'#fff'};cursor:pointer;font-family:'DM Sans',sans-serif;">Nu gestart</button>` : ''}
+      <button onclick="sluitAgendaNotificatie('${notif.id}')" style="flex:1;padding:6px;font-size:12px;font-weight:600;border-radius:7px;border:1.5px solid ${urgentie?'rgba(255,255,255,.3)':'var(--border2)'};background:transparent;color:${urgentie?'rgba(255,255,255,.7)':'var(--text2)'};cursor:pointer;font-family:'DM Sans',sans-serif;">Sluiten</button>
+      <button onclick="openDetail(${ev.acc||0});sluitAgendaNotificatie('${notif.id}')" style="padding:6px 10px;font-size:12px;font-weight:600;border-radius:7px;border:1.5px solid ${urgentie?'var(--gold)':'var(--border2)'};background:transparent;color:${urgentie?'var(--gold)':'var(--text2)'};cursor:pointer;font-family:'DM Sans',sans-serif;">Account</button>
+    </div>
+  `;
+  container.appendChild(notif);
+
+  // Auto verwijder na 60 seconden als het een 5-min reminder is
+  if (minVoor > 0) {
+    setTimeout(() => {
+      if (document.getElementById(notif.id)) {
+        notif.style.opacity = '0.4';
+        notif.style.transition = 'opacity .5s';
+      }
+    }, 30000);
+  }
+}
+
+function sluitAgendaNotificatie(id) {
+  const el = document.getElementById(id);
+  if (el) {
+    el.style.transition = 'opacity .2s, transform .2s';
+    el.style.opacity = '0';
+    el.style.transform = 'translateX(20px)';
+    setTimeout(() => el.remove(), 200);
+  }
+}
+
+function toonAgendaNotificatieNu(evId, minVoor) {
+  // Sluit de 5-min reminder en toon de "nu gestart" melding
+  sluitAgendaNotificatie(`notif-${evId}-${minVoor}`);
+  const ev = calEvents.find(e => e.id === evId);
+  if (ev) {
+    _getoondReminders.delete(`${evId}_0`); // Reset zodat hij opnieuw triggert
+    toonAgendaNotificatie(ev, 0);
+  }
+}
+
+function startReminderEngine() {
+  agendaReminderCheck();
+  setInterval(agendaReminderCheck, 30000); // Check elke 30 seconden
+}
+
 function updateActieBadge() {
   const mijnAccs = clientAccs().filter(a => a.status !== 'inactief' && (a.owner === CU || a.owner === 'BOTH'));
   const analyses = mijnAccs.filter(a => acAnalyseerAccount(a).suggesties.length > 0);
@@ -5915,7 +6050,7 @@ function renderInstellingen() {
   renderDash();
   updateBadge();
   renderClientBar();
-  setTimeout(()=>{runWorkflowEngine(false);updateWfBadge();renderWatNu();setTimeout(updateActieBadge,200);},600);
+  setTimeout(()=>{runWorkflowEngine(false);updateWfBadge();renderWatNu();setTimeout(updateActieBadge,200);setTimeout(startReminderEngine,500);},600);
   setTimeout(applyHash, 150);
 })();
 </script>
