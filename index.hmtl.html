@@ -401,34 +401,35 @@ textarea{resize:vertical;min-height:75px;}
   <nav class="sb-nav">
     <div class="sb-sec">
       <div class="sb-lbl">Overzicht</div>
-      <button class="sb-item on" onclick="nav('dashboard')"><span class="ico">◈</span>Dashboard</button>
-      <button class="sb-item" onclick="nav('agenda')"><span class="ico">◈</span>Agenda</button>
-      <button class="sb-item" onclick="nav('pipeline')"><span class="ico">⬡</span>Pipeline</button>
-      <button class="sb-item" onclick="nav('todos')"><span class="ico">◻</span>To-do's<span class="sb-badge" id="todo-badge">0</span></button>
+      <button class="sb-item on" onclick="nav('dashboard')">Dashboard</button>
+      <button class="sb-item" onclick="nav('actiecenter')">Actie Center<span class="sb-badge" id="actie-badge" style="display:none;">0</span></button>
+      <button class="sb-item" onclick="nav('agenda')">Agenda</button>
+      <button class="sb-item" onclick="nav('pipeline')">Pipeline</button>
+      <button class="sb-item" onclick="nav('todos')">To-do's<span class="sb-badge" id="todo-badge">0</span></button>
     </div>
     <div class="sb-sec">
       <div class="sb-lbl">Accounts</div>
-      <button class="sb-item" onclick="nav('accounts');setFilter('all')"><span class="ico">⬡</span>Alle accounts</button>
-      <button class="sb-item" onclick="nav('accounts');setFilter('lead')"><span class="ico">·</span>Leads</button>
-      <button class="sb-item" onclick="nav('accounts');setFilter('prospect')"><span class="ico">·</span>Prospects</button>
-      <button class="sb-item" onclick="nav('accounts');setFilter('klant')"><span class="ico">·</span>Klanten</button>
+      <button class="sb-item" onclick="nav('accounts');setFilter('all')">Alle accounts</button>
+      <button class="sb-item" onclick="nav('accounts');setFilter('lead')">Leads</button>
+      <button class="sb-item" onclick="nav('accounts');setFilter('prospect')">Prospects</button>
+      <button class="sb-item" onclick="nav('accounts');setFilter('klant')">Klanten</button>
     </div>
     <div class="sb-sec">
       <div class="sb-lbl">Tools</div>
-      <button class="sb-item" onclick="nav('contacts')"><span class="ico">◈</span>Contacten</button>
-      <button class="sb-item" onclick="nav('workflows')"><span class="ico">⚡</span>Workflows<span class="sb-badge" id="wf-badge" style="display:none;">0</span></button>
-      <button class="sb-item" onclick="nav('outreach')"><span class="ico">◈</span>Outreach</button>
+      <button class="sb-item" onclick="nav('contacts')">Contacten</button>
+      <button class="sb-item" onclick="nav('workflows')">Workflows<span class="sb-badge" id="wf-badge" style="display:none;">0</span></button>
+      <button class="sb-item" onclick="nav('outreach')">Outreach</button>
       <button class="sb-item" onclick="openImport()"><span class="ico">↑</span>CSV Import</button>
-      <button class="sb-item" onclick="nav('rapport')"><span class="ico">◈</span>Klantrapport</button>
-      <button class="sb-item" onclick="nav('activity')"><span class="ico">◈</span>Activiteit</button>
+      <button class="sb-item" onclick="nav('rapport')">Klantrapport</button>
+      <button class="sb-item" onclick="nav('activity')">Activiteit</button>
     </div>
     <div class="sb-sec">
       <div class="sb-lbl">Automatisering</div>
-      <button class="sb-item" onclick="nav('scraper')"><span class="ico">⟳</span>Lead Scraper<span class="sb-badge" id="scraper-badge" style="display:none;">●</span></button>
+      <button class="sb-item" onclick="nav('scraper')">Lead Scraper<span class="sb-badge" id="scraper-badge" style="display:none;">●</span></button>
     </div>
   </nav>
   <div class="sb-foot">
-    <button class="sb-item" onclick="nav('instellingen')" style="width:100%;margin-bottom:6px;"><span class="ico">⚙</span>Instellingen</button>
+    <button class="sb-item" onclick="nav('instellingen')" style="width:100%;margin-bottom:6px;">Instellingen</button>
     <div style="font-size:9.5px;color:rgba(255,255,255,.3);padding:0 10px 6px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">Ingelogd als</div>
     <div class="user-sw" onclick="toggleUser()">
       <div class="av ma" id="cur-av">MA</div>
@@ -447,7 +448,7 @@ textarea{resize:vertical;min-height:75px;}
     <div style="display:flex;gap:8px;align-items:center;">
       <div class="search">
         <span style="color:var(--text3);font-size:13px;">⌕</span>
-        <input type="text" placeholder="Zoek…" id="search-inp" oninput="handleSearch(this.value)">
+        <input type="text" placeholder="Zoek…" id="search-inp" oninput="handleSearch(this.value)" onkeydown="if(event.key==='Enter')globalSearch(this.value)">
       </div>
       <button class="btn pri" onclick="openAddAcc()">+ Account</button>
     </div>
@@ -658,7 +659,7 @@ textarea{resize:vertical;min-height:75px;}
           <th>Opdrachtgevers</th>
         </tr></thead>
         <tbody id="acc-tbody"></tbody></table>
-        <div class="empty" id="acc-empty" style="display:none;"><div class="eico">⬡</div><p>Geen accounts gevonden</p><button class="btn pri" style="margin-top:10px;" onclick="openAddAcc()">+ Toevoegen</button></div>
+        <div class="empty" id="acc-empty" style="display:none;"><p>Geen accounts gevonden</p><button class="btn pri" style="margin-top:10px;" onclick="openAddAcc()">+ Toevoegen</button></div>
       </div>
     </div>
 
@@ -677,6 +678,12 @@ textarea{resize:vertical;min-height:75px;}
 
     <!-- INSTELLINGEN -->
     <div class="page" id="p-instellingen"></div>
+
+    <!-- ACTIE CENTER -->
+    <div class="page" id="p-actiecenter"></div>
+
+    <!-- ZOEKRESULTATEN -->
+    <div class="page" id="p-zoek"></div>
 
     <!-- PIPELINE -->
     <div class="page" id="p-pipeline">
@@ -701,7 +708,7 @@ textarea{resize:vertical;min-height:75px;}
           <th>Functie</th><th>Organisatie</th><th>E-mail</th><th>Telefoon</th><th>Status</th>
         </tr></thead>
         <tbody id="contacts-tbody"></tbody></table>
-        <div class="empty" id="contacts-empty" style="display:none;"><div class="eico">◈</div><p>Nog geen contacten</p></div>
+        <div class="empty" id="contacts-empty" style="display:none;"><p>Nog geen contacten</p></div>
       </div>
     </div>
 
@@ -721,7 +728,7 @@ textarea{resize:vertical;min-height:75px;}
         </select>
       </div>
       <div id="todos-list"></div>
-      <div class="empty" id="todos-empty" style="display:none;"><div class="eico">◻</div><p>Geen taken</p></div>
+      <div class="empty" id="todos-empty" style="display:none;"><p>Geen taken</p></div>
     </div>
 
     <!-- OUTREACH -->
@@ -770,7 +777,7 @@ textarea{resize:vertical;min-height:75px;}
     <div class="page" id="p-activity">
       <div class="card">
         <div id="full-activity"></div>
-        <div class="empty" id="activity-empty" style="display:none;"><div class="eico">◈</div><p>Nog geen activiteit</p></div>
+        <div class="empty" id="activity-empty" style="display:none;"><p>Nog geen activiteit</p></div>
       </div>
     </div>
 
@@ -905,7 +912,7 @@ textarea{resize:vertical;min-height:75px;}
         <div style="font-size:11px;color:var(--text3);margin-top:5px;">Selecteer voor welke opdrachtgevers dit account relevant is</div>
       </div>
       <div class="fr">
-        <div class="fg"><label class="fl">Pipeline fase</label><select id="f-pipe"><option value="Nieuw">Nieuw</option><option value="Contact gelegd">Contact gelegd</option><option value="Kennismaking">Kennismaking</option><option value="Voorstel verstuurd">Voorstel verstuurd</option><option value="Onderhandeling">Onderhandeling</option><option value="Gewonnen">Gewonnen 🎉</option><option value="Verloren">Verloren</option></select></div>
+        <div class="fg"><label class="fl">Pipeline fase</label><select id="f-pipe"><option value="Nieuw">Nieuw</option><option value="Contact gelegd">Contact gelegd</option><option value="Kennismaking">Kennismaking</option><option value="Voorstel verstuurd">Voorstel verstuurd</option><option value="Onderhandeling">Onderhandeling</option><option value="Gewonnen">Gewonnen</option><option value="Verloren">Verloren</option></select></div>
         <div class="fg"><label class="fl">Verwachte waarde (€)</label><input type="text" id="f-val" placeholder="5000"></div>
       </div>
       <div class="fdiv">Primaire contactpersoon</div>
@@ -1047,8 +1054,9 @@ textarea{resize:vertical;min-height:75px;}
       <div class="fg"><label class="fl">E-mail</label><input type="email" id="c-email"></div>
       <div class="fr">
         <div class="fg"><label class="fl">Telefoon</label><input type="tel" id="c-phone"></div>
-        <div class="fg"><label class="fl">LinkedIn</label><input type="text" id="c-li"></div>
+        <div class="fg"><label class="fl">LinkedIn profiel</label><input type="text" id="c-li" placeholder="linkedin.com/in/naam"></div>
       </div>
+      <div class="fg"><label class="fl">LinkedIn connecties <span style="font-weight:400;color:var(--text3);font-size:11px;">— interessante mensen via hen</span></label><textarea id="c-connections" style="min-height:55px;" placeholder="bijv. Jan de Vries (CEO BlueStar), Peter Klaassen (CFO TechCo)…"></textarea></div>
       <div class="fg"><label class="fl">Notitie</label><textarea id="c-note" style="min-height:60px;"></textarea></div>
     </div>
     <div class="mf"><button class="btn ghost" onclick="closeM('m-contact')">Annuleren</button><button class="btn pri" onclick="saveContact()">Opslaan</button></div>
@@ -1664,8 +1672,8 @@ let calPerson='MA'; // default = current user, set on init
 let sendConfirm=true;
 
 const CLRS=[['#e8f0fb','#1a5fb4'],['#e6f5f3','#0a7060'],['#eaf7ef','#1a7a3a'],['#fff8e6','#8a6200'],['#fdf0ee','#c0392b'],['#f0eefb','#5040a0'],['#fdf6e3','#9a7200']];
-const PSTAGES=['Nieuw','Contact gelegd','Kennismaking','Voorstel verstuurd','Onderhandeling','Gewonnen 🎉','Verloren'];
-const PCLRS={'Nieuw':['#eef0f4','#4a5568'],'Contact gelegd':['#e8f0fb','#1a5fb4'],'Kennismaking':['#f0eefb','#4840b0'],'Voorstel verstuurd':['#fdf6e3','#c9a84c'],'Onderhandeling':['#fff8e6','#8a6200'],'Gewonnen 🎉':['#eaf7ef','#1a7a3a'],'Verloren':['#fdf0ee','#c0392b']};
+const PSTAGES=['Nieuw','Contact gelegd','Kennismaking','Voorstel verstuurd','Onderhandeling','Gewonnen','Verloren'];
+const PCLRS={'Nieuw':['#eef0f4','#4a5568'],'Contact gelegd':['#e8f0fb','#1a5fb4'],'Kennismaking':['#f0eefb','#4840b0'],'Voorstel verstuurd':['#fdf6e3','#c9a84c'],'Onderhandeling':['#fff8e6','#8a6200'],'Gewonnen':['#eaf7ef','#1a7a3a'],'Verloren':['#fdf0ee','#c0392b']};
 const PROP_CLRS={'concept':'#a09d94','verstuurd':'#1558a8','in-review':'#7a4a08','geaccepteerd':'#2d6b0f','afgewezen':'#962828'};
 
 function ls(k){try{return JSON.parse(localStorage.getItem(k)||'null')}catch{return null}}
@@ -1719,7 +1727,7 @@ function nav(id){
   if(el)el.classList.add('on');
   history.pushState(null,'','#'+id);
   document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('on'));
-  const titles={dashboard:'Dashboard',agenda:'Agenda',pipeline:'Pipeline',todos:"To-do's",accounts:'Accounts',contacts:'Contacten',outreach:'Outreach',activity:'Activiteit',rapport:'Klantrapport',scraper:'Lead Scraper',instellingen:'Instellingen'};
+  const titles={dashboard:'Dashboard',agenda:'Agenda',pipeline:'Pipeline',todos:"To-do's",accounts:'Accounts',contacts:'Contacten',outreach:'Outreach',activity:'Activiteit',rapport:'Klantrapport',scraper:'Lead Scraper',instellingen:'Instellingen',actiecenter:'Actie Center'};
   document.getElementById('topbar-title').innerHTML=titles[id]||id;
   if(id==='dashboard')renderDash();
   if(id==='agenda'){
@@ -1737,6 +1745,7 @@ function nav(id){
   if(id==='workflows'){renderWorkflows();updateWfBadge();}
   if(id==='scraper')renderScraper();
   if(id==='instellingen')renderInstellingen();
+  if(id==='actiecenter')renderActieCenter();
   curAcc=null;
 }
 
@@ -1812,6 +1821,7 @@ function openDetail(id){
     <button class="btn sm" style="background:#fdf0ee;border-color:#c0392b;color:#c0392b;" onclick="openMailCompose('mailshot')">Mailshot</button>
     <button class="btn sm" style="background:#fff7ed;border-color:#c2410c;color:#c2410c;" onclick="openMailCompose('opvolg_mailshot')">Opvolg Mailshot</button>
     <button class="btn sm" style="background:#eaf1fd;border-color:#1a5fb4;color:#1a5fb4;" onclick="openQuickNote('linkshot')">Linkshot</button>
+    <button class="btn sm" style="background:#eaf7ef;border-color:#1a7a3a;color:#1a7a3a;" onclick="openQuickNote('whatsapp')">WhatsApp</button>
     <button class="btn sm" style="background:#f3e8ff;border-color:#6b21a8;color:#6b21a8;" onclick="openQuickNote('voicemail')">Voicemail</button>
   `;
   renderTab(curTab);
@@ -1896,9 +1906,10 @@ function renderTab(t){
               ${ct.phone?`<span style="font-size:11.5px;color:var(--text2);">${ct.phone}</span>`:''}
               ${ct.li?`<a href="https://${ct.li}" target="_blank" class="cc-link">LinkedIn</a>`:''}
             </div>
+            ${ct.connections?`<div style="font-size:11.5px;color:var(--text2);margin-top:5px;"><span style="font-weight:600;color:var(--text3);">Connecties:</span> ${ct.connections}</div>`:''}
             ${ct.note?`<div style="font-size:11.5px;color:var(--text3);margin-top:4px;">${ct.note}</div>`:''}
           </div>
-        </div>`).join(''):`<div class="empty"><div class="eico">◈</div><p>Nog geen contacten</p></div>`}`;
+        </div>`).join(''):`<div class="empty"><p>Nog geen contacten</p></div>`}`;
   }
   else if(t==='deals'){
     c.innerHTML=`
@@ -1910,7 +1921,7 @@ function renderTab(t){
           <div class="deal-top"><div><div class="deal-name">${d.name}</div><div style="font-size:12px;color:var(--text2);">Fase: ${d.stage}</div></div><div class="deal-val">€ ${parseInt(d.val||0).toLocaleString('nl-NL')}</div></div>
           <div class="deal-prog"><div class="deal-fill" style="width:${d.prob||50}%;background:var(--green);"></div></div>
           <div class="deal-meta"><span>${d.prob||50}% kans</span><span>Sluiting: ${d.close||'—'}</span>${d.note?`<span>${d.note}</span>`:''}</div>
-        </div>`).join(''):`<div class="empty"><div class="eico">⬡</div><p>Nog geen kansen / deals</p></div>`}`;
+        </div>`).join(''):`<div class="empty"><p>Nog geen kansen / deals</p></div>`}`;
   }
   else if(t==='proposals'){
     c.innerHTML=`
@@ -1922,26 +1933,31 @@ function renderTab(t){
           <div class="prop-status" style="background:${PROP_CLRS[p.stat]||'#888'};"></div>
           <div class="prop-info"><div class="prop-name">${p.title}</div><div class="prop-meta">Status: <strong>${p.stat}</strong> · Verstuurd: ${p.date||'—'} · Geldig tot: ${p.exp||'—'}</div>${p.desc?`<div style="font-size:12px;color:var(--text2);margin-top:4px;">${p.desc}</div>`:''}</div>
           ${p.val?`<div style="font-family:'Syne',sans-serif;font-weight:700;color:var(--green-t);">€ ${parseInt(p.val).toLocaleString('nl-NL')}</div>`:''}
-        </div>`).join(''):`<div class="empty"><div class="eico">◻</div><p>Nog geen offertes</p></div>`}`;
+        </div>`).join(''):`<div class="empty"><p>Nog geen offertes</p></div>`}`;
   }
   else if(t==='activity'){
-    const alleTypes = [...new Set((a.notes||[]).map(n=>n.type))];
-    const alleContacten = [...new Set((a.notes||[]).map(n=>n.contact).filter(Boolean))];
+    // Haal alle notes op inclusief mailshots die via compose zijn verstuurd
+    const alleNotes = [...(a.notes||[])];
+    const alleTypes = [...new Set(alleNotes.map(n=>n.type))].sort();
+    const alleContacten = [...new Set(alleNotes.map(n=>n.contact).filter(Boolean))];
     const filterType = c.dataset.filterType || '';
     const filterContact = c.dataset.filterContact || '';
     const filterDir = c.dataset.filterDir || 'desc';
 
-    let noten = [...(a.notes||[])];
+    let noten = [...alleNotes];
     if(filterType) noten = noten.filter(n=>n.type===filterType);
     if(filterContact) noten = noten.filter(n=>n.contact===filterContact);
     if(filterDir==='asc') noten = noten.sort((a,b)=>a.id-b.id);
     else noten = noten.sort((a,b)=>b.id-a.id);
 
+    // Alle mogelijke types voor de filter dropdown
+    const alleTypeOpties = Object.keys(ACT_STIJL);
+
     c.innerHTML=`
       <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;align-items:center;">
-        <select onchange="c=document.getElementById('detail-tab-content');c.dataset.filterType=this.value;renderTab('activity');" style="font-size:12px;padding:4px 8px;width:160px;">
-          <option value="">Alle types</option>
-          ${alleTypes.map(tp=>`<option value="${tp}" ${filterType===tp?'selected':''}>${actStijl(tp).label}</option>`).join('')}
+        <select onchange="document.getElementById('detail-tab-content').dataset.filterType=this.value;renderTab('activity');" style="font-size:12px;padding:4px 8px;width:170px;">
+          <option value="">Alle activiteiten</option>
+          ${alleTypeOpties.map(tp=>`<option value="${tp}" ${filterType===tp?'selected':''}>${actStijl(tp).label}</option>`).join('')}
         </select>
         <select onchange="document.getElementById('detail-tab-content').dataset.filterContact=this.value;renderTab('activity');" style="font-size:12px;padding:4px 8px;width:160px;">
           <option value="">Alle contacten</option>
@@ -1953,7 +1969,7 @@ function renderTab(t){
         </select>
         <span style="margin-left:auto;font-size:12px;color:var(--text3);">${noten.length} activiteiten</span>
       </div>
-      ${noten.length ? noten.map(n => renderActiviteitBalk(n, false, true)).join('') : '<div class="empty"><div class="eico">◻</div><p>Geen activiteiten gevonden</p></div>'}`;
+      ${noten.length ? noten.map(n => renderActiviteitBalk(n, false, true)).join('') : '<div class="empty"><p>Geen activiteiten gevonden</p></div>'}`;
   }
   else if(t==='omzet'){
     // ── Intersect Omzet tab ───────────────────────────────────────
@@ -2170,7 +2186,7 @@ function renderTab(t){
           </tr>
         </tfoot>
       </table>
-      ` : `<div class="empty" style="padding:28px;"><div class="eico">—</div><p>Nog geen gewonnen deals — zet een deal op "Gewonnen" in het Kansen tabblad.</p></div>`}
+      ` : `<div class="empty" style="padding:28px;"><p>Nog geen gewonnen deals — zet een deal op "Gewonnen" in het Kansen tabblad.</p></div>`}
     </div>`;
   }
   else if(t==='outreach'){
@@ -2198,7 +2214,7 @@ function renderTab(t){
       ${(a.docs||[]).length?(a.docs).map(d=>{
         const ico=d.type==='pdf'?'📄':d.type==='doc'?'📝':'📁';
         return`<div class="doc-item"><div class="doc-icon" style="background:var(--surface2);">${ico}</div><div class="doc-name">${d.name}</div><div class="doc-meta">${d.size||''} · ${d.date||''}</div></div>`;
-      }).join(''):`<div class="empty"><div class="eico">📁</div><p>Nog geen documenten gekoppeld</p></div>`}`;
+      }).join(''):`<div class="empty"><p>Nog geen documenten gekoppeld</p></div>`}`;
   }
   else if(t==='todos'){
     const accTodos=todos.filter(td=>td.acc===a.id);
@@ -2300,7 +2316,7 @@ function renderDash(){
       </div>
     </div>`;
   }).join('')+`<button onclick="nav('todos')" style="font-size:11px;color:rgba(255,255,255,.35);background:none;border:none;cursor:pointer;margin-top:4px;padding:0;">Alle taken →</button>`
-  :`<div style="color:rgba(255,255,255,.35);font-size:12px;">Geen urgente taken vandaag 🎉</div>`;
+  :`<div style="color:rgba(255,255,255,.35);font-size:12px;">Geen urgente taken vandaag</div>`;
 
   // ── Stale ──
   const stale=accs.filter(a=>['lead','prospect','qualified'].includes(a.status)&&!(a.notes||[]).length).slice(0,3);
@@ -2318,7 +2334,7 @@ function renderDash(){
         <div class="todo-m">${t.due?`<span>${t.due}</span>`:''}<span class="prio ${pc}">${t.prio}</span>${acc?`<span style="color:var(--blue-t);">${acc.name}</span>`:''}</div>
       </div>
     </div>`;
-  }).join(''):`<div style="color:var(--text3);font-size:12.5px;padding:8px 0;">Geen taken voor ${userName} 🎉</div>`;
+  }).join(''):`<div style="color:var(--text3);font-size:12.5px;padding:8px 0;">Geen taken voor ${userName}</div>`;
 
   // ── Hot deals ──
   const hot=accs.filter(a=>['Voorstel verstuurd','Onderhandeling'].includes(accClientPipe(a))).sort((a,b)=>(parseFloat(b.val)||0)-(parseFloat(a.val)||0)).slice(0,4);
@@ -2396,7 +2412,7 @@ function renderClientDash(){
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
       <div class="kpi navy"><div class="kpi-lbl">Accounts totaal</div><div class="kpi-val">${linked.length}</div><div class="kpi-sub">Gekoppeld</div></div>
       <div class="kpi gold"><div class="kpi-lbl">Pipeline waarde</div><div class="kpi-val">€ ${totalVal.toLocaleString('nl-NL')}</div><div class="kpi-sub">Alle fases</div></div>
-      <div class="kpi green"><div class="kpi-lbl">Gewonnen</div><div class="kpi-val">${(byPipe['Gewonnen 🎉']||[]).length}</div><div class="kpi-sub">Deals gesloten</div></div>
+      <div class="kpi green"><div class="kpi-lbl">Gewonnen</div><div class="kpi-val">${(byPipe['Gewonnen']||[]).length}</div><div class="kpi-sub">Deals gesloten</div></div>
       <div class="kpi amber"><div class="kpi-lbl">Open taken</div><div class="kpi-val">${clientTodos.length}</div><div class="kpi-sub">Voor ${c.name}</div></div>
     </div>
 
@@ -3112,7 +3128,7 @@ function renderOutreach(){
     <div class="template-card" onclick="applyTemplate(${t.id})">
       <div class="template-name">${t.name}</div>
       <div class="template-preview">${t.subj}</div>
-    </div>`).join(''):`<div class="empty"><div class="eico">◻</div><p>Nog geen templates</p></div>`;
+    </div>`).join(''):`<div class="empty"><p>Nog geen templates</p></div>`;
 }
 
 function renderActivity(){
@@ -3217,7 +3233,7 @@ function saveContact(){
   const last=document.getElementById('c-last').value.trim();
   if(!first&&!last)return;
   if(!curAcc.contacts)curAcc.contacts=[];
-  curAcc.contacts.push({id:Date.now(),first,last,role:document.getElementById('c-role').value.trim(),dept:document.getElementById('c-dept').value.trim(),email:document.getElementById('c-email').value.trim(),phone:document.getElementById('c-phone').value.trim(),li:document.getElementById('c-li').value.trim(),note:document.getElementById('c-note').value.trim()});
+  curAcc.contacts.push({id:Date.now(),first,last,role:document.getElementById('c-role').value.trim(),dept:document.getElementById('c-dept').value.trim(),email:document.getElementById('c-email').value.trim(),phone:document.getElementById('c-phone').value.trim(),li:document.getElementById('c-li').value.trim(),connections:document.getElementById('c-connections').value.trim(),note:document.getElementById('c-note').value.trim()});
   const idx=accs.findIndex(a=>a.id===curAcc.id);
   accs[idx]=curAcc;ss('ix_accs',accs);
   closeM('m-contact');openDetail(curAcc.id);
@@ -3457,7 +3473,7 @@ function openQuickNote(type){
   document.getElementById('m-note-sub').textContent = curAcc.name;
   document.getElementById('m-note').classList.add('on');
 }
-function openAddContact(){['c-first','c-last','c-role','c-dept','c-email','c-phone','c-li','c-note'].forEach(id=>document.getElementById(id).value='');document.getElementById('m-contact').classList.add('on');}
+function openAddContact(){['c-first','c-last','c-role','c-dept','c-email','c-phone','c-li','c-connections','c-note'].forEach(id=>document.getElementById(id).value='');document.getElementById('m-contact').classList.add('on');}
 function openAddDeal(){['d-name','d-val','d-prob','d-close','d-note'].forEach(id=>document.getElementById(id).value='');document.getElementById('d-stage').value='Verkenning';document.getElementById('m-deal').classList.add('on');}
 function openAddProposal(){['p-title','p-val','p-date','p-exp','p-desc'].forEach(id=>document.getElementById(id).value='');document.getElementById('p-stat').value='concept';document.getElementById('m-prop').classList.add('on');}
 function openAddTemplate(){['tpl-name','tpl-subj','tpl-body'].forEach(id=>document.getElementById(id).value='');document.getElementById('m-tpl').classList.add('on');}
@@ -3553,7 +3569,117 @@ function toggleUser(){
     _sbLogout();
   }
 }
-function handleSearch(v){if(document.getElementById('p-accounts').classList.contains('on'))renderAccList();}
+function handleSearch(v){
+  if(document.getElementById('p-accounts').classList.contains('on'))renderAccList();
+}
+
+function globalSearch(q) {
+  if(!q||q.trim().length<2) return;
+  const zoek = q.trim().toLowerCase();
+  history.pushState(null,'','#zoek');
+  document.querySelectorAll('.page,.acc-detail').forEach(p=>p.classList.remove('on'));
+  document.getElementById('p-zoek').classList.add('on');
+  document.getElementById('topbar-title').innerHTML=`Zoekresultaten voor "<strong>${q}</strong>"`;
+
+  // Zoek in accounts
+  const accResults = accs.filter(a =>
+    a.name.toLowerCase().includes(zoek) ||
+    (a.sector||'').toLowerCase().includes(zoek) ||
+    (a.seg||'').toLowerCase().includes(zoek) ||
+    ([a.cf,a.cl].filter(Boolean).join(' ')).toLowerCase().includes(zoek) ||
+    (a.note||'').toLowerCase().includes(zoek)
+  );
+
+  // Zoek in contactpersonen (alle extra contacten)
+  const contactResults = [];
+  accs.forEach(a => {
+    (a.contacts||[]).forEach(ct => {
+      const naam = [ct.first,ct.last].filter(Boolean).join(' ');
+      if(naam.toLowerCase().includes(zoek) || (ct.role||'').toLowerCase().includes(zoek) || (ct.email||'').toLowerCase().includes(zoek)) {
+        contactResults.push({contact:ct, acc:a, naam});
+      }
+    });
+    // Primaire contact
+    const primair = [a.cf,a.cl].filter(Boolean).join(' ');
+    if(primair.toLowerCase().includes(zoek) && !accResults.find(x=>x.id===a.id)) {
+      contactResults.push({contact:{first:a.cf,last:a.cl,role:a.cr,email:a.ce,phone:a.cp}, acc:a, naam:primair, primair:true});
+    }
+  });
+
+  // Zoek in activiteiten/notities
+  const actResults = [];
+  accs.forEach(a => {
+    (a.notes||[]).forEach(n => {
+      if((n.text||'').toLowerCase().includes(zoek) || (n.contact||'').toLowerCase().includes(zoek)) {
+        actResults.push({note:n, acc:a});
+      }
+    });
+  });
+
+  const el = document.getElementById('p-zoek');
+  el.innerHTML = `
+  <div style="max-width:800px;">
+
+    ${accResults.length>0?`
+    <div style="margin-bottom:20px;">
+      <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--navy);display:flex;align-items:center;gap:7px;margin-bottom:10px;">
+        <span style="display:block;width:3px;height:13px;background:var(--gold);border-radius:2px;"></span>Accounts <span style="font-size:11px;font-weight:400;color:var(--text3);">${accResults.length} resultaten</span>
+      </div>
+      ${accResults.map(a=>{
+        const [bg,fg]=CLRS[a.color%CLRS.length];
+        const contact=[a.cf,a.cl].filter(Boolean).join(' ');
+        return`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:12px 16px;margin-bottom:6px;display:flex;align-items:center;gap:12px;cursor:pointer;" onclick="openDetail(${a.id})" onmouseenter="this.style.borderColor='var(--navy)'" onmouseleave="this.style.borderColor='var(--border)'">
+          <div style="width:32px;height:32px;border-radius:7px;background:${bg};color:${fg};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;font-family:'Syne',sans-serif;">${initials(a.name)}</div>
+          <div style="flex:1;">
+            <div style="font-size:13.5px;font-weight:600;color:var(--text);">${a.name}</div>
+            <div style="font-size:12px;color:var(--text3);">${[a.sector,a.seg,contact].filter(Boolean).join(' · ')}</div>
+          </div>
+          <span class="badge ${a.status}">${slbl(a.status)}</span>
+        </div>`;
+      }).join('')}
+    </div>`:''}
+
+    ${contactResults.length>0?`
+    <div style="margin-bottom:20px;">
+      <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--navy);display:flex;align-items:center;gap:7px;margin-bottom:10px;">
+        <span style="display:block;width:3px;height:13px;background:#1a5fb4;border-radius:2px;"></span>Contactpersonen <span style="font-size:11px;font-weight:400;color:var(--text3);">${contactResults.length} resultaten</span>
+      </div>
+      ${contactResults.map(r=>`
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:12px 16px;margin-bottom:6px;display:flex;align-items:center;gap:12px;cursor:pointer;" onclick="openDetail(${r.acc.id});setTimeout(()=>switchTab('contacts'),200)" onmouseenter="this.style.borderColor='var(--navy)'" onmouseleave="this.style.borderColor='var(--border)'">
+          <div style="width:32px;height:32px;border-radius:50%;background:#eaf1fd;color:#1a5fb4;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;">${initials(r.naam)}</div>
+          <div style="flex:1;">
+            <div style="font-size:13.5px;font-weight:600;color:var(--text);">${r.naam}</div>
+            <div style="font-size:12px;color:var(--text3);">${[r.contact.role,r.acc.name].filter(Boolean).join(' · ')}</div>
+          </div>
+          ${r.contact.email?`<span style="font-size:12px;color:var(--blue);">${r.contact.email}</span>`:''}
+        </div>`).join('')}
+    </div>`:''}
+
+    ${actResults.length>0?`
+    <div style="margin-bottom:20px;">
+      <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--navy);display:flex;align-items:center;gap:7px;margin-bottom:10px;">
+        <span style="display:block;width:3px;height:13px;background:#8a6200;border-radius:2px;"></span>Activiteiten <span style="font-size:11px;font-weight:400;color:var(--text3);">${actResults.length} resultaten</span>
+      </div>
+      ${actResults.slice(0,10).map(r=>{
+        const s=actStijl(r.note.type);
+        const preview=(r.note.text||'').substring(0,120);
+        return`<div style="background:var(--surface);border:1px solid var(--border);border-left:3px solid ${s.kleur};border-radius:var(--r-lg);padding:12px 16px;margin-bottom:6px;cursor:pointer;" onclick="openDetail(${r.acc.id});setTimeout(()=>switchTab('activity'),200)" onmouseenter="this.style.background='var(--surface2)'" onmouseleave="this.style.background='var(--surface)'">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <span style="font-size:11px;font-weight:700;padding:2px 7px;border-radius:4px;background:${s.bg};color:${s.kleur};">${s.label}</span>
+            <span style="font-size:12px;font-weight:500;color:var(--blue);">${r.acc.name}</span>
+            <span style="font-size:11px;color:var(--text3);margin-left:auto;">${r.note.time||''}</span>
+          </div>
+          <div style="font-size:12.5px;color:var(--text2);">${preview}${(r.note.text||'').length>120?'…':''}</div>
+        </div>`;
+      }).join('')}
+    </div>`:''}
+
+    ${accResults.length===0&&contactResults.length===0&&actResults.length===0?`
+      <div style="text-align:center;padding:48px 20px;">
+        <div style="font-size:14px;color:var(--text3);">Geen resultaten gevonden voor "<strong style="color:var(--text);">${q}</strong>"</div>
+      </div>`:''}
+  </div>`;
+}
 function initials(s){return(s||'').split(' ').map(w=>w[0]).filter(Boolean).slice(0,2).join('').toUpperCase()||'?';}
 function slbl(s){return{lead:'Lead',qualified:'Qualified',prospect:'Prospect',klant:'Klant',inactief:'Inactief'}[s]||s;}
 function fmtDate(d){if(!d)return'—';return new Date(d).toLocaleDateString('nl-NL',{day:'numeric',month:'short'});}
@@ -3989,7 +4115,7 @@ function renderRapport(){
   const showClients=curClient==='all'?clients:clients.filter(c=>c.id===curClient);
 
   if(!showClients.length){
-    el.innerHTML=`<div class="empty"><div class="eico">◈</div><p>Geen opdrachtgevers. Voeg er een toe via de + knop in de balk bovenaan.</p></div>`;
+    el.innerHTML=`<div class="empty"><p>Geen opdrachtgevers. Voeg er een toe via de + knop in de balk bovenaan.</p></div>`;
     return;
   }
 
@@ -3998,8 +4124,8 @@ function renderRapport(){
     const byStatus={lead:0,qualified:0,prospect:0,klant:0,inactief:0};
     linked.forEach(a=>{const s=a.clientLinks[c.id].status||'lead';if(byStatus[s]!==undefined)byStatus[s]++;});
     const totalVal=linked.reduce((s,a)=>s+(parseFloat(a.clientLinks[c.id].val)||0),0);
-    const wonAccs=linked.filter(a=>a.clientLinks[c.id].pipe==='Gewonnen 🎉');
-    const activeAccs=linked.filter(a=>!['Gewonnen 🎉','Verloren'].includes(a.clientLinks[c.id].pipe));
+    const wonAccs=linked.filter(a=>a.clientLinks[c.id].pipe==='Gewonnen');
+    const activeAccs=linked.filter(a=>!['Gewonnen','Verloren'].includes(a.clientLinks[c.id].pipe));
 
     return`
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);overflow:hidden;margin-bottom:20px;">
@@ -4354,7 +4480,7 @@ function renderWatNu(){
   if(!el)return;
 
   if(!sorted.length){
-    el.innerHTML=`<div style="padding:16px 18px;color:rgba(255,255,255,.35);font-size:13px;">Alles op orde — geen accounts vragen nu actie 🎉</div>`;
+    el.innerHTML=`<div style="padding:16px 18px;color:rgba(255,255,255,.35);font-size:13px;">Alles op orde — geen accounts vragen nu actie</div>`;
     return;
   }
 
@@ -4704,7 +4830,7 @@ function applyHash(){
       if(a){ openDetail(id); return; }
     }
   }
-  const pages=['dashboard','accounts','pipeline','contacts','todos','outreach','activity','agenda','workflows','rapport','scraper','instellingen'];
+  const pages=['dashboard','accounts','pipeline','contacts','todos','outreach','activity','agenda','workflows','rapport','scraper','instellingen','actiecenter'];
   if(pages.includes(hash)){
     nav(hash);
     if(hash==='accounts') renderAccList();
@@ -4903,6 +5029,252 @@ function bewerkNote(noteId) {
   // Sla note id op zodat saveNote hem kan updaten
   document.getElementById('m-note').dataset.editId = noteId;
   document.getElementById('m-note').classList.add('on');
+}
+
+
+// ══════════════ ACTIE CENTER ══════════════
+
+function acDagenGeleden(isoOfStr) {
+  if (!isoOfStr) return 999;
+  // Probeer datum te parsen uit NL formaat of ISO
+  let d = new Date(isoOfStr);
+  if (isNaN(d)) {
+    // Probeer DD Mon YYYY HH:MM formaat
+    const parts = isoOfStr.match(/(\d+)\s+(\w+)\.?\s+(\d{4})/);
+    if (parts) {
+      const maanden = {jan:0,feb:1,mrt:2,apr:3,mei:4,jun:5,jul:6,aug:7,sep:8,okt:9,nov:10,dec:11};
+      d = new Date(parseInt(parts[3]), maanden[parts[2].toLowerCase().substring(0,3)] || 0, parseInt(parts[1]));
+    }
+  }
+  if (isNaN(d)) return 999;
+  return Math.floor((Date.now() - d.getTime()) / 86400000);
+}
+
+function acLaatsteActiviteit(a) {
+  if (!a.notes || !a.notes.length) return null;
+  return [...a.notes].sort((x, y) => y.id - x.id)[0];
+}
+
+function acContactWarmte(a) {
+  const ln = acLaatsteActiviteit(a);
+  if (!ln) return { label: 'Geen contact', kleur: '#8a94a6', score: 0 };
+  const dagen = acDagenGeleden(ln.time);
+  if (dagen <= 3)  return { label: 'Zeer warm', kleur: '#1a7a3a', score: 5 };
+  if (dagen <= 7)  return { label: 'Warm', kleur: '#2d9e5f', score: 4 };
+  if (dagen <= 14) return { label: 'Lauw', kleur: '#c2410c', score: 3 };
+  if (dagen <= 30) return { label: 'Koud', kleur: '#c0392b', score: 2 };
+  return { label: 'IJskoud', kleur: '#922b21', score: 1 };
+}
+
+function acPrioriteitScore(a) {
+  // Bereken een prioriteitsscore 0-100
+  // Hoog = meer urgentie in actie center
+  const ln = acLaatsteActiviteit(a);
+  const dagen = ln ? acDagenGeleden(ln.time) : 999;
+  const status = a.status || 'lead';
+  const warmte = acContactWarmte(a);
+  const aantalContact = (a.notes||[]).length;
+  const aantalGesprekken = (a.notes||[]).filter(n=>n.type==='gesprek').length;
+  const val = parseFloat(accClientVal(a))||0;
+  const pipe = accClientPipe(a)||'';
+
+  // Pipeline fase score
+  const faseScore = {
+    'Onderhandeling': 40, 'Voorstel verstuurd': 30, 'Kennismaking': 20,
+    'Contact gelegd': 15, 'Nieuw': 10, 'Gewonnen': 5, 'Verloren': 0
+  }[pipe] || 10;
+
+  // Waarde score (max 20 punten)
+  const waardeScore = Math.min(20, val / 5000);
+
+  // Warmte score (max 20 punten) — warm maar niet te recent
+  const warmteScore = warmte.score >= 4 ? 20 : warmte.score * 4;
+
+  // Contact intensiteit (max 10 punten)
+  const intensiteitScore = Math.min(10, aantalContact * 1.5);
+
+  // Gesprekken gevoerd bonus
+  const gesprekBonus = aantalGesprekken > 0 ? 10 : 0;
+
+  return Math.round(faseScore + waardeScore + warmteScore + intensiteitScore + gesprekBonus);
+}
+
+function acAnalyseerAccount(a) {
+  const ln = acLaatsteActiviteit(a);
+  const warmte = acContactWarmte(a);
+  const dagen = ln ? acDagenGeleden(ln.time) : 999;
+  const status = a.status || 'lead';
+  const aantalContact = (a.notes||[]).length;
+  const aantalMailshots = (a.notes||[]).filter(n=>n.type==='mailshot'||n.type==='opvolg_mailshot').length;
+  const aantalGesprekken = (a.notes||[]).filter(n=>n.type==='gesprek').length;
+  const heeftAfspraak = calEvents.some(e=>e.acc===a.id&&new Date(e.date)>=new Date());
+  const pipe = accClientPipe(a)||'';
+  const val = parseFloat(accClientVal(a))||0;
+  const prioriteit = acPrioriteitScore(a);
+  const categorie = (status==='opdrachtgever') ? 'accountmanagement' :
+                    (status==='klant') ? 'accountmanagement' : 'sales';
+  const suggesties = [];
+
+  // === SALES suggesties ===
+  if(categorie==='sales'){
+    if(aantalContact===0){
+      suggesties.push({prioriteit:60+prioriteit,tekst:'Nog geen contact gelegd',actie:'Stuur eerste mailshot',type:'mailshot',kleur:'#c0392b'});
+    }
+    if(aantalContact>0&&dagen>=14){
+      const actie = aantalMailshots>=3&&aantalGesprekken===0 ? 'Bel op' :
+                    aantalMailshots>=2 ? 'Probeer LinkedIn' : 'Stuur opvolg mailshot';
+      const type = aantalMailshots>=3&&aantalGesprekken===0 ? 'gesprek' :
+                   aantalMailshots>=2 ? 'linkshot' : 'opvolg_mailshot';
+      suggesties.push({prioriteit:50+prioriteit,tekst:`${dagen} dagen geen contact · ${pipe||'onbekende fase'}`,actie,type,kleur:'#c2410c'});
+    }
+    if(warmte.score>=4&&!heeftAfspraak&&aantalGesprekken>=1&&(pipe==='Voorstel verstuurd'||pipe==='Onderhandeling')){
+      suggesties.push({prioriteit:70+prioriteit,tekst:`Warm contact in ${pipe} — geen afspraak`,actie:'Plan afspraak in',type:'afspraak',kleur:'#1a5fb4'});
+    }
+    if(pipe==='Onderhandeling'&&dagen<=7){
+      suggesties.push({prioriteit:80+prioriteit,tekst:'In onderhandeling — actief houden',actie:'Check in of log update',type:'notitie',kleur:'#14532d'});
+    }
+    if(aantalMailshots>=3&&aantalGesprekken===0&&dagen<=30){
+      suggesties.push({prioriteit:55+prioriteit,tekst:`${aantalMailshots} mailshots, nog geen gesprek`,actie:'Bel direct op',type:'gesprek',kleur:'#6b21a8'});
+    }
+  }
+
+  // === ACCOUNT MANAGEMENT suggesties ===
+  if(categorie==='accountmanagement'){
+    // Opdrachtgevers — laagste drempel, worden toch al veel gesproken
+    if(status==='opdrachtgever'&&dagen>=30){
+      suggesties.push({prioriteit:20,tekst:`Opdrachtgever — ${dagen} dagen geen gelogd contact`,actie:'Check in',type:'gesprek',kleur:'#14532d'});
+    }
+    // Klanten — afhankelijk van context
+    if(status==='klant'&&dagen>=21){
+      suggesties.push({prioriteit:30,tekst:`Klant — ${dagen} dagen geen contact`,actie:'Korte check-in',type:'gesprek',kleur:'#1a5fb4'});
+    }
+  }
+
+  return {warmte,dagen,aantalContact,suggesties,prioriteit,categorie};
+}
+
+function acOpenTaken(owner) {
+  return todos.filter(t => {
+    if (t.done) return false;
+    if (owner === 'BOTH') return true;
+    return t.owner === owner || !t.owner;
+  }).sort((a, b) => ({ hoog: 0, middel: 1, laag: 2 }[a.prio||'middel'] || 1) - ({ hoog: 0, middel: 1, laag: 2 }[b.prio||'middel'] || 1));
+}
+
+function renderActieTaak(t) {
+  const acc = t.acc ? accs.find(a => a.id === t.acc) : null;
+  const prioCls = { hoog: 'ph', middel: 'pm', laag: 'pl' };
+  const prioLabel = { hoog: 'Hoog', middel: 'Middel', laag: 'Laag' };
+  return `
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;margin-bottom:6px;display:flex;gap:10px;align-items:flex-start;">
+    <div class="chk${t.done?' done':''}" onclick="toggleTodo(${t.id});setTimeout(renderActieCenter,100);" style="margin-top:2px;flex-shrink:0;">${t.done?'✓':''}</div>
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:13px;font-weight:500;color:var(--text);${t.done?'text-decoration:line-through;color:var(--text3);':''}">${t.text}</div>
+      <div style="display:flex;gap:6px;align-items:center;margin-top:3px;flex-wrap:wrap;">
+        ${t.prio?`<span class="prio ${prioCls[t.prio]||''}">${prioLabel[t.prio]||t.prio}</span>`:''}
+        ${acc?`<span style="font-size:11px;color:var(--blue);cursor:pointer;" onclick="openDetail(${acc.id})">${acc.name}</span>`:''}
+        ${t.due?`<span style="font-size:11px;color:var(--text3);">${t.due}</span>`:''}
+      </div>
+    </div>
+  </div>`;
+}
+
+function acSnelActie(accId, type) {
+  const a = accs.find(x => x.id === accId);
+  if (!a) return;
+  curAcc = a;
+  if (type === 'afspraak') openAddEvent(accId);
+  else if (type === 'mailshot' || type === 'opvolg_mailshot') openMailCompose(type);
+  else openQuickNote(type);
+}
+
+function updateActieBadge() {
+  const mijnAccs = clientAccs().filter(a => a.status !== 'inactief' && (a.owner === CU || a.owner === 'BOTH'));
+  const analyses = mijnAccs.filter(a => acAnalyseerAccount(a).suggesties.length > 0);
+  const urgent = acOpenTaken(CU).filter(t => t.prio === 'hoog');
+  const badge = document.getElementById('actie-badge');
+  if (badge) { const totaal = analyses.length + urgent.length; badge.textContent = totaal; badge.style.display = totaal > 0 ? '' : 'none'; }
+}
+
+function renderActieCenter() {
+  const el = document.getElementById('p-actiecenter');
+  if (!el) return;
+  const mijnAccs = clientAccs().filter(a => a.status !== 'inactief' && (a.owner === CU || a.owner === 'BOTH'));
+  const alleAnalyses = mijnAccs.map(a => ({ acc: a, ...acAnalyseerAccount(a) })).filter(x => x.suggesties.length > 0);
+
+  // Splits in Sales en Account Management, sorteer op prioriteitsscore
+  const salesAccs = alleAnalyses.filter(x => x.categorie === 'sales')
+    .sort((a,b) => Math.max(...b.suggesties.map(s=>s.prioriteit)) - Math.max(...a.suggesties.map(s=>s.prioriteit)));
+  const amAccs = alleAnalyses.filter(x => x.categorie === 'accountmanagement')
+    .sort((a,b) => Math.max(...b.suggesties.map(s=>s.prioriteit)) - Math.max(...a.suggesties.map(s=>s.prioriteit)));
+
+  const openTaken = acOpenTaken(CU);
+  const urgent = openTaken.filter(t => t.prio === 'hoog');
+  const normaal = openTaken.filter(t => t.prio !== 'hoog');
+  updateActieBadge();
+
+  const renderAccKaart = x => {
+    const top = [...x.suggesties].sort((a,b)=>b.prioriteit-a.prioriteit)[0];
+    const [bg,fg] = CLRS[x.acc.color%CLRS.length];
+    return `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;margin-bottom:8px;" onmouseenter="this.style.borderColor='var(--navy)'" onmouseleave="this.style.borderColor='var(--border)'">
+      <div style="display:flex;align-items:flex-start;gap:10px;">
+        <div style="width:32px;height:32px;border-radius:7px;background:${bg};color:${fg};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;font-family:'Syne',sans-serif;">${initials(x.acc.name)}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:wrap;">
+            <span style="font-size:13.5px;font-weight:600;color:var(--navy);cursor:pointer;" onclick="openDetail(${x.acc.id})">${x.acc.name}</span>
+            <span class="badge ${x.acc.status}">${slbl(x.acc.status)}</span>
+            <span style="font-size:11px;padding:2px 7px;border-radius:10px;background:${x.warmte.kleur}18;color:${x.warmte.kleur};font-weight:600;">${x.warmte.label}</span>
+            ${accClientPipe(x.acc)?`<span style="font-size:11px;color:var(--text3);">${accClientPipe(x.acc)}</span>`:''}
+          </div>
+          <div style="font-size:12px;color:var(--text2);margin-bottom:8px;">${top.tekst}</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+            <button class="btn sm" style="background:${top.kleur}12;border-color:${top.kleur}50;color:${top.kleur};font-size:12px;padding:4px 10px;" onclick="event.stopPropagation();acSnelActie(${x.acc.id},'${top.type}')">${top.actie} →</button>
+            <button class="btn sm ghost" style="font-size:12px;padding:4px 10px;" onclick="event.stopPropagation();openDetail(${x.acc.id})">Bekijken</button>
+          </div>
+        </div>
+        ${x.dagen < 999 ? `<div style="text-align:right;flex-shrink:0;"><div style="font-size:10px;color:var(--text3);">Laatste contact</div><div style="font-size:12px;font-weight:600;color:var(--text);">${x.dagen===0?'vandaag':x.dagen+'d'}</div></div>` : ''}
+      </div>
+    </div>`;
+  };
+
+  el.innerHTML = `
+  <div style="display:grid;grid-template-columns:1fr 340px;gap:16px;align-items:start;">
+
+    <!-- Links: Sales + AM -->
+    <div>
+
+      <!-- Sales sectie -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--navy);display:flex;align-items:center;gap:7px;"><span style="display:block;width:3px;height:13px;background:var(--gold);border-radius:2px;"></span>Sales</div>
+        <span style="font-size:11px;color:var(--text3);">${salesAccs.length} accounts</span>
+      </div>
+      ${salesAccs.length===0 ? `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px;text-align:center;margin-bottom:16px;"><div style="font-size:13px;color:var(--text3);">Geen sales accounts die aandacht nodig hebben</div></div>` : salesAccs.map(renderAccKaart).join('')}
+
+      <!-- Account Management sectie -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:16px 0 10px;">
+        <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--navy);display:flex;align-items:center;gap:7px;"><span style="display:block;width:3px;height:13px;background:var(--teal);border-radius:2px;"></span>Account Management</div>
+        <span style="font-size:11px;color:var(--text3);">${amAccs.length} accounts</span>
+      </div>
+      ${amAccs.length===0 ? `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px;text-align:center;"><div style="font-size:13px;color:var(--text3);">Alle klanten en opdrachtgevers zijn up-to-date</div></div>` : amAccs.map(renderAccKaart).join('')}
+
+    </div>
+
+    <!-- Rechts: Taken -->
+    <div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--navy);display:flex;align-items:center;gap:7px;"><span style="display:block;width:3px;height:13px;background:var(--navy);border-radius:2px;"></span>Open taken</div>
+        <button class="btn sm ghost" onclick="nav('todos')">Alle →</button>
+      </div>
+      ${urgent.length>0?`
+        <div style="font-size:10px;font-weight:700;color:var(--red-t);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;">Urgent</div>
+        ${urgent.slice(0,5).map(t=>renderActieTaak(t)).join('')}
+        <div style="height:1px;background:var(--border);margin:10px 0;"></div>`:''}
+      ${normaal.slice(0,6).map(t=>renderActieTaak(t)).join('')}
+      ${normaal.length===0&&urgent.length===0?`<div style="font-size:13px;color:var(--text3);padding:8px 0;">Geen open taken</div>`:''}
+      <div style="margin-top:12px;"><button class="btn pri sm" style="width:100%;justify-content:center;" onclick="openAddTodo()">+ Nieuwe taak</button></div>
+    </div>
+  </div>`;
 }
 
 
@@ -5429,7 +5801,7 @@ function renderInstellingen() {
   renderDash();
   updateBadge();
   renderClientBar();
-  setTimeout(()=>{runWorkflowEngine(false);updateWfBadge();renderWatNu();},600);
+  setTimeout(()=>{runWorkflowEngine(false);updateWfBadge();renderWatNu();setTimeout(updateActieBadge,200);},600);
   setTimeout(applyHash, 150);
 })();
 </script>
