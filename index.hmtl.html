@@ -5717,11 +5717,29 @@ async function mcGenereerSuggestie() {
   btn.disabled = true;
 
   try {
+    // Stuur volledige account context mee inclusief alle logs
+    const accountContext = {
+      ...curAcc,
+      notes: (curAcc.notes || []).map(n => ({
+        id: n.id,
+        type: n.type,
+        text: n.text || '',
+        by: n.by,
+        time: n.time,
+        contact: n.contact,
+        dur: n.dur,
+        chat: n.chat || null,
+      })),
+      contacts: curAcc.contacts || [],
+      deals: curAcc.deals || [],
+      proposals: curAcc.proposals || [],
+    };
+
     const res = await fetch('/api/mail-suggest', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        account: curAcc,
+        account: accountContext,
         mailType: mcType,
         user: CU,
       }),
@@ -5730,16 +5748,13 @@ async function mcGenereerSuggestie() {
     if (!res.ok) throw new Error(await res.text());
     const { suggestie } = await res.json();
 
-    // Vul onderwerp in
     document.getElementById('mc-subject').value = suggestie.onderwerp;
     mcSuggestieOnderwerp = suggestie.onderwerp;
 
-    // Vul inhoud in — converteer newlines naar HTML
     const html = suggestie.inhoud.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>');
     document.getElementById('mc-body').innerHTML = `<p>${html}</p>`;
     mcSuggestieInhoud = suggestie.inhoud;
 
-    // Toon toelichting
     if (suggestie.toelichting) {
       toelichting.textContent = '✦ ' + suggestie.toelichting;
       toelichting.style.display = 'block';
