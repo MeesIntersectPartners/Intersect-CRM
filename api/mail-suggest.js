@@ -11,7 +11,7 @@ module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
-  const { account, mailType, user } = req.body;
+  const { account, mailType, user, aiInput } = req.body;
 
   if (!account) return res.status(400).json({ error: 'Account context verplicht' });
 
@@ -22,7 +22,7 @@ module.exports = async function handler(req, res) {
       .order('created_at', { ascending: false })
       .limit(50);
 
-    const prompt = bouwPrompt(account, mailType, user, leerData || []);
+    const prompt = bouwPrompt(account, mailType, user, leerData || [], aiInput || '');
 
     const response = await client.messages.create({
       model: 'claude-opus-4-20250514',
@@ -85,7 +85,7 @@ Geef je antwoord ALLEEN als JSON:
   }
 };
 
-function bouwPrompt(account, mailType, user, leerData) {
+function bouwPrompt(account, mailType, user, leerData, aiInput) {
   const delen = [];
 
   delen.push(`== ACCOUNT: ${account.name} ==`);
