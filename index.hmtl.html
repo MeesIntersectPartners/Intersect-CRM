@@ -922,7 +922,10 @@ textarea{resize:vertical;min-height:75px;}
         <div class="fg"><label class="fl">Telefoon</label><input type="tel" id="f-phone" placeholder="+31 ..."></div>
         <div class="fg"><label class="fl">KvK-nummer</label><input type="text" id="f-kvk"></div>
       </div>
-      <div class="fg"><label class="fl">Adres</label><input type="text" id="f-addr" placeholder="Straat, stad"></div>
+      <div class="fg">
+        <label class="fl">Adres / Locatie</label>
+        <input type="text" id="f-addr" placeholder="bijv. Keizersgracht 123, Amsterdam">
+      </div>
       <div class="fg"><label class="fl">Interessant voor opdrachtgever(s)</label>
         <div id="f-clients-checkboxes" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:2px;"></div>
         <div style="font-size:11px;color:var(--text3);margin-top:5px;">Selecteer voor welke opdrachtgevers dit account relevant is</div>
@@ -1912,7 +1915,7 @@ function renderTab(t){
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
         <div>
           <div class="ds"><div class="ds-title">Organisatie</div>
-            ${df('Sector',a.sector)}${df('Segment',a.seg)}${df('Adres',a.addr)}${df('Telefoon',a.phone)}
+            ${df('Sector',a.sector)}${df('Segment',a.seg)}${a.addr?(a.addrUrl?`<div class="df"><span class="dl">Adres</span><a href="${a.addrUrl}" target="_blank" style="color:var(--blue);font-size:12.5px;text-decoration:none;">${a.addr}</a></div>`:`<div class="df"><span class="dl">Adres</span><span>${a.addr}</span></div>`):''}${df('Telefoon',a.phone)}
             ${a.web?df('Website',`<a href="${a.web}" target="_blank">${a.web}</a>`):''}
             ${a.li?df('LinkedIn',`<a href="https://${a.li}" target="_blank">${a.li}</a>`):''}
             ${df('KvK',a.kvk)}
@@ -3090,6 +3093,23 @@ function toggleSort(field) {
   renderAccList();
 }
 
+function adresStad(a) {
+  if (!a.addr) return '<span style="color:var(--text3);">—</span>';
+  const delen = a.addr.split(',').map(s => s.trim());
+  let stad = '';
+  if (delen.length >= 2) {
+    const laatste = delen[delen.length - 1];
+    const m = laatste.match(/\d{4}\s*[A-Z]{2}\s+(.+)/);
+    stad = m ? m[1] : laatste;
+  } else {
+    const m = a.addr.match(/\d{4}\s*[A-Z]{2}\s+(.+)/);
+    stad = m ? m[1] : a.addr;
+  }
+  stad = stad.trim() || a.addr;
+  const url = a.addrUrl || ('https://www.google.com/maps/search/?q=' + encodeURIComponent(a.addr));
+  return '<a href="' + url + '" target="_blank" onclick="event.stopPropagation()" style="color:var(--blue);text-decoration:none;">' + stad + '</a>';
+}
+
 function renderAccList(){
   updateCounts();
   const ownerF=document.getElementById('filter-owner').value;
@@ -3142,7 +3162,7 @@ function renderAccList(){
       <td style="color:${hasContact?'var(--blue)':'var(--text3)'};cursor:${hasContact?'pointer':'default'};" onclick="${hasContact?`event.stopPropagation();openDetail(${a.id});setTimeout(()=>switchTab('contacts'),200)`:''}">
         ${contact}${lastContactStr}
       </td>
-      <td style="font-size:12px;color:var(--text2);">${a.addr?a.addr.split(',')[0]:'—'}</td>
+      <td style="font-size:12px;">${adresStad(a)}</td>
       <td>${ownerHtml}</td>
       <td style="font-size:12px;color:${PCLRS[pipe]?PCLRS[pipe][1]:'var(--text2)'};">${pipe||'—'}</td>
       <td style="font-weight:600;color:var(--green-t);">${val?'€ '+parseInt(val).toLocaleString('nl-NL'):'—'}</td>
@@ -3301,7 +3321,9 @@ function saveAcc(){
   if(!name){alert('Vul een bedrijfsnaam in.');return;}
   const owner=document.querySelector('#asgn-acc .asgn-opt.on')?.dataset.u||'MA';
   const selectedClientIds=[...document.querySelectorAll('#f-clients-checkboxes input:checked')].map(x=>parseInt(x.value));
-  const a={name,status:document.getElementById('f-status').value,sector:document.getElementById('f-sector').value.trim(),seg:document.getElementById('f-seg').value,web:document.getElementById('f-web').value.trim(),li:document.getElementById('f-li').value.trim(),phone:document.getElementById('f-phone').value.trim(),kvk:document.getElementById('f-kvk').value.trim(),addr:document.getElementById('f-addr').value.trim(),pipe:document.getElementById('f-pipe').value,val:document.getElementById('f-val').value.trim(),cf:document.getElementById('f-cf').value.trim(),cl:document.getElementById('f-cl').value.trim(),cr:document.getElementById('f-cr').value.trim(),cp:document.getElementById('f-cp').value.trim(),ce:document.getElementById('f-ce').value.trim(),note:document.getElementById('f-note').value.trim(),owner,added:localISO()};
+  const addrVal = document.getElementById('f-addr').value.trim();
+  const mapsUrl = addrVal ? `https://www.google.com/maps/search/?q=${encodeURIComponent(addrVal)}` : '';
+  const a={name,status:document.getElementById('f-status').value,sector:document.getElementById('f-sector').value.trim(),seg:document.getElementById('f-seg').value,web:document.getElementById('f-web').value.trim(),li:document.getElementById('f-li').value.trim(),phone:document.getElementById('f-phone').value.trim(),kvk:document.getElementById('f-kvk').value.trim(),addr:addrVal,addrUrl:mapsUrl,pipe:document.getElementById('f-pipe').value,val:document.getElementById('f-val').value.trim(),cf:document.getElementById('f-cf').value.trim(),cl:document.getElementById('f-cl').value.trim(),cr:document.getElementById('f-cr').value.trim(),cp:document.getElementById('f-cp').value.trim(),ce:document.getElementById('f-ce').value.trim(),note:document.getElementById('f-note').value.trim(),owner,added:localISO()};
   const user=CU==='MA'?'Mees':'Julian';
   if(editId){
     const idx=accs.findIndex(x=>x.id===editId);
@@ -5527,7 +5549,7 @@ function renderLijsten() {
                     <td style="padding:10px 14px;font-size:12.5px;color:var(--text);">${contact||'—'}</td>
                     <td style="padding:10px 14px;font-size:12.5px;color:var(--text);">${a.cp||'—'}</td>
                     <td style="padding:10px 14px;font-size:12.5px;color:var(--blue);">${a.ce?`<a href="mailto:${a.ce}" onclick="event.stopPropagation()" style="color:var(--blue);text-decoration:none;">${a.ce}</a>`:'—'}</td>
-                    <td style="padding:10px 14px;font-size:12.5px;color:var(--text);">${a.addr||'—'}</td>
+                    <td style="padding:10px 14px;font-size:12.5px;">${a.addr?(a.addrUrl?`<a href="${a.addrUrl}" target="_blank" onclick="event.stopPropagation()" style="color:var(--blue);text-decoration:none;">${a.addr}</a>`:`<span style="color:var(--text2);">${a.addr}</span>`):'—'}</td>
                     <td style="padding:10px 14px;"><span class="badge ${a.status}">${slbl(a.status)}</span></td>
                     <td style="padding:10px 14px;" onclick="event.stopPropagation();verwijderUitLijst(${curLijst.id},${a.id})"><span style="color:var(--text3);cursor:pointer;font-size:13px;">✕</span></td>
                   </tr>`;
