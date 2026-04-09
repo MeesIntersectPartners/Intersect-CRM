@@ -6251,15 +6251,28 @@ function instSave(data) {
   localStorage.setItem(INST_KEY, JSON.stringify(data));
 }
 
-function instKoppelMicrosoft(user) {
-  window.open(`/api/auth/login?user=${user}`, '_blank');
+async function instLaadMicrosoftTokens() {
+  // Haal gekoppelde accounts op uit Supabase microsoft_tokens
+  try {
+    const data = await _sbGet('microsoft_tokens', '?select=user_id,user_email');
+    if (!data || !data.length) return;
+    const instData = instGetData();
+    data.forEach(row => {
+      if (!row.user_email) return;
+      instData[`ms_gekoppeld_${row.user_id}`] = true;
+      instData[`ms_email_${row.user_id}`] = instData[`ms_email_${row.user_id}`] || [];
+      if (!instData[`ms_email_${row.user_id}`].includes(row.user_email)) {
+        instData[`ms_email_${row.user_id}`].push(row.user_email);
+      }
+    });
+    instSave(instData);
+  } catch(e) {
+    console.warn('Microsoft tokens laden:', e);
+  }
 }
 
-async function instCheckKoppeling(user) {
-  // Check via Supabase of er een token is voor deze gebruiker
-  // Simpele check op basis van lokale opslag voor nu
-  const data = instGetData();
-  return data[`ms_gekoppeld_${user}`] || false;
+function instKoppelMicrosoft(user) {
+  window.open(`/api/auth/login?user=${user}`, '_blank');
 }
 
 function instMarkeerGekoppeld(user, email) {
@@ -6281,17 +6294,21 @@ function instVerwijderEmail(user, email) {
 
 function instVoegEmailToe(user) {
   instKoppelMicrosoft(user);
-  // Na koppeling — markeer als gekoppeld (in productie via callback)
-  setTimeout(() => {
-    const email = prompt('Welk e-mailadres heb je gekoppeld?');
-    if (email) {
-      instMarkeerGekoppeld(user, email);
-      renderInstellingen();
-    }
-  }, 2000);
+  // Na 3 seconden tokens ophalen uit Supabase en tonen
+  setTimeout(async () => {
+    await instLaadMicrosoftTokens();
+    renderInstellingen();
+  }, 3000);
 }
 
 function renderInstellingen() {
+  const el = document.getElementById('p-instellingen');
+  if (!el) return;
+  // Laad eerst tokens uit Supabase dan render
+  instLaadMicrosoftTokens().then(() => _renderInstellingenUI());
+}
+
+function _renderInstellingenUI() {
   const el = document.getElementById('p-instellingen');
   if (!el) return;
   const data = instGetData();
