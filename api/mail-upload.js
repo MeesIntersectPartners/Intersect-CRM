@@ -13,7 +13,8 @@ module.exports = async function handler(req, res) {
   const userEmail = req.headers['x-user-email'];
   if (!userEmail) return res.status(401).json({ error: 'x-user-email header verplicht' });
 
-  const { action, messageId, fileName, fileSize, mimeType, aan, onderwerp, inhoud, cc } = req.body;
+  const { action, messageId, fileName, fileSize, mimeType, aan, onderwerp, inhoud, cc } = req.body || {};
+  console.log('[Mail Upload] action:', action, 'userEmail:', userEmail, 'body keys:', Object.keys(req.body || {}));
 
   try {
     // Haal tokens op
@@ -68,7 +69,8 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: 'Onbekende actie' });
 
   } catch (err) {
-    console.error('[Mail Upload]', err.message);
-    return res.status(500).json({ error: err.message });
+    const detail = err.response?.data || err.message;
+    console.error('[Mail Upload] Fout:', JSON.stringify(detail));
+    return res.status(500).json({ error: typeof detail === 'string' ? detail : JSON.stringify(detail) });
   }
 };
