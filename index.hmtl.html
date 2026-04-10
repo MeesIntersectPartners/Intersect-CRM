@@ -3188,8 +3188,9 @@ function renderAccList(){
   document.getElementById('acc-empty').style.display=list.length?'none':'block';
   list.forEach(a=>{
     const [bg,fg]=CLRS[a.color%CLRS.length];
-    const contact=[a.cf,a.cl].filter(Boolean).join(' ')||'—';
-    const hasContact=!!(a.cf||a.cl);
+    const _primaryContact = a.cf || a.cl ? [a.cf,a.cl].filter(Boolean).join(' ') : (a.contacts&&a.contacts.length ? [a.contacts[0].first,a.contacts[0].last].filter(Boolean).join(' ') : '');
+    const contact=_primaryContact||'—';
+    const hasContact=!!_primaryContact;
     const ownerHtml=a.owner==='BOTH'?`<div style="display:flex;"><div class="av ma lg">MA</div><div class="av jk lg" style="margin-left:-4px;">JK</div></div>`:`<div class="av ${a.owner.toLowerCase()} lg">${a.owner}</div>`;
     const status=accClientStatus(a);
     const pipe=accClientPipe(a);
