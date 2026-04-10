@@ -6018,6 +6018,8 @@ function openMailCompose(type, prefillAan, prefillOnderwerp) {
   mcBijlages = [];
   document.getElementById('mc-file-list').innerHTML = '';
   document.getElementById('mc-body').innerHTML = '';
+  // Laad eerst tokens dan vul accounts
+  instLaadMicrosoftTokens().then(() => mcVulVerzendaccounts());
   document.getElementById('mc-ai-input').value = '';
   document.getElementById('mc-to').value = prefillAan || (curAcc ? curAcc.ce || '' : '');
   document.getElementById('mc-cc').value = '';
@@ -6028,7 +6030,7 @@ function openMailCompose(type, prefillAan, prefillOnderwerp) {
   document.getElementById('mc-sub').textContent = curAcc ? curAcc.name : '';
 
   mcSetType(mcType);
-  mcVulVerzendaccounts();
+  instLaadMicrosoftTokens().then(() => mcVulVerzendaccounts());
 
   // Vul contactpersoon dropdown
   const mcCont = document.getElementById('mc-contact');
@@ -6415,16 +6417,17 @@ function _renderInstellingenUI() {
 // Check na login of auth_success in URL staat
 (function(){
   if(window.location.search.includes('auth_success=1')){
-    // Verwijder query param
     history.replaceState(null,'',window.location.pathname+window.location.hash);
-    // Toon melding
-    setTimeout(()=>{
+    // Laad tokens en ga naar instellingen
+    setTimeout(async ()=>{
+      await instLaadMicrosoftTokens();
+      nav('instellingen');
       const t=document.createElement('div');
       t.style.cssText='position:fixed;top:16px;right:16px;background:var(--green-bg);color:var(--green-t);border:1px solid rgba(26,122,58,.2);border-radius:10px;padding:10px 16px;font-size:13px;font-weight:500;z-index:9999;';
       t.textContent='✓ Microsoft account succesvol gekoppeld!';
       document.body.appendChild(t);
       setTimeout(()=>t.remove(),4000);
-    },500);
+    },800);
   }
 })();
 
