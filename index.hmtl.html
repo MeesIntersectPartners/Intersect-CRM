@@ -1795,24 +1795,69 @@ function nav(id){
   document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('on'));
   const titles={dashboard:'Dashboard',agenda:'Agenda',pipeline:'Pipeline',todos:"To-do's",accounts:'Accounts',contacts:'Contacten',outreach:'Outreach',activity:'Activiteit',rapport:'Klantrapport',scraper:'Lead Scraper',instellingen:'Instellingen',actiecenter:'Actie Center',lijsten:'Lijsten'};
   document.getElementById('topbar-title').innerHTML=titles[id]||id;
-  if(id==='dashboard')renderDash();
-  if(id==='agenda'){
-    calOffset=0;
-    calPerson=CU;
-    setTimeout(()=>{ setCalPerson(CU); renderAgenda(); },0);
+
+  // Refresh relevante data uit Supabase per pagina
+  if(id==='dashboard'){
+    Promise.all([
+      _sbGet('activity_log','?select=*&order=created_at.desc&limit=50'),
+      _sbGet('todos','?select=*&order=created_at.desc'),
+    ]).then(([actR,todoR])=>{
+      activity=actR.map(_mapAct);
+      todos=todoR.map(_mapTodo);
+      renderDash();
+    }).catch(()=>renderDash());
   }
-  if(id==='pipeline')renderPipeline();
-  if(id==='accounts')renderAccList();
-  if(id==='contacts')renderContacts();
-  if(id==='todos')renderTodos();
+  if(id==='agenda'){
+    _sbGet('events','?select=*&order=event_date.asc').then(evR=>{
+      calEvents=evR.map(_mapEv);
+      calOffset=0; calPerson=CU;
+      setTimeout(()=>{ setCalPerson(CU); renderAgenda(); },0);
+    }).catch(()=>{ calOffset=0; calPerson=CU; setTimeout(()=>{ setCalPerson(CU); renderAgenda(); },0); });
+  }
+  if(id==='pipeline'){
+    _sbGet('accounts','?select=*&order=created_at.desc').then(accR=>{
+      accs=accR.map(_mapAcc);
+      renderPipeline();
+    }).catch(()=>renderPipeline());
+  }
+  if(id==='accounts'){
+    _sbGet('accounts','?select=*&order=created_at.desc').then(accR=>{
+      accs=accR.map(_mapAcc);
+      renderAccList();
+    }).catch(()=>renderAccList());
+  }
+  if(id==='contacts'){
+    _sbGet('contacts','?select=*').then(conR=>{
+      conR.forEach(c=>{const a=accs.find(x=>x.id===c.account_id);if(a){const idx=a.contacts.findIndex(x=>x.id===c.id);if(idx>=0)a.contacts[idx]=_mapContact(c);else a.contacts.push(_mapContact(c));}});
+      renderContacts();
+    }).catch(()=>renderContacts());
+  }
+  if(id==='todos'){
+    _sbGet('todos','?select=*&order=created_at.desc').then(todoR=>{
+      todos=todoR.map(_mapTodo);
+      renderTodos();
+    }).catch(()=>renderTodos());
+  }
+  if(id==='activity'){
+    _sbGet('activity_log','?select=*&order=created_at.desc&limit=50').then(actR=>{
+      activity=actR.map(_mapAct);
+      renderActivity();
+    }).catch(()=>renderActivity());
+  }
+  if(id==='lijsten'){
+    _loadLijsten().then(()=>renderLijsten()).catch(()=>renderLijsten());
+  }
   if(id==='outreach')renderOutreach();
-  if(id==='activity')renderActivity();
   if(id==='rapport')renderRapport();
   if(id==='workflows'){renderWorkflows();updateWfBadge();}
   if(id==='scraper')renderScraper();
   if(id==='instellingen')renderInstellingen();
-  if(id==='actiecenter')renderActieCenter();
-  if(id==='lijsten')renderLijsten();
+  if(id==='actiecenter'){
+    _sbGet('todos','?select=*&order=created_at.desc').then(todoR=>{
+      todos=todoR.map(_mapTodo);
+      renderActieCenter();
+    }).catch(()=>renderActieCenter());
+  }
   curAcc=null;
 }
 
