@@ -1512,6 +1512,26 @@ async function _doLogin(){
     renderClientBar();
     setTimeout(()=>{ runWorkflowEngine(false); updateWfBadge(); renderWatNu(); }, 600);
 
+    // Achtergrond sync elke 60 seconden
+    setInterval(async () => {
+      try {
+        await _loadFromSupabase();
+        // Herrender huidige pagina
+        const activePage = document.querySelector('.page.on, .acc-detail.on');
+        if (!activePage) return;
+        const id = activePage.id?.replace('p-','');
+        if (id === 'dashboard') renderDash();
+        else if (id === 'accounts') renderAccList();
+        else if (id === 'pipeline') renderPipeline();
+        else if (id === 'contacts') renderContacts();
+        else if (id === 'todos') renderTodos();
+        else if (id === 'activity') renderActivity();
+        else if (id === 'agenda') renderAgenda();
+        else if (id === 'actiecenter') renderActieCenter();
+        else if (id === 'lijsten') renderLijsten();
+      } catch(e) { console.warn('Achtergrond sync:', e); }
+    }, 60000);
+
   }catch(e){
     err.textContent = e.message || 'Inloggen mislukt. Controleer je gegevens.';
     err.style.display = 'block';
@@ -1796,68 +1816,35 @@ function nav(id){
   const titles={dashboard:'Dashboard',agenda:'Agenda',pipeline:'Pipeline',todos:"To-do's",accounts:'Accounts',contacts:'Contacten',outreach:'Outreach',activity:'Activiteit',rapport:'Klantrapport',scraper:'Lead Scraper',instellingen:'Instellingen',actiecenter:'Actie Center',lijsten:'Lijsten'};
   document.getElementById('topbar-title').innerHTML=titles[id]||id;
 
-  // Refresh relevante data uit Supabase per pagina
-  if(id==='dashboard'){
-    Promise.all([
-      _sbGet('activity_log','?select=*&order=created_at.desc&limit=50'),
-      _sbGet('todos','?select=*&order=created_at.desc'),
-    ]).then(([actR,todoR])=>{
-      activity=actR.map(_mapAct);
-      todos=todoR.map(_mapTodo);
-      renderDash();
-    }).catch(()=>renderDash());
-  }
-  if(id==='agenda'){
-    _sbGet('events','?select=*&order=event_date.asc').then(evR=>{
-      calEvents=evR.map(_mapEv);
-      calOffset=0; calPerson=CU;
-      setTimeout(()=>{ setCalPerson(CU); renderAgenda(); },0);
-    }).catch(()=>{ calOffset=0; calPerson=CU; setTimeout(()=>{ setCalPerson(CU); renderAgenda(); },0); });
-  }
-  if(id==='pipeline'){
-    _sbGet('accounts','?select=*&order=created_at.desc').then(accR=>{
-      accs=accR.map(_mapAcc);
-      renderPipeline();
-    }).catch(()=>renderPipeline());
-  }
-  if(id==='accounts'){
-    _sbGet('accounts','?select=*&order=created_at.desc').then(accR=>{
-      accs=accR.map(_mapAcc);
-      renderAccList();
-    }).catch(()=>renderAccList());
-  }
-  if(id==='contacts'){
-    _sbGet('contacts','?select=*').then(conR=>{
-      conR.forEach(c=>{const a=accs.find(x=>x.id===c.account_id);if(a){const idx=a.contacts.findIndex(x=>x.id===c.id);if(idx>=0)a.contacts[idx]=_mapContact(c);else a.contacts.push(_mapContact(c));}});
-      renderContacts();
-    }).catch(()=>renderContacts());
-  }
-  if(id==='todos'){
-    _sbGet('todos','?select=*&order=created_at.desc').then(todoR=>{
-      todos=todoR.map(_mapTodo);
-      renderTodos();
-    }).catch(()=>renderTodos());
-  }
-  if(id==='activity'){
-    _sbGet('activity_log','?select=*&order=created_at.desc&limit=50').then(actR=>{
-      activity=actR.map(_mapAct);
-      renderActivity();
-    }).catch(()=>renderActivity());
-  }
-  if(id==='lijsten'){
-    _loadLijsten().then(()=>renderLijsten()).catch(()=>renderLijsten());
-  }
-  if(id==='outreach')renderOutreach();
-  if(id==='rapport')renderRapport();
-  if(id==='workflows'){renderWorkflows();updateWfBadge();}
-  if(id==='scraper')renderScraper();
-  if(id==='instellingen')renderInstellingen();
-  if(id==='actiecenter'){
-    _sbGet('todos','?select=*&order=created_at.desc').then(todoR=>{
-      todos=todoR.map(_mapTodo);
-      renderActieCenter();
-    }).catch(()=>renderActieCenter());
-  }
+  // Volledige data refresh bij elke navigatie
+  _loadFromSupabase().then(()=>{
+    if(id==='dashboard')renderDash();
+    else if(id==='agenda'){ calOffset=0; calPerson=CU; setTimeout(()=>{ setCalPerson(CU); renderAgenda(); },0); }
+    else if(id==='pipeline')renderPipeline();
+    else if(id==='accounts')renderAccList();
+    else if(id==='contacts')renderContacts();
+    else if(id==='todos')renderTodos();
+    else if(id==='outreach')renderOutreach();
+    else if(id==='activity')renderActivity();
+    else if(id==='rapport')renderRapport();
+    else if(id==='workflows'){renderWorkflows();updateWfBadge();}
+    else if(id==='scraper')renderScraper();
+    else if(id==='instellingen')renderInstellingen();
+    else if(id==='actiecenter')renderActieCenter();
+    else if(id==='lijsten')renderLijsten();
+  }).catch(()=>{
+    // Fallback — render met bestaande data
+    if(id==='dashboard')renderDash();
+    else if(id==='agenda'){ calOffset=0; calPerson=CU; setTimeout(()=>{ setCalPerson(CU); renderAgenda(); },0); }
+    else if(id==='pipeline')renderPipeline();
+    else if(id==='accounts')renderAccList();
+    else if(id==='contacts')renderContacts();
+    else if(id==='todos')renderTodos();
+    else if(id==='outreach')renderOutreach();
+    else if(id==='activity')renderActivity();
+    else if(id==='actiecenter')renderActieCenter();
+    else if(id==='lijsten')renderLijsten();
+  });
   curAcc=null;
 }
 
@@ -3441,7 +3428,9 @@ function saveNote(){
     finalText=gevuldeBerichten.map(b=>`[${b.van==='MA'?'Mees':b.van==='JK'?'Julian':b.van}]: ${b.tekst.trim()}`).join('\n');
   } else {
     finalText=document.getElementById('n-text').value.trim();
-    if(!finalText){alert('Schrijf eerst een notitie.');return;}
+    const vmStatus=document.querySelector('input[name="vm-status"]:checked');
+    const isNietIngesproken = type==='voicemail' && vmStatus?.value==='niet_ingesproken';
+    if(!finalText && !isNietIngesproken){alert('Schrijf eerst een notitie.');return;}
   }
 
   if(!curAcc.notes)curAcc.notes=[];
