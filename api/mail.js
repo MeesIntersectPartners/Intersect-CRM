@@ -90,15 +90,74 @@ module.exports = async function handler(req, res) {
         return res.status(400).json({ error: 'aan, onderwerp en inhoud zijn verplicht' });
       }
 
-      // Bouw bijlages op voor Graph API
-      const attachments = (bijlages || []).map(b => ({
-        '@odata.type': '#microsoft.graph.fileAttachment',
-        name: b.naam,
-        contentType: b.mimeType || 'application/octet-stream',
-        contentBytes: b.base64,
-      }));
+      // Splits bijlages in klein (<3MB, direct) en groot (>3MB, via draft + upload session)
+      const MAX_DIRECT = 3 * 1024 * 1024; // 3MB in bytes
+      const kleineBijlages = [];
+      const groteBijlages = [];
 
-      await sendMail(tokens.access_token, { aan, onderwerp, inhoud, cc, attachments });
+      for (const b of (bijlages || [])) {
+        const bytes = Buffer.from(b.base64, 'base64').length;
+        if (bytes < MAX_DIRECT) {
+          kleineBijlages.push({
+            '@odata.type': '#microsoft.graph.fileAttachment',
+            name: b.naam,
+            contentType: b.mimeType || 'application/octet-stream',
+            contentBytes: b.base64,
+          });
+        } else {
+          groteBijlages.push(b);
+        }
+      }
+
+      if (groteBijlages.length === 0) {
+        // Geen grote bijlages — gewoon direct versturen
+        await sendMail(tokens.access_token, { aan, onderwerp, inhoud, cc, attachments: kleineBijlages });
+      } else {
+        // Maak eerst een draft aan
+        const axios = require('axios');
+        const GRAPH = 'https://graph.microsoft.com/v1.0';
+        const headers = { Authorization: `Bearer ${tokens.access_token}`, 'Content-Type': 'application/json' };
+
+        const draftRes = await axios.post(`${GRAPH}/me/messages`, {
+          subject: onderwerp,
+          body: { contentType: 'HTML', content: inhoud },
+          toRecipients: [{ emailAddress: { address: aan } }],
+          ccRecipients: (cc || []).map(e => ({ emailAddress: { address: e } })),
+          attachments: kleineBijlages,
+        }, { headers });
+
+        const messageId = draftRes.data.id;
+
+        // Upload grote bijlages via upload session
+        for (const b of groteBijlages) {
+          const fileBytes = Buffer.from(b.base64, 'base64');
+          const sessionRes = await axios.post(`${GRAPH}/me/messages/${messageId}/attachments/createUploadSession`, {
+            AttachmentItem: {
+              attachmentType: 'file',
+              name: b.naam,
+              size: fileBytes.length,
+              contentType: b.mimeType || 'application/octet-stream',
+            },
+          }, { headers });
+
+          const uploadUrl = sessionRes.data.uploadUrl;
+          const chunkSize = 4 * 1024 * 1024; // 4MB chunks
+
+          for (let offset = 0; offset < fileBytes.length; offset += chunkSize) {
+            const chunk = fileBytes.slice(offset, Math.min(offset + chunkSize, fileBytes.length));
+            await axios.put(uploadUrl, chunk, {
+              headers: {
+                'Content-Type': 'application/octet-stream',
+                'Content-Range': `bytes ${offset}-${offset + chunk.length - 1}/${fileBytes.length}`,
+                'Content-Length': chunk.length,
+              },
+            });
+          }
+        }
+
+        // Verstuur de draft
+        await axios.post(`${GRAPH}/me/messages/${messageId}/send`, {}, { headers });
+      }
 
       // Log als activiteit in Supabase als acc_id meegegeven
       if (log_acc_id) {
