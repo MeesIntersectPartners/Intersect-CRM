@@ -1,17 +1,20 @@
 {
-  "name": "intersect-crm",
+  "name": "intersect-scraper",
   "version": "1.0.0",
-  "description": "Intersect CRM met lead scraper en Microsoft integratie",
+  "description": "Geautomatiseerde lead scraper voor Intersect CRM",
   "main": "lib/orchestrator.js",
   "scripts": {
-    "build": "echo 'No build needed'",
-    "start": "node lib/orchestrator.js"
+    "dev": "node lib/orchestrator.js",
+    "test:kvk": "node test/kvk.test.js",
+    "test:scraper": "node test/scraper.test.js",
+    "test:full": "node test/full.test.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.20.0",
     "@supabase/supabase-js": "^2.39.0",
     "axios": "^1.6.5",
-    "cheerio": "^1.0.0-rc.12"
+    "cheerio": "^1.0.0-rc.12",
+    "dotenv": "^16.0.0"
   },
   "engines": {
     "node": ">=18.0.0"
