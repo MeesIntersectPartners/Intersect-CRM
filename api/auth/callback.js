@@ -32,6 +32,7 @@ module.exports = async function handler(req, res) {
     const tokenData = {
       user_email: profiel.mail || profiel.userPrincipalName,
       user_name: profiel.displayName,
+      user_id: state || 'MA', // MA of JK meegegeven via state parameter
       access_token: tokens.access_token,
       refresh_token: tokens.refresh_token,
       expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
