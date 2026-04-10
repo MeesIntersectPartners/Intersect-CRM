@@ -2,7 +2,7 @@
 // GET  → haal Outlook events op en sync naar CRM
 // POST → maak nieuw event aan in Outlook
 
-const { getAgendaEvents, maakEvent, refreshToken } = require('../../lib/microsoft');
+const { getAgendaEvents, maakEvent, refreshToken } = require('../lib/microsoft');
 const { createClient } = require('@supabase/supabase-js');
 
 async function getTokens(supabase, userEmail) {
