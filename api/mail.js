@@ -2,7 +2,7 @@
 // GET  → haal recente emails op
 // POST → stuur een email
 
-const { getMails, sendMail, markeerGelezen, refreshToken } = require('../../lib/microsoft');
+const { getMails, sendMail, markeerGelezen, refreshToken } = require('../lib/microsoft');
 const { createClient } = require('@supabase/supabase-js');
 const Anthropic = require('@anthropic-ai/sdk');
 
