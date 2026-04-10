@@ -6253,13 +6253,16 @@ function instSave(data) {
 
 async function instLaadMicrosoftTokens() {
   try {
-    const data = await _sbGet('microsoft_tokens', '?select=user_email,user_name');
+    const data = await _sbGet('microsoft_tokens', '?select=user_id,user_email,user_name');
     if (!data || !data.length) return;
     const instData = instGetData();
     data.forEach(row => {
       if (!row.user_email) return;
-      // Bepaal user op basis van naam
-      const user = row.user_name && row.user_name.toLowerCase().includes('julian') ? 'JK' : 'MA';
+      // Gebruik user_id als die beschikbaar is, anders bepaal op naam
+      let user = row.user_id || '';
+      if (!user || (user !== 'MA' && user !== 'JK')) {
+        user = row.user_name && row.user_name.toLowerCase().includes('julian') ? 'JK' : 'MA';
+      }
       instData[`ms_gekoppeld_${user}`] = true;
       instData[`ms_email_${user}`] = instData[`ms_email_${user}`] || [];
       if (!instData[`ms_email_${user}`].includes(row.user_email)) {
