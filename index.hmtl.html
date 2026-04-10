@@ -6208,26 +6208,85 @@ async function mcVerstuur() {
   btn.disabled = true;
 
   try {
-    const body = {
-      aan,
-      cc: cc ? [cc] : [],
-      onderwerp,
-      inhoud,
-      log_acc_id: curAcc ? curAcc.id : null,
-      mail_type: mcType,
-      bijlages: mcBijlages,
-    };
+    const MAX_DIRECT = 3 * 1024 * 1024; // 3MB
+    const kleineBijlages = mcBijlages.filter(b => b.grootte < MAX_DIRECT);
+    const groteBijlages = mcBijlages.filter(b => b.grootte >= MAX_DIRECT);
 
-    const res = await fetch('/api/mail', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-user-email': van,
-      },
-      body: JSON.stringify(body),
-    });
+    if (groteBijlages.length === 0) {
+      // Geen grote bijlages — gewoon direct versturen
+      const body = {
+        aan, cc: cc ? [cc] : [], onderwerp, inhoud,
+        log_acc_id: curAcc ? curAcc.id : null,
+        mail_type: mcType,
+        bijlages: kleineBijlages,
+      };
+      const res = await fetch('/api/mail', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-email': van },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || await res.text());
+    } else {
+      // Grote bijlages — upload direct naar Microsoft
+      btn.textContent = 'Draft aanmaken…';
 
-    if (!res.ok) throw new Error(await res.text());
+      // Stap 1: maak draft aan
+      const draftRes = await fetch('/api/mail-upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-email': van },
+        body: JSON.stringify({ action: 'create-draft', aan, cc: cc ? [cc] : [], onderwerp, inhoud }),
+      });
+      if (!draftRes.ok) throw new Error('Draft aanmaken mislukt');
+      const { messageId } = await draftRes.json();
+
+      // Stap 2: voeg kleine bijlages toe via normale mail API
+      if (kleineBijlages.length > 0) {
+        await fetch('/api/mail', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-user-email': van },
+          body: JSON.stringify({ aan, cc: cc ? [cc] : [], onderwerp, inhoud, bijlages: kleineBijlages, _messageId: messageId }),
+        });
+      }
+
+      // Stap 3: upload grote bijlages direct naar Microsoft
+      for (let i = 0; i < groteBijlages.length; i++) {
+        const b = groteBijlages[i];
+        btn.textContent = `Uploaden ${i+1}/${groteBijlages.length}…`;
+
+        // Vraag upload session URL op
+        const sessionRes = await fetch('/api/mail-upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-user-email': van },
+          body: JSON.stringify({ action: 'create-upload-session', messageId, fileName: b.naam, fileSize: b.grootte, mimeType: b.mimeType }),
+        });
+        if (!sessionRes.ok) throw new Error('Upload session mislukt');
+        const { uploadUrl } = await sessionRes.json();
+
+        // Upload het bestand in chunks direct naar Microsoft
+        const fileBytes = Uint8Array.from(atob(b.base64), c => c.charCodeAt(0));
+        const chunkSize = 4 * 1024 * 1024;
+        for (let offset = 0; offset < fileBytes.length; offset += chunkSize) {
+          const chunk = fileBytes.slice(offset, Math.min(offset + chunkSize, fileBytes.length));
+          await fetch(uploadUrl, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/octet-stream',
+              'Content-Range': `bytes ${offset}-${offset + chunk.length - 1}/${fileBytes.length}`,
+            },
+            body: chunk,
+          });
+        }
+      }
+
+      // Stap 4: verstuur de draft
+      btn.textContent = 'Versturen…';
+      const sendRes = await fetch('/api/mail-upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-email': van },
+        body: JSON.stringify({ action: 'send-draft', messageId }),
+      });
+      if (!sendRes.ok) throw new Error('Versturen mislukt');
+    }
 
     // Log lokaal als activiteit
     if (curAcc) {
