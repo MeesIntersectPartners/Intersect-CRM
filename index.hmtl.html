@@ -3444,7 +3444,12 @@ function saveNote(){
 
   if(editId){
     const idx=curAcc.notes.findIndex(n=>n.id===editId);
-    if(idx>=0) curAcc.notes[idx]={...curAcc.notes[idx],text:finalText,contact,type,chat:chatArr};
+    if(idx>=0){
+      curAcc.notes[idx]={...curAcc.notes[idx],text:finalText,contact,type,chat:chatArr};
+      if(editId&&typeof editId==='number'&&editId<2000000000){
+        _sbPatch('notes',editId,{text:finalText,type,contact:contact||null,chat:chatArr?JSON.stringify(chatArr):null}).catch(e=>console.warn('note edit:',e));
+      }
+    }
   } else {
     const note={id:Date.now(),text:finalText,type,by:CU,dur:dur||null,contact,chat:chatArr,
       time:new Date().toLocaleDateString('nl-NL',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})};
@@ -3468,10 +3473,13 @@ function saveContact(){
   const last=document.getElementById('c-last').value.trim();
   if(!first&&!last)return;
   if(!curAcc.contacts)curAcc.contacts=[];
-  curAcc.contacts.push({id:Date.now(),first,last,role:document.getElementById('c-role').value.trim(),dept:document.getElementById('c-dept').value.trim(),email:document.getElementById('c-email').value.trim(),phone:document.getElementById('c-phone').value.trim(),li:document.getElementById('c-li').value.trim(),connections:document.getElementById('c-connections').value.trim(),note:document.getElementById('c-note').value.trim()});
+  const contact={id:Date.now(),first,last,role:document.getElementById('c-role').value.trim(),dept:document.getElementById('c-dept').value.trim(),email:document.getElementById('c-email').value.trim(),phone:document.getElementById('c-phone').value.trim(),li:document.getElementById('c-li').value.trim(),connections:document.getElementById('c-connections').value.trim(),note:document.getElementById('c-note').value.trim()};
+  curAcc.contacts.push(contact);
   const idx=accs.findIndex(a=>a.id===curAcc.id);
   accs[idx]=curAcc;ss('ix_accs',accs);
-  closeM('m-contact');openDetail(curAcc.id);
+  _saveContact(curAcc.id,contact).catch(e=>console.warn('contact save:',e));
+  closeM('m-contact');
+  renderTab('contacts');
 }
 
 function saveDeal(){
@@ -3491,9 +3499,11 @@ function saveProposal(){
   const title=document.getElementById('p-title').value.trim();
   if(!title)return;
   if(!curAcc.proposals)curAcc.proposals=[];
-  curAcc.proposals.push({id:Date.now(),title,val:document.getElementById('p-val').value.trim(),stat:document.getElementById('p-stat').value,date:document.getElementById('p-date').value.trim(),exp:document.getElementById('p-exp').value.trim(),desc:document.getElementById('p-desc').value.trim()});
+  const prop={id:Date.now(),title,val:document.getElementById('p-val').value.trim(),stat:document.getElementById('p-stat').value,date:document.getElementById('p-date').value.trim(),exp:document.getElementById('p-exp').value.trim(),desc:document.getElementById('p-desc').value.trim()};
+  curAcc.proposals.push(prop);
   const idx=accs.findIndex(a=>a.id===curAcc.id);
   accs[idx]=curAcc;ss('ix_accs',accs);
+  _saveProp(curAcc.id,prop).catch(e=>console.warn('prop save:',e));
   addActivity(`<strong>${CU==='MA'?'Mees':'Julian'}</strong> voegde offerte toe voor <strong>${curAcc.name}</strong>`,'◻','#e8f3de');
   closeM('m-prop');renderTab('proposals');
 }
