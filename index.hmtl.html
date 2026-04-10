@@ -3396,11 +3396,15 @@ function saveAcc(){
   }
   ss('ix_accs',accs);
   updateLijstenVoorAccount(a.id);
+  closeM('m-acc');
   _saveAcc(a).then(()=>{
     _logAct(`<strong>${CU==='MA'?'Mees':'Julian'}</strong> heeft <strong>${a.name}</strong> ${editId?'bijgewerkt':'toegevoegd als '+slbl(a.status)}`,'◈',CLRS[a.color%CLRS.length][0]).catch(()=>{});
     activity.unshift({text:`<strong>${CU==='MA'?'Mees':'Julian'}</strong> heeft <strong>${a.name}</strong> ${editId?'bijgewerkt':'toegevoegd als '+slbl(a.status)}`,time:'Zojuist',ico:'◈',bg:CLRS[a.color%CLRS.length][0]});
-  }).catch(e=>console.error('Save acc:',e));
-  closeM('m-acc');nav('accounts');
+    nav('accounts');
+  }).catch(e=>{
+    console.error('Save acc:',e);
+    nav('accounts');
+  });
 }
 
 function saveTodo(){
@@ -3464,8 +3468,18 @@ function saveNote(){
   chatBerichten=[];
   document.getElementById('note-bubble').style.display='none';
   closeM('m-note');
-  renderTab('activity');
-  if(document.getElementById('p-dashboard').classList.contains('on'))renderDash();
+  if(editId){
+    renderTab('activity');
+    if(document.getElementById('p-dashboard').classList.contains('on'))renderDash();
+  } else {
+    _saveNote(curAcc.id,note).then(()=>{
+      renderTab('activity');
+      if(document.getElementById('p-dashboard').classList.contains('on'))renderDash();
+    }).catch(e=>{
+      console.error('note save:',e);
+      renderTab('activity');
+    });
+  }
 }
 
 function saveContact(){
@@ -3478,9 +3492,14 @@ function saveContact(){
   curAcc.contacts.push(contact);
   const idx=accs.findIndex(a=>a.id===curAcc.id);
   accs[idx]=curAcc;ss('ix_accs',accs);
-  _saveContact(curAcc.id,contact).catch(e=>console.warn('contact save:',e));
-  closeM('m-contact');
-  renderTab('contacts');
+  _saveContact(curAcc.id,contact).then(()=>{
+    closeM('m-contact');
+    renderTab('contacts');
+  }).catch(e=>{
+    console.error('contact save:',e);
+    closeM('m-contact');
+    renderTab('contacts');
+  });
 }
 
 function saveDeal(){
@@ -3488,11 +3507,16 @@ function saveDeal(){
   const name=document.getElementById('d-name').value.trim();
   if(!name)return;
   if(!curAcc.deals)curAcc.deals=[];
-  curAcc.deals.push({id:Date.now(),name,val:document.getElementById('d-val').value.trim(),prob:document.getElementById('d-prob').value.trim(),stage:document.getElementById('d-stage').value,close:document.getElementById('d-close').value.trim(),note:document.getElementById('d-note').value.trim()});
+  const deal={id:Date.now(),name,val:document.getElementById('d-val').value.trim(),prob:document.getElementById('d-prob').value.trim(),stage:document.getElementById('d-stage').value,close:document.getElementById('d-close').value.trim(),note:document.getElementById('d-note').value.trim()};
+  curAcc.deals.push(deal);
   const idx=accs.findIndex(a=>a.id===curAcc.id);
   accs[idx]=curAcc;ss('ix_accs',accs);
-  _saveDeal(curAcc.id,curAcc.deals[curAcc.deals.length-1]).catch(e=>console.warn('deal:',e));
-  closeM('m-deal');renderTab('deals');
+  _saveDeal(curAcc.id,deal).then(()=>{
+    closeM('m-deal');renderTab('deals');
+  }).catch(e=>{
+    console.error('deal save:',e);
+    closeM('m-deal');renderTab('deals');
+  });
 }
 
 function saveProposal(){
@@ -3504,9 +3528,12 @@ function saveProposal(){
   curAcc.proposals.push(prop);
   const idx=accs.findIndex(a=>a.id===curAcc.id);
   accs[idx]=curAcc;ss('ix_accs',accs);
-  _saveProp(curAcc.id,prop).catch(e=>console.warn('prop save:',e));
-  addActivity(`<strong>${CU==='MA'?'Mees':'Julian'}</strong> voegde offerte toe voor <strong>${curAcc.name}</strong>`,'◻','#e8f3de');
-  closeM('m-prop');renderTab('proposals');
+  _saveProp(curAcc.id,prop).then(()=>{
+    closeM('m-prop');renderTab('proposals');
+  }).catch(e=>{
+    console.error('prop save:',e);
+    closeM('m-prop');renderTab('proposals');
+  });
 }
 
 function saveTemplate(){
@@ -6303,8 +6330,9 @@ async function mcVerstuur() {
       const idx = accs.findIndex(a => a.id === curAcc.id);
       if (idx >= 0) accs[idx] = curAcc;
       ss('ix_accs', accs);
-      _saveNote(curAcc.id, note).catch(e => console.error('Mail note save fout:', e.message));
-      addActivity(`<strong>${CU==='MA'?'Mees':'Julian'}</strong> stuurde ${typeLabels[mcType]||'mail'} naar <strong>${curAcc.name}</strong>`,'✉','#e8f0fb');
+      _saveNote(curAcc.id, note).then(()=>{
+        addActivity(`<strong>${CU==='MA'?'Mees':'Julian'}</strong> stuurde ${typeLabels[mcType]||'mail'} naar <strong>${curAcc.name}</strong>`,'✉','#e8f0fb');
+      }).catch(e => console.error('Mail note save fout:', e.message));
     }
 
     closeM('m-mail-compose');
