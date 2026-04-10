@@ -1512,9 +1512,12 @@ async function _doLogin(){
     renderClientBar();
     setTimeout(()=>{ runWorkflowEngine(false); updateWfBadge(); renderWatNu(); }, 600);
 
-    // Achtergrond sync elke 60 seconden
+    // Achtergrond sync elke 60 seconden — alleen als geen modal open is
     setInterval(async () => {
       try {
+        // Niet refreshen als er een modal open is
+        const modalOpen = document.querySelector('[id^="m-"].on');
+        if (modalOpen) return;
         await _loadFromSupabase();
         // Herrender huidige pagina
         const activePage = document.querySelector('.page.on, .acc-detail.on');
@@ -1717,8 +1720,13 @@ async function _saveClient(c){
   }
 }
 async function _saveNote(accId,note){
-  const[r]=await _sbPost('notes',{account_id:accId,text:note.text,type:note.type||'notitie',created_by:note.by||'MA',contact:note.contact||null,chat:note.chat?JSON.stringify(note.chat):null,dur:note.dur||null});
-  note.id=r.id;
+  if(!accId){console.warn('_saveNote: geen accId');return;}
+  try{
+    const[r]=await _sbPost('notes',{account_id:accId,text:note.text,type:note.type||'notitie',created_by:note.by||'MA',contact:note.contact||null,chat:note.chat?JSON.stringify(note.chat):null,dur:note.dur||null});
+    note.id=r.id;
+  }catch(e){
+    console.error('_saveNote fout:',e.message, 'accId:',accId, 'type:',note.type);
+  }
 }
 async function _saveContact(accId,c){
   const[r]=await _sbPost('contacts',{account_id:accId,first_name:c.first||'',last_name:c.last||'',role:c.role||'',department:c.dept||'',email:c.email||'',phone:c.phone||'',linkedin:c.li||'',note:c.note||''});
@@ -1816,8 +1824,8 @@ function nav(id){
   const titles={dashboard:'Dashboard',agenda:'Agenda',pipeline:'Pipeline',todos:"To-do's",accounts:'Accounts',contacts:'Contacten',outreach:'Outreach',activity:'Activiteit',rapport:'Klantrapport',scraper:'Lead Scraper',instellingen:'Instellingen',actiecenter:'Actie Center',lijsten:'Lijsten'};
   document.getElementById('topbar-title').innerHTML=titles[id]||id;
 
-  // Volledige data refresh bij elke navigatie
-  _loadFromSupabase().then(()=>{
+  // Volledige data refresh bij elke navigatie — alleen als geen modal open
+  const _doNavRefresh = () => {
     if(id==='dashboard')renderDash();
     else if(id==='agenda'){ calOffset=0; calPerson=CU; setTimeout(()=>{ setCalPerson(CU); renderAgenda(); },0); }
     else if(id==='pipeline')renderPipeline();
@@ -1832,19 +1840,8 @@ function nav(id){
     else if(id==='instellingen')renderInstellingen();
     else if(id==='actiecenter')renderActieCenter();
     else if(id==='lijsten')renderLijsten();
-  }).catch(()=>{
-    // Fallback — render met bestaande data
-    if(id==='dashboard')renderDash();
-    else if(id==='agenda'){ calOffset=0; calPerson=CU; setTimeout(()=>{ setCalPerson(CU); renderAgenda(); },0); }
-    else if(id==='pipeline')renderPipeline();
-    else if(id==='accounts')renderAccList();
-    else if(id==='contacts')renderContacts();
-    else if(id==='todos')renderTodos();
-    else if(id==='outreach')renderOutreach();
-    else if(id==='activity')renderActivity();
-    else if(id==='actiecenter')renderActieCenter();
-    else if(id==='lijsten')renderLijsten();
-  });
+  };
+  _loadFromSupabase().then(_doNavRefresh).catch(_doNavRefresh);
   curAcc=null;
 }
 
@@ -6277,12 +6274,14 @@ async function mcVerstuur() {
       if (!sendRes.ok) throw new Error('Versturen mislukt');
     }
 
-    // Log lokaal als activiteit
+    // Log als notitie bij account met volledige inhoud
     if (curAcc) {
       const typeLabels = { mailshot: 'Mailshot', opvolg_mailshot: 'Opvolg Mailshot', directe_mail: 'Directe mail' };
+      const inhoudTekst = inhoudEl.innerText || inhoudEl.textContent || '';
+      const noteText = `${typeLabels[mcType] || 'Mail'} verstuurd\nVan: ${van} → Aan: ${aan}${mcBijlages.length ? ` · ${mcBijlages.length} bijlage(s)` : ''}\nOnderwerp: ${onderwerp}\n\n${inhoudTekst}`;
       const note = {
         type: mcType,
-        text: `${typeLabels[mcType]} verstuurd via CRM · ${van} → ${aan}${mcBijlages.length ? ` · ${mcBijlages.length} bijlage(s)` : ''}\n\nOnderwerp: ${onderwerp}`,
+        text: noteText,
         by: CU,
         contact: contact,
         time: new Date().toLocaleString('nl-NL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }),
@@ -6293,7 +6292,8 @@ async function mcVerstuur() {
       const idx = accs.findIndex(a => a.id === curAcc.id);
       if (idx >= 0) accs[idx] = curAcc;
       ss('ix_accs', accs);
-      _saveNote(curAcc.id, note).catch(() => {});
+      _saveNote(curAcc.id, note).catch(e => console.error('Mail note save fout:', e.message));
+      addActivity(`<strong>${CU==='MA'?'Mees':'Julian'}</strong> stuurde ${typeLabels[mcType]||'mail'} naar <strong>${curAcc.name}</strong>`,'✉','#e8f0fb');
     }
 
     closeM('m-mail-compose');
