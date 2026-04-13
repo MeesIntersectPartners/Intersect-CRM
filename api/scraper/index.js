@@ -65,46 +65,43 @@ async function handleStart(req, res) {
   const strategie = await bepaalStrategie(opdrachtgever, focusgebied);
   console.log(`[Strategie] ${strategie.uitleg} | SBI:${strategie.sbi_codes?.join(',')} | ${strategie.gemeenten?.join(',')}`);
 
-  for (const sbi of (strategie.sbi_codes||[])) {
+  // Stap 2: Zoek per gemeente via OpenKVK query
+  for (const gemeente of (strategie.gemeenten||[])) {
     if (opgeslagen>=DOEL || Date.now()-start>250000) break;
-    for (const gemeente of (strategie.gemeenten||[])) {
+
+    const data = await zoekBedrijvenOpenKVK({ gemeente, size:100 });
+    const resultaten = getBedrijven(data);
+    if (!resultaten.length) { console.log(`[OpenKVK] ${gemeente}: 0`); continue; }
+    console.log(`[OpenKVK] ${gemeente}: ${resultaten.length}`);
+
+    for (const r of resultaten) {
       if (opgeslagen>=DOEL || Date.now()-start>250000) break;
-      const data = await zoekBedrijvenOpenKVK({ sbiCode:sbi, gemeente, size:100 });
-      const resultaten = getBedrijven(data);
-      if (!resultaten.length) { console.log(`[OpenKVK] ${gemeente} SBI:${sbi}: 0`); continue; }
-      console.log(`[OpenKVK] ${gemeente} SBI:${sbi}: ${resultaten.length}`);
+      const kvkNr = r.dossiernummer;
+      if (!kvkNr||verwerkt.has(kvkNr)) continue;
+      verwerkt.add(kvkNr); bekeken++;
 
-      for (const r of resultaten) {
-        if (opgeslagen>=DOEL || Date.now()-start>250000) break;
-        const kvkNr = r.dossiernummer;
-        if (!kvkNr||verwerkt.has(kvkNr)) continue;
-        verwerkt.add(kvkNr); bekeken++;
+      const bedrijf = parseOpenKVKBedrijf(r);
+      const nL=(bedrijf.organisatie||'').toLowerCase();
+      if (SKIP_NAMEN.some(s=>nL.includes(s))) continue;
+      if (await bestaatAl(bedrijf.kvk_nummer, bedrijf.website)) continue;
+      const {data:bestaand} = await db.from('scraper_results').select('id').eq('kvk_nummer',kvkNr).eq('status','ter_beoordeling').maybeSingle();
+      if (bestaand) continue;
 
-        const bedrijf = parseOpenKVKBedrijf(r);
-        bedrijf.segment = bepaalSegment([{sbiCode:bedrijf.sbi_code}]);
-        const nL=(bedrijf.organisatie||'').toLowerCase();
-        if (SKIP_NAMEN.some(s=>nL.includes(s))) continue;
-        if (bedrijf.medewerkers_min>0 && bedrijf.medewerkers_min<(strategie.min_medewerkers||10)) continue;
-        if (await bestaatAl(bedrijf.kvk_nummer, bedrijf.website)) continue;
-        const {data:bestaand} = await db.from('scraper_results').select('id').eq('kvk_nummer',kvkNr).eq('status','ter_beoordeling').maybeSingle();
-        if (bestaand) continue;
+      const beoordeling = await beoordeelLead(bedrijf, opdrachtgever, focusgebied);
+      if (beoordeling.score<7) { console.log(`[skip] ${bedrijf.organisatie} ${beoordeling.score}`); continue; }
 
-        const beoordeling = await beoordeelLead(bedrijf, opdrachtgever, focusgebied);
-        if (beoordeling.score<7) { console.log(`[skip] ${bedrijf.organisatie} ${beoordeling.score}`); continue; }
-
-        const {error} = await db.from('scraper_results').insert({
-          opdrachtgever, focusgebied, status:'ter_beoordeling',
-          organisatie:bedrijf.organisatie, sector:bedrijf.sector, segment:bedrijf.segment,
-          website:bedrijf.website, adres:bedrijf.adres, regio:bedrijf.regio,
-          medewerkers:bedrijf.medewerkers_raw, kvk_nummer:bedrijf.kvk_nummer,
-          telefoon:bedrijf.telefoon, score:beoordeling.score, reden:beoordeling.reden,
-          haakje:beoordeling.haakje, notitie:`[${opdrachtgever}] ${beoordeling.haakje||beoordeling.reden||''}`,
-        });
-        if (!error) { opgeslagen++; console.log(`[+] ${bedrijf.organisatie} ${beoordeling.score} (${opgeslagen}/${DOEL})`); }
-        await wacht(100);
-      }
-      await wacht(300);
+      const {error} = await db.from('scraper_results').insert({
+        opdrachtgever, focusgebied, status:'ter_beoordeling',
+        organisatie:bedrijf.organisatie, sector:'', segment:'',
+        website:bedrijf.website||'', adres:bedrijf.adres||'', regio:gemeente,
+        medewerkers:'', kvk_nummer:bedrijf.kvk_nummer,
+        telefoon:bedrijf.telefoon||'', score:beoordeling.score, reden:beoordeling.reden,
+        haakje:beoordeling.haakje||'', notitie:`[${opdrachtgever}] ${beoordeling.haakje||beoordeling.reden||''}`,
+      });
+      if (!error) { opgeslagen++; console.log(`[+] ${bedrijf.organisatie} ${beoordeling.score} (${opgeslagen}/${DOEL})`); }
+      await wacht(100);
     }
+    await wacht(500);
   }
   const duur=Math.round((Date.now()-start)/1000);
   console.log(`[Klaar] ${opgeslagen} leads in ${duur}s (${bekeken} bekeken)`);
