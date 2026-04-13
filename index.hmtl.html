@@ -462,6 +462,10 @@ textarea{resize:vertical;min-height:75px;}
         <input type="text" placeholder="Zoek…" id="search-inp" oninput="handleSearch(this.value)" onkeydown="if(event.key==='Enter')globalSearch(this.value)">
       </div>
       <button class="btn pri" onclick="openAddAcc()">+ Account</button>
+      <div id="user-switch" style="display:flex;gap:4px;align-items:center;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:3px 4px;">
+        <button id="cu-ma" onclick="switchUser('MA')" style="border:none;border-radius:16px;padding:4px 10px;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s;" title="Inloggen als Mees">MA</button>
+        <button id="cu-jk" onclick="switchUser('JK')" style="border:none;border-radius:16px;padding:4px 10px;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s;" title="Inloggen als Julian">JK</button>
+      </div>
     </div>
   </div>
 
@@ -1507,6 +1511,7 @@ async function _doLogin(){
 
     // Start app
     calPerson = CU;
+    updateUserSwitch();
     const loaded = await _loadFromSupabase();
     renderDash();
     updateBadge();
@@ -1742,7 +1747,7 @@ async function _logAct(text,ico,bg,clientId=null){
 </script>
 <script>
 // ══════════════ STATE ══════════════
-let CU='MA';
+let CU=localStorage.getItem('ix_cu')||'MA';
 let editId=null;
 let curAcc=null;
 let curTab='overview';
@@ -1805,6 +1810,32 @@ function localISO(d){
 }
 
 // ══════════════ NAV ══════════════
+function switchUser(u){
+  CU=u;
+  localStorage.setItem('ix_cu',u);
+  updateUserSwitch();
+  // Herrender huidige pagina
+  const active=document.querySelector('.page.on,.acc-detail.on');
+  if(active){
+    const id=active.id.replace('p-','');
+    if(id==='dashboard')renderDash();
+    else if(id==='agenda')renderAgenda();
+  }
+}
+
+function updateUserSwitch(){
+  const ma=document.getElementById('cu-ma');
+  const jk=document.getElementById('cu-jk');
+  if(!ma||!jk)return;
+  if(CU==='MA'){
+    ma.style.cssText='border:none;border-radius:16px;padding:4px 10px;font-size:12px;font-weight:700;cursor:pointer;background:var(--navy);color:#fff;';
+    jk.style.cssText='border:none;border-radius:16px;padding:4px 10px;font-size:12px;font-weight:700;cursor:pointer;background:transparent;color:var(--text2);';
+  } else {
+    jk.style.cssText='border:none;border-radius:16px;padding:4px 10px;font-size:12px;font-weight:700;cursor:pointer;background:var(--navy);color:#fff;';
+    ma.style.cssText='border:none;border-radius:16px;padding:4px 10px;font-size:12px;font-weight:700;cursor:pointer;background:transparent;color:var(--text2);';
+  }
+}
+
 function nav(id){
   document.querySelectorAll('.page,.acc-detail').forEach(p=>p.classList.remove('on'));
   const el=document.getElementById('p-'+id);
