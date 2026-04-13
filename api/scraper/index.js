@@ -1,4 +1,4 @@
-// Lead scraper — Claude + web search als motor
+// Lead scraper — Claude + web search, job-systeem voor grote targets
 // POST /api/scraper?action=start|results|save_opdrachtgever  GET ?action=status
 
 let voegAccountToe, bestaatAl, createClient, Anthropic;
@@ -60,15 +60,12 @@ async function zoekBedrijven(opdrachtgever, opdrachtgeverInfo, focusgebied, limi
   const voorbeeldTekst = goedgekeurd?.length
     ? `\nEerder goedgekeurde leads (zelfde kwaliteit gewenst):\n${goedgekeurd.map(l => `- ${l.organisatie} | ${l.sector || '?'} | ${l.regio || '?'}`).join('\n')}`
     : '';
-
-  const bekendeStr = [...bekendeNamen].slice(0, 40).join(', ');
+  const bekendeStr = [...bekendeNamen].slice(0, 50).join(', ');
   const bekendeNamenTekst = bekendeStr ? `\nAl bekend — NIET opnemen: ${bekendeStr}` : '';
-
   const opdrachtgeverContext = opdrachtgeverInfo
     ? `\nWat "${opdrachtgever}" verkoopt/aanbiedt:\n${opdrachtgeverInfo}`
     : '';
 
-  // Stap 1: zoek vrijuit via web search
   const zoekPrompt = `Je bent een B2B sales researcher voor Intersect, een Nederlands sales agency.
 Intersect verkoopt namens opdrachtgever "${opdrachtgever}".
 ${opdrachtgeverContext}
@@ -78,8 +75,9 @@ Focusgebied: "${focusgebied}"
 ${voorbeeldTekst}
 ${bekendeNamenTekst}
 
-Doe meerdere gerichte web searches. Varieer je zoekopdrachten: sector + regio, vacatures, groeilijsten, nieuws, etc.
-Beschrijf per bedrijf: naam, website, stad, sector, geschat aantal medewerkers, en waarom het een goede prospect is voor ${opdrachtgever}.
+Doe meerdere gerichte web searches. Varieer: sector + regio, vacatures, groeilijsten, nieuws, LinkedIn, etc.
+Zoek ook naar adres, telefoonnummer en LinkedIn URL van elk bedrijf.
+Beschrijf per bedrijf: naam, website, adres, telefoonnummer, LinkedIn URL, stad, sector, en waarom het een goede prospect is.
 Wees streng: alleen bedrijven die echt passen bij het focusgebied.`;
 
   const zoekResponse = await apiCallMetRetry(() => anthropic.messages.create({
@@ -90,17 +88,13 @@ Wees streng: alleen bedrijven die echt passen bij het focusgebied.`;
   }));
 
   const zoekTekst = (zoekResponse.content || [])
-    .filter(b => b.type === 'text')
-    .map(b => b.text)
-    .join('');
+    .filter(b => b.type === 'text').map(b => b.text).join('');
 
   if (!zoekTekst.trim()) throw new Error('Geen output van zoekstap');
   console.log(`[Search] Zoekstap klaar, ${zoekTekst.length} tekens`);
-  console.log(`[Search] Snippet: ${zoekTekst.substring(0, 400)}`);
 
   await wacht(8000);
 
-  // Stap 2: converteer naar JSON zonder haakjes
   const zoekTekstKort = zoekTekst.length > 6000 ? zoekTekst.substring(0, 6000) + '\n...' : zoekTekst;
 
   const jsonResponse = await apiCallMetRetry(() => anthropic.messages.create({
@@ -109,11 +103,10 @@ Wees streng: alleen bedrijven die echt passen bij het focusgebied.`;
     system: 'Je converteert bedrijfsinformatie naar een JSON array. Geef ALLEEN de JSON array terug. Begin met [ en eindig met ]. Geen tekst eromheen.',
     messages: [{
       role: 'user',
-      content: `Converteer de onderstaande bedrijfsinformatie naar een JSON array.
-Score 1-10 op basis van hoe goed het bedrijf past als prospect (7+ = goed genoeg, streng zijn).
+      content: `Converteer naar JSON array. Score 1-10 (7+ = goed genoeg, streng zijn).
 
-Structuur per bedrijf:
-{"naam":"...","website":"...","stad":"...","sector":"...","score":8,"reden":"max 10 woorden"}
+Structuur:
+{"naam":"...","website":"...","stad":"...","adres":"...","telefoon":"...","linkedin":"...","sector":"...","score":8,"reden":"max 10 woorden"}
 
 Bedrijfsinformatie:
 ${zoekTekstKort}
@@ -123,16 +116,13 @@ Geef ALLEEN de JSON array:`
   }));
 
   const jsonTekst = (jsonResponse.content || [])
-    .filter(b => b.type === 'text')
-    .map(b => b.text)
-    .join('');
+    .filter(b => b.type === 'text').map(b => b.text).join('');
+
+  console.log(`[JSON] Output: ${jsonTekst.substring(0, 300)}`);
 
   const startIdx = jsonTekst.indexOf('[');
   const eindIdx = jsonTekst.lastIndexOf(']');
-  console.log(`[JSON] Conversie output: ${jsonTekst.substring(0, 500)}`);
-  if (startIdx === -1 || eindIdx === -1) {
-    throw new Error('Geen JSON: ' + jsonTekst.substring(0, 300));
-  }
+  if (startIdx === -1 || eindIdx === -1) throw new Error('Geen JSON: ' + jsonTekst.substring(0, 200));
 
   const jsonStr = jsonTekst.substring(startIdx, eindIdx + 1);
   try {
@@ -143,56 +133,92 @@ Geef ALLEEN de JSON array:`
 }
 
 async function handleStart(req, res) {
-  const { opdrachtgever, focusgebied, limit = 20 } = req.body || {};
+  const { opdrachtgever, focusgebied, limit = 20, job_id } = req.body || {};
   if (!opdrachtgever || !focusgebied) {
     return res.status(400).json({ error: 'opdrachtgever en focusgebied verplicht' });
   }
 
-  const DOEL = Math.min(parseInt(limit) || 20, 100);
+  const TARGET = Math.min(parseInt(limit) || 20, 200);
   const db = getDb();
   const startTime = Date.now();
+  const TIJDSLIMIET = 210000; // 210s — ruim binnen Vercel's 300s
 
-  console.log(`[Start] ${opdrachtgever} | ${focusgebied} | doel:${DOEL}`);
+  // Haal of maak job aan
+  let job;
+  if (job_id) {
+    const { data } = await db.from('scraper_jobs').select('*').eq('id', job_id).maybeSingle();
+    job = data;
+  }
 
-  // Haal opdrachtgever info op uit accounts.note
-  const { data: klant } = await db.from('accounts')
-    .select('note')
-    .eq('name', opdrachtgever)
-    .maybeSingle();
-  const opdrachtgeverInfo = klant?.note || '';
-  if (opdrachtgeverInfo) console.log(`[Opdrachtgever] Info gevonden: ${opdrachtgeverInfo.substring(0, 80)}...`);
+  if (!job) {
+    // Kijk of er al een actieve job is voor deze opdrachtgever
+    const { data: bestaandeJob } = await db.from('scraper_jobs')
+      .select('*').eq('opdrachtgever', opdrachtgever).eq('status', 'bezig').maybeSingle();
 
-  // Eerder goedgekeurde leads als kwaliteitsvoorbeeld
+    if (bestaandeJob && bestaandeJob.target === TARGET) {
+      job = bestaandeJob;
+      console.log(`[Job] Hervat bestaande job ${job.id} (${job.gevonden}/${job.target})`);
+    } else {
+      // Sluit eventuele oude jobs
+      await db.from('scraper_jobs').update({ status: 'gestopt' })
+        .eq('opdrachtgever', opdrachtgever).eq('status', 'bezig');
+
+      // Haal opdrachtgever info
+      const { data: klant } = await db.from('accounts')
+        .select('note').eq('name', opdrachtgever).maybeSingle();
+
+      const { data: nieuweJob } = await db.from('scraper_jobs').insert({
+        opdrachtgever, focusgebied,
+        opdrachtgever_info: klant?.note || '',
+        target: TARGET, gevonden: 0, status: 'bezig',
+      }).select().single();
+      job = nieuweJob;
+      console.log(`[Job] Nieuwe job ${job.id} — target: ${TARGET}`);
+    }
+  }
+
+  if (!job) return res.status(500).json({ error: 'Kon geen job aanmaken' });
+
+  const opdrachtgeverInfo = job.opdrachtgever_info || '';
+  if (opdrachtgeverInfo) console.log(`[Opdrachtgever] Info: ${opdrachtgeverInfo.substring(0, 60)}...`);
+
+  // Eerder goedgekeurde leads als voorbeeld
   const { data: goedgekeurd } = await db.from('scraper_results')
     .select('organisatie, sector, regio')
-    .eq('opdrachtgever', opdrachtgever)
-    .eq('status', 'doorgestuurd')
-    .order('created_at', { ascending: false })
-    .limit(8);
+    .eq('opdrachtgever', opdrachtgever).eq('status', 'doorgestuurd')
+    .order('created_at', { ascending: false }).limit(8);
 
   const { namen: bekendeNamen, websites: bekendeWebsites } = await haalBekendeCompanies(db);
-  console.log(`[Dedup] ${bekendeNamen.size} bekende namen`);
+  console.log(`[Dedup] ${bekendeNamen.size} bekende namen | Job voortgang: ${job.gevonden}/${job.target}`);
 
-  // Meerdere ronden voor grote aantallen
-  const rondeGrootte = 20;
-  const aantalRonden = Math.ceil(DOEL / rondeGrootte);
-  let opgeslagen = 0;
+  let opgeslagenDezeRun = 0;
+  let ronde = 0;
 
-  for (let ronde = 0; ronde < aantalRonden && opgeslagen < DOEL; ronde++) {
-    const doelDezeRonde = Math.min(rondeGrootte, DOEL - opgeslagen);
-    console.log(`[Ronde ${ronde + 1}/${aantalRonden}] Zoek ${doelDezeRonde} bedrijven`);
+  // Blijf zoeken zolang er tijd is en target niet bereikt
+  while (job.gevonden + opgeslagenDezeRun < job.target) {
+    const tijdVerstreken = Date.now() - startTime;
+    if (tijdVerstreken > TIJDSLIMIET) {
+      console.log(`[Timeout] Tijdslimiet bereikt na ${Math.round(tijdVerstreken/1000)}s — job wordt hervat`);
+      break;
+    }
+
+    ronde++;
+    const nogNodig = job.target - job.gevonden - opgeslagenDezeRun;
+    const rondeGrootte = Math.min(20, nogNodig);
+    console.log(`[Ronde ${ronde}] Zoek ${rondeGrootte} bedrijven (${job.gevonden + opgeslagenDezeRun}/${job.target})`);
 
     let gevonden;
     try {
-      gevonden = await zoekBedrijven(opdrachtgever, opdrachtgeverInfo, focusgebied, doelDezeRonde, goedgekeurd, bekendeNamen);
-      console.log(`[Ronde ${ronde + 1}] ${gevonden.length} kandidaten`);
+      gevonden = await zoekBedrijven(opdrachtgever, opdrachtgeverInfo, focusgebied, rondeGrootte, goedgekeurd, bekendeNamen);
+      console.log(`[Ronde ${ronde}] ${gevonden.length} kandidaten`);
     } catch(e) {
-      console.error(`[Ronde ${ronde + 1}] Fout:`, e.message);
+      console.error(`[Ronde ${ronde}] Fout:`, e.message);
       break;
     }
 
     for (const bedrijf of gevonden) {
       if (!bedrijf.naam || bedrijf.score < 6) continue;
+      if (job.gevonden + opgeslagenDezeRun >= job.target) break;
 
       const naam = bedrijf.naam.toLowerCase().trim();
       const domein = extractDomein(bedrijf.website);
@@ -203,34 +229,58 @@ async function handleStart(req, res) {
 
       const { error } = await db.from('scraper_results').insert({
         opdrachtgever, focusgebied,
-        status:      'ter_beoordeling',
+        status: 'ter_beoordeling',
         organisatie: bedrijf.naam,
-        sector:      bedrijf.sector || '',
-        segment:     '',
-        website:     bedrijf.website || '',
-        adres:       '', regio: bedrijf.stad || '',
-        medewerkers: '', kvk_nummer: null, telefoon: '',
-        score:       bedrijf.score,
-        reden:       bedrijf.reden || '',
-        haakje:      '',
-        notitie:     `[${opdrachtgever}] ${bedrijf.reden || ''}`,
+        sector:   bedrijf.sector   || '',
+        segment:  '',
+        website:  bedrijf.website  || '',
+        adres:    bedrijf.adres    || '',
+        regio:    bedrijf.stad     || '',
+        medewerkers: '',
+        kvk_nummer: null,
+        telefoon: bedrijf.telefoon || '',
+        linkedin: bedrijf.linkedin || '',
+        score:    bedrijf.score,
+        reden:    bedrijf.reden    || '',
+        haakje:   '',
+        notitie:  `[${opdrachtgever}] ${bedrijf.reden || ''}`,
       });
 
       if (!error) {
-        opgeslagen++;
+        opgeslagenDezeRun++;
         bekendeNamen.add(naam);
         if (domein) bekendeWebsites.add(domein);
-        console.log(`[+] ${bedrijf.naam} | ${bedrijf.score} | ${bedrijf.sector || '?'} (${opgeslagen}/${DOEL})`);
+        const totaal = job.gevonden + opgeslagenDezeRun;
+        console.log(`[+] ${bedrijf.naam} | ${bedrijf.score} | ${bedrijf.sector || '?'} (${totaal}/${job.target})`);
       }
     }
 
-    // Wacht tussen ronden
-    if (ronde < aantalRonden - 1 && opgeslagen < DOEL) await wacht(10000);
+    // Wacht tussen ronden tenzij we klaar zijn
+    const nogSteeds = job.gevonden + opgeslagenDezeRun < job.target;
+    const tijdOver = (Date.now() - startTime) < TIJDSLIMIET - 60000;
+    if (nogSteeds && tijdOver) await wacht(10000);
   }
 
+  // Update job voortgang
+  const nieuwGevonden = job.gevonden + opgeslagenDezeRun;
+  const klaar = nieuwGevonden >= job.target;
+  await db.from('scraper_jobs').update({
+    gevonden: nieuwGevonden,
+    status: klaar ? 'klaar' : 'bezig',
+  }).eq('id', job.id);
+
   const duur = Math.round((Date.now() - startTime) / 1000);
-  console.log(`[Klaar] ${opgeslagen} leads in ${duur}s`);
-  return res.status(200).json({ success: true, opgeslagen, duur_seconden: duur });
+  console.log(`[Run klaar] ${opgeslagenDezeRun} leads in ${duur}s | Totaal: ${nieuwGevonden}/${job.target} | Status: ${klaar ? 'KLAAR' : 'bezig'}`);
+
+  return res.status(200).json({
+    success: true,
+    opgeslagen: opgeslagenDezeRun,
+    totaal: nieuwGevonden,
+    target: job.target,
+    klaar,
+    job_id: job.id,
+    duur_seconden: duur,
+  });
 }
 
 async function handleSaveOpdrachtgever(req, res) {
@@ -238,27 +288,28 @@ async function handleSaveOpdrachtgever(req, res) {
   if (!opdrachtgever) return res.status(400).json({ error: 'opdrachtgever verplicht' });
   const db = getDb();
   const { error } = await db.from('accounts')
-    .update({ note: info || '' })
-    .eq('name', opdrachtgever)
-    .eq('status', 'klant');
+    .update({ note: info || '' }).eq('name', opdrachtgever).eq('status', 'klant');
   if (error) return res.status(500).json({ error: error.message });
   return res.status(200).json({ success: true });
 }
 
 async function handleStatus(req, res) {
   const db = getDb();
-  const { count } = await db.from('scraper_results')
-    .select('*', { count: 'exact', head: true })
-    .eq('status', 'ter_beoordeling');
-  return res.status(200).json({ wachtend: count || 0 });
+  const [{ count }, { data: actieveJob }] = await Promise.all([
+    db.from('scraper_results').select('*', { count: 'exact', head: true }).eq('status', 'ter_beoordeling'),
+    db.from('scraper_jobs').select('*').eq('status', 'bezig').order('created_at', { ascending: false }).limit(1).maybeSingle(),
+  ]);
+  return res.status(200).json({
+    wachtend: count || 0,
+    job: actieveJob || null,
+  });
 }
 
 async function handleResults(req, res) {
   const db = getDb();
   if (req.method === 'GET') {
     const { data, error } = await db.from('scraper_results')
-      .select('*').eq('status', 'ter_beoordeling')
-      .order('score', { ascending: false });
+      .select('*').eq('status', 'ter_beoordeling').order('score', { ascending: false });
     if (error) return res.status(500).json({ error: error.message });
     return res.status(200).json({ success: true, leads: data || [] });
   }
@@ -293,9 +344,9 @@ module.exports = async function handler(req, res) {
     || req.query?.secret === secret;
   if (!geldig) return res.status(401).json({ error: 'Unauthorized' });
   const action = req.query.action || req.body?.action;
-  if (action === 'start')               return handleStart(req, res);
-  if (action === 'status')              return handleStatus(req, res);
-  if (action === 'results')             return handleResults(req, res);
-  if (action === 'save_opdrachtgever')  return handleSaveOpdrachtgever(req, res);
+  if (action === 'start')              return handleStart(req, res);
+  if (action === 'status')             return handleStatus(req, res);
+  if (action === 'results')            return handleResults(req, res);
+  if (action === 'save_opdrachtgever') return handleSaveOpdrachtgever(req, res);
   return res.status(400).json({ error: 'Geef action mee: start|status|results|save_opdrachtgever' });
 };
