@@ -5300,7 +5300,7 @@ function actBadge(type) {
 
 function renderActiviteitBalk(n, ingeklapt = true, toonBewerken = true) {
   const s = actStijl(n.type);
-  const id = 'act-'+n.id;
+  const id = 'act-'+String(n.id).replace(/[^a-z0-9]/gi,'-');
 
   // Contactpersoon klikbaar
   const contactHtml = n.contact
@@ -5332,7 +5332,7 @@ function renderActiviteitBalk(n, ingeklapt = true, toonBewerken = true) {
       <div style="font-size:13.5px;font-weight:500;color:${s.kleur};margin-bottom:8px;">${s.label}${n.contact?' · '+n.contact:''}</div>
       ${n.chat && n.chat.length > 0 ? renderChatWeergave(n.chat, id) : `<div style="font-size:13px;color:var(--text);line-height:1.7;white-space:pre-wrap;">${n.text||''}</div>`}
       ${toonBewerken ? `<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border);display:flex;gap:6px;">
-        <button class="btn xs ghost" onclick="event.stopPropagation();bewerkNote(${n.id})">Bewerken</button>
+        <button class="btn xs ghost" onclick="event.stopPropagation();bewerkNote('${n.id}')">Bewerken</button>
       </div>` : ''}
     </div>
   </div>`;
@@ -5381,7 +5381,7 @@ function zoekContact(naam) {
 
 function bewerkNote(noteId) {
   if (!curAcc) return;
-  const note = (curAcc.notes||[]).find(n => n.id === noteId);
+  const note = (curAcc.notes||[]).find(n => String(n.id) === String(noteId));
   if (!note) return;
 
   // Vul het note modal met bestaande data
