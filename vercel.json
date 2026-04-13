@@ -7,11 +7,7 @@
   ],
   "functions": {
     "api/cron/scrape.js": { "maxDuration": 300 },
-    "api/scraper/start.js": { "maxDuration": 300 },
-    "api/scraper/status.js": { "maxDuration": 10 },
-    "api/scraper/results.js": { "maxDuration": 30 },
-    "api/scraper/preview.js": { "maxDuration": 300 },
-    "api/scraper/save.js": { "maxDuration": 60 },
+    "api/scraper/index.js": { "maxDuration": 300 },
     "api/mail.js": { "maxDuration": 30 },
     "api/mail-upload.js": { "maxDuration": 30 },
     "api/mail-suggest.js": { "maxDuration": 60 },
