@@ -7,7 +7,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-@keyframes notifSlideIn{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}}
+@keyframes notifSlideIn{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}}@keyframes spin{to{transform:rotate(360deg)}}
 :root{
   /* ── Intersect brand: navy + goud ── */
   --navy:#0d1f3c;--navy-mid:#1a3358;--navy-light:#243f6a;--navy-fade:rgba(13,31,60,.06);
@@ -1513,6 +1513,7 @@ async function _doLogin(){
     renderDash();
     updateBadge();
     renderClientBar();
+    scraperStartPoll(); // Check scraper status elke 30s
     setTimeout(()=>{ runWorkflowEngine(false); updateWfBadge(); renderWatNu(); }, 600);
 
     // Data wordt alleen geladen bij navigatie (klik) — geen achtergrond sync
@@ -6070,182 +6071,99 @@ function renderActieCenter() {
 
 
 const SCRAPER_KEY='ix_scraper_settings';
-const SCRAPER_HISTORY_KEY='ix_scraper_history';
-const scraperDefaults={partner:'Audio Obscura',leadsPerRun:100,regio:'Zuid-Holland',minMedewerkers:'10',dag:'Zondag',tijd:'02:00',herhaling:'Wekelijks',quickRun:'100'};
-function scraperGetSettings(){try{return{...scraperDefaults,...JSON.parse(localStorage.getItem(SCRAPER_KEY)||'{}')};}catch(e){return{...scraperDefaults};}}
+const SCRAPER_SECRET='intersect2025!';
+const SCRAPER_BASE='https://intersect-crm.vercel.app/api/scraper';
+
+function scraperGetSettings(){try{return JSON.parse(localStorage.getItem(SCRAPER_KEY)||'{}');}catch(e){return{};}}
 function scraperSaveSettings(s){localStorage.setItem(SCRAPER_KEY,JSON.stringify(s));}
-function scraperGetHistory(){try{return JSON.parse(localStorage.getItem(SCRAPER_HISTORY_KEY)||'[]');}catch(e){return[];}}
-function scraperSaveHistory(h){localStorage.setItem(SCRAPER_HISTORY_KEY,JSON.stringify(h.slice(0,10)));}
-function scraperNextRunLabel(dag,tijd){const m={Zondag:'maandagochtend',Maandag:'dinsdagochtend',Dinsdag:'woensdagochtend',Woensdag:'donderdagochtend',Donderdag:'vrijdagochtend',Vrijdag:'maandagochtend',Zaterdag:'maandagochtend'};return `${dag.toLowerCase()} om ${tijd} — leads staan ${m[dag]||'de volgende werkdag'} klaar`;}
-function scraperToggleGroup(g,b){g.querySelectorAll('button').forEach(x=>x.classList.remove('sc-on'));b.classList.add('sc-on');}
 
-let _scraperPreviewLeads = []; // Gevonden leads wachtend op goedkeuring
+let _scraperBezig = false;
+let _scraperPollInterval = null;
 
-async function scraperPreviewStarten(){
-  const partner = document.getElementById('sc-partner')?.value || 'Audio Obscura';
-  const focusgebied = document.getElementById('sc-focus')?.value?.trim();
-  const limit = parseInt(document.getElementById('sc-limit')?.value) || 10;
-
-  if(!focusgebied){ alert('Vul een focusgebied in — wat voor bedrijven zoek je?'); return; }
-
-  // Laad staat
-  const btn = document.getElementById('sc-start-btn');
-  const resultDiv = document.getElementById('sc-resultaten');
-  if(btn){ btn.disabled=true; btn.textContent='Scraping... even geduld (ca. 30-60 sec)'; }
-  if(resultDiv) resultDiv.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3);">⟳ Claude is aan het scrapen en beoordelen...</div>';
-
-  try {
-    const res = await fetch('https://intersect-crm.vercel.app/api/scraper/preview', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ secret: 'intersect2025!', opdrachtgever: partner, focusgebied, limit }),
-    });
-    const data = await res.json();
-
-    if(!data.success){ throw new Error(data.error || 'Onbekende fout'); }
-
-    _scraperPreviewLeads = data.leads || [];
-
-    // Toon strategie + debug info
-    let bannerHtml = '';
-    if(data.strategie){
-      const s = data.strategie;
-      bannerHtml += `<div style="background:var(--navy-fade);border:1px solid var(--navy);border-radius:var(--r);padding:10px 14px;margin-bottom:8px;font-size:12px;">
-        <strong style="color:var(--navy);">🔍 Gezocht in:</strong> ${(s.gemeenten||[]).join(', ')}
-        ${s.sbi_prefix?.length ? `· SBI filter: ${s.sbi_prefix.join(', ')}` : ''}
-        · ${data.duur_seconden}s · ${data.count} leads
-      </div>`;
-    }
-    if(data.debug_log?.length){
-      bannerHtml += `<details style="margin-bottom:8px;"><summary style="font-size:12px;color:var(--text3);cursor:pointer;">Debug log (${data.debug_log.length} regels)</summary>
-        <pre style="font-size:11px;color:var(--text3);padding:8px;background:var(--surface2);border-radius:var(--r);overflow:auto;max-height:200px;">${data.debug_log.join('\n')}</pre>
-      </details>`;
-    }
-    if(resultDiv) resultDiv.innerHTML = bannerHtml;
-
-    renderScraperResultaten(_scraperPreviewLeads);
-
-  } catch(e) {
-    console.error('Scraper fout:', e);
-    if(resultDiv) resultDiv.innerHTML += `<div style="padding:20px;text-align:center;color:var(--red-t);">❌ Fout: ${e.message}</div>`;
-  } finally {
-    if(btn){ btn.disabled=false; btn.textContent='Scrape & Preview →'; }
-  }
+// Controleer elke 30s hoeveel leads wachten
+function scraperStartPoll(){
+  if(_scraperPollInterval) clearInterval(_scraperPollInterval);
+  _scraperPollInterval = setInterval(async()=>{
+    try{
+      const r = await fetch(`${SCRAPER_BASE}/status?secret=${SCRAPER_SECRET}`);
+      const d = await r.json();
+      const badge = document.getElementById('scraper-badge');
+      if(d.wachtend > 0){
+        if(badge){badge.style.display='';badge.textContent=d.wachtend;}
+        // Notificatie als we net klaar zijn
+        if(_scraperBezig){
+          _scraperBezig = false;
+          toonScraperNotificatie(d.wachtend);
+          renderScraper();
+        }
+      } else {
+        if(badge) badge.style.display='none';
+      }
+    }catch(e){}
+  }, 30000);
 }
 
-function renderScraperResultaten(leads){
-  const resultDiv = document.getElementById('sc-resultaten');
-  if(!resultDiv) return;
+function toonScraperNotificatie(aantal){
+  const container = document.getElementById('agenda-notif-container');
+  if(!container) return;
+  const n = document.createElement('div');
+  n.style.cssText='background:var(--navy);color:#fff;border-radius:var(--r-lg);padding:14px 18px;box-shadow:0 4px 20px rgba(0,0,0,.2);pointer-events:all;cursor:pointer;font-size:13px;max-width:300px;';
+  n.innerHTML=`<div style="font-weight:700;margin-bottom:4px;">✓ Scraper klaar!</div><div style="opacity:.8;">${aantal} leads wachten op jouw beoordeling</div>`;
+  n.onclick=()=>{ nav('scraper'); n.remove(); };
+  container.appendChild(n);
+  setTimeout(()=>n.remove(), 10000);
+}
 
-  if(!leads.length){
-    // Bewaar bestaande debug banner, voeg melding eraan toe
-    resultDiv.innerHTML += '<div style="padding:20px;text-align:center;color:var(--text3);">Geen geschikte leads gevonden. Pas het focusgebied aan.</div>';
-    return;
-  }
+async function scraperStarten(){
+  const s = scraperGetSettings();
+  const opdrachtgever = document.getElementById('sc-partner')?.value;
+  const focusgebied = document.getElementById('sc-focus')?.value?.trim();
+  const limit = parseInt(document.getElementById('sc-limit')?.value) || 20;
 
-  const scoreKleur = s => s >= 8 ? '#1a7a3a' : s >= 6 ? '#1a5fb4' : '#8a6200';
-  const scoreBg = s => s >= 8 ? '#eaf7ef' : s >= 6 ? '#eaf1fd' : '#fff8e6';
-  const nieuw = leads.filter(l => !l.al_in_crm).length;
-  const alInCrm = leads.filter(l => l.al_in_crm).length;
+  if(!focusgebied){ alert('Vul een focusgebied in.'); return; }
 
-  resultDiv.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-      <div style="font-size:13px;font-weight:600;color:var(--text);">${leads.length} leads gevonden — ${nieuw} nieuw${alInCrm ? ', '+alInCrm+' al in CRM' : ''}</div>
-      <div style="display:flex;gap:8px;">
-        <button class="btn xs ghost" onclick="scraperSelectAll(true)">Alles selecteren</button>
-        <button class="btn xs ghost" onclick="scraperSelectAll(false)">Deselecteren</button>
-      </div>
-    </div>
-    ${leads.map((l,i) => `
-    <div style="border:1px solid var(--border);border-radius:var(--r);margin-bottom:8px;overflow:hidden;background:var(--surface);">
-      <div style="display:flex;align-items:flex-start;gap:10px;padding:12px 14px;">
-        <input type="checkbox" id="sc-cb-${i}" ${l.al_in_crm ? '' : 'checked'} style="margin-top:3px;width:16px;height:16px;flex-shrink:0;cursor:pointer;">
-        <div style="flex:1;min-width:0;">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-            <div style="font-size:14px;font-weight:600;color:var(--text);">${l.organisatie}</div>
-            <div style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;background:${scoreBg(l.score)};color:${scoreKleur(l.score)};">Score ${l.score}/10</div>
-            ${l.al_in_crm ? '<div style="font-size:11px;padding:2px 8px;border-radius:10px;background:#f3f4f6;color:#6b7280;">Al in CRM</div>' : ''}
-            ${l.segment ? `<span style="font-size:11px;padding:2px 7px;border-radius:10px;background:var(--surface2);color:var(--text2);">${l.segment}</span>` : ''}
-          </div>
-          <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--text3);margin-bottom:6px;">
-            ${l.regio ? `<span>📍 ${l.regio}</span>` : ''}
-            ${l.medewerkers_raw ? `<span>👥 ${l.medewerkers_raw}</span>` : ''}
-            ${l.website ? `<a href="${l.website}" target="_blank" style="color:var(--blue-t);text-decoration:none;" onclick="event.stopPropagation()">🌐 Website ↗</a>` : ''}
-            ${l.linkedin ? `<a href="${l.linkedin}" target="_blank" style="color:var(--blue-t);text-decoration:none;" onclick="event.stopPropagation()">in LinkedIn ↗</a>` : ''}
-          </div>
-          ${l.contactpersoon ? `<div style="font-size:12px;color:var(--text2);margin-bottom:4px;">👤 ${l.contactpersoon.naam}${l.contactpersoon.titel ? ' · '+l.contactpersoon.titel : ''}${l.email ? ' · '+l.email : ''}</div>` : ''}
-          ${l.haakje ? `<div style="font-size:12.5px;color:var(--navy);background:var(--navy-fade);border-left:3px solid var(--navy);padding:6px 10px;border-radius:0 var(--r) var(--r) 0;margin-top:4px;">"${l.haakje}"</div>` : ''}
-          <div style="font-size:11.5px;color:var(--text3);margin-top:4px;">${l.reden}</div>
-        </div>
-      </div>
-    </div>`).join('')}
-    <div style="margin-top:12px;display:flex;gap:8px;align-items:center;">
-      <button class="btn pri" style="padding:10px 20px;font-size:14px;" onclick="scraperDoorzettenNaarCRM()">Geselecteerde opslaan in CRM →</button>
-      <span style="font-size:12px;color:var(--text3);" id="sc-sel-count">${leads.length} geselecteerd</span>
-    </div>
-  `;
+  // Sla instellingen op
+  scraperSaveSettings({...s, partner: opdrachtgever, focusgebied, limit});
 
-  // Update teller bij checkbox change
-  resultDiv.querySelectorAll('input[type=checkbox]').forEach(cb => {
-    cb.addEventListener('change', () => {
-      const n = resultDiv.querySelectorAll('input[type=checkbox]:checked').length;
-      const el = document.getElementById('sc-sel-count');
-      if(el) el.textContent = n + ' geselecteerd';
-    });
+  _scraperBezig = true;
+  renderScraper(); // Toon bezig staat
+
+  // Start scraper op achtergrond
+  fetch(`${SCRAPER_BASE}/start`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ secret: SCRAPER_SECRET, opdrachtgever, focusgebied, limit }),
+  }).then(async r => {
+    const d = await r.json();
+    _scraperBezig = false;
+    if(d.success){
+      toonScraperNotificatie(d.opgeslagen);
+      const badge = document.getElementById('scraper-badge');
+      if(badge && d.opgeslagen > 0){ badge.style.display=''; badge.textContent=d.opgeslagen; }
+    }
+    renderScraper();
+  }).catch(e => {
+    _scraperBezig = false;
+    console.error('Scraper fout:', e);
+    renderScraper();
   });
 }
 
-function scraperSelectAll(select){
-  document.querySelectorAll('#sc-resultaten input[type=checkbox]').forEach(cb => cb.checked=select);
-  const n = select ? _scraperPreviewLeads.length : 0;
-  const el = document.getElementById('sc-sel-count');
-  if(el) el.textContent = n + ' geselecteerd';
+async function scraperHaalResultatenOp(){
+  try{
+    const r = await fetch(`${SCRAPER_BASE}/results?secret=${SCRAPER_SECRET}`);
+    const d = await r.json();
+    return d.leads || [];
+  }catch(e){ return []; }
 }
 
-async function scraperDoorzettenNaarCRM(){
-  const checkboxes = document.querySelectorAll('#sc-resultaten input[type=checkbox]');
-  const geselecteerd = _scraperPreviewLeads.filter((_,i) => checkboxes[i]?.checked);
-  if(!geselecteerd.length){ alert('Selecteer minimaal 1 lead.'); return; }
-  if(!confirm(`${geselecteerd.length} leads opslaan in CRM?`)) return;
-
-  const btn = document.querySelector('#sc-resultaten .btn.pri');
-  if(btn){ btn.disabled=true; btn.textContent='Opslaan...'; }
-
-  try {
-    const res = await fetch('https://intersect-crm.vercel.app/api/scraper/save', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ secret: 'intersect2025!', leads: geselecteerd }),
-    });
-    const data = await res.json();
-    if(data.success){
-      await _loadFromSupabase();
-      alert(`✓ ${data.opgeslagen} leads opgeslagen!${data.fouten ? ' ('+data.fouten+' fouten)' : ''}`);
-      _scraperPreviewLeads = [];
-      document.getElementById('sc-resultaten').innerHTML = '<div style="padding:20px;text-align:center;color:var(--green-t);">✓ Leads opgeslagen — ga naar Accounts om ze te bekijken.</div>';
-    } else {
-      throw new Error(data.error || 'Onbekende fout');
-    }
-  } catch(e) {
-    alert('Fout bij opslaan: ' + e.message);
-    if(btn){ btn.disabled=false; btn.textContent='Geselecteerde opslaan in CRM →'; }
-  }
-}
-
-function scraperFieldChange(){
-  const s=scraperGetSettings();
-  const get=id=>document.getElementById(id);
-  if(get('sc-partner'))s.partner=get('sc-partner').value;
-  if(get('sc-leads'))s.leadsPerRun=parseInt(get('sc-leads').value)||100;
-  if(get('sc-regio'))s.regio=get('sc-regio').value;
-  if(get('sc-dag'))s.dag=get('sc-dag').value;
-  if(get('sc-tijd'))s.tijd=get('sc-tijd').value;
-  const minM=document.querySelector('#sc-min-med .sc-on');if(minM)s.minMedewerkers=minM.textContent.replace('+','');
-  const herh=document.querySelector('#sc-herhaling .sc-on');if(herh)s.herhaling=herh.textContent;
-  const quick=document.querySelector('#sc-quick .sc-on');if(quick)s.quickRun=quick.textContent;
-  scraperSaveSettings(s);
-  const prev=document.getElementById('sc-preview');
-  if(prev&&s.dag&&s.tijd)prev.textContent='Volgende run: '+scraperNextRunLabel(s.dag,s.tijd);
+async function scraperDoorsturen(doorsturen, afwijzen){
+  const r = await fetch(`${SCRAPER_BASE}/results`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ secret: SCRAPER_SECRET, doorsturen, afwijzen }),
+  });
+  return r.json();
 }
 
 function renderScraper(){
@@ -6253,9 +6171,17 @@ function renderScraper(){
   const s=scraperGetSettings();
   const clients=accs.filter(a=>a.status==='klant');
 
-  el.innerHTML=`
-  <div style="max-width:760px;">
+  el.innerHTML=`<div style="max-width:760px;">
     <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:700;color:var(--navy);margin-bottom:16px;">Lead Scraper</div>
+
+    ${_scraperBezig ? `
+    <div style="background:var(--navy);color:#fff;border-radius:var(--r-lg);padding:18px 20px;margin-bottom:12px;display:flex;align-items:center;gap:12px;">
+      <div style="width:20px;height:20px;border:3px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite;flex-shrink:0;"></div>
+      <div>
+        <div style="font-weight:600;margin-bottom:2px;">Scraper is bezig...</div>
+        <div style="font-size:12px;opacity:.7;">Claude beoordeelt leads op de achtergrond. Je krijgt een melding als hij klaar is.</div>
+      </div>
+    </div>` : ''}
 
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:18px 20px;margin-bottom:12px;">
       <div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:14px;display:flex;align-items:center;gap:6px;"><span style="display:block;width:3px;height:12px;background:var(--gold);border-radius:2px;"></span>Instellingen</div>
@@ -6264,41 +6190,149 @@ function renderScraper(){
         <div>
           <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px;">Opdrachtgever</label>
           <select id="sc-partner" style="width:100%;font-size:13px;padding:7px 10px;">
-            ${clients.map(c=>`<option ${c.name===s.partner?'selected':''}>${c.name}</option>`).join('')}
-            ${!clients.find(c=>c.name===s.partner)?`<option selected>Audio Obscura</option>`:''}
+            ${clients.map(c=>`<option ${c.name===(s.partner||'Audio Obscura')?'selected':''}>${c.name}</option>`).join('')}
+            ${!clients.find(c=>c.name===(s.partner||'Audio Obscura'))?`<option selected>Audio Obscura</option>`:''}
           </select>
         </div>
         <div>
           <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px;">Aantal leads ophalen</label>
-          <input type="number" id="sc-limit" value="${s.limit||10}" min="3" max="20" style="width:100%;font-size:13px;padding:7px 10px;">
+          <input type="number" id="sc-limit" value="${s.limit||20}" min="5" max="100" style="width:100%;font-size:13px;padding:7px 10px;">
         </div>
       </div>
 
       <div>
-        <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px;">Focusgebied — wat voor bedrijven zoek je? <span style="font-weight:400;color:var(--text3);">(Claude gebruikt dit als filter)</span></label>
-        <textarea id="sc-focus" rows="3" placeholder="Bijv: Groeiende tech- of marketingbedrijven in de Randstad, 20-150 medewerkers, met een directeur die zelf beslissingen neemt. Voorkeur voor bedrijven die beleving en cultuur belangrijk vinden." style="width:100%;font-size:13px;padding:9px 12px;resize:vertical;">${s.focusgebied||''}</textarea>
+        <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px;">Focusgebied <span style="font-weight:400;color:var(--text3);">— Claude gebruikt dit om te filteren en beoordelen</span></label>
+        <textarea id="sc-focus" rows="3" placeholder="Bijv: Groeiende tech- of marketingbedrijven in de Randstad, 20-150 medewerkers, met een directeur die zelf beslissingen neemt." style="width:100%;font-size:13px;padding:9px 12px;resize:vertical;">${s.focusgebied||''}</textarea>
       </div>
     </div>
 
-    <button id="sc-start-btn" class="btn pri" style="width:100%;justify-content:center;padding:11px;font-size:14px;margin-bottom:16px;" onclick="scraperPreviewStarten()">Scrape & Preview →</button>
+    <button class="btn pri" style="width:100%;justify-content:center;padding:11px;font-size:14px;margin-bottom:16px;${_scraperBezig?'opacity:.5;cursor:not-allowed;':''}" onclick="if(!_scraperBezig)scraperStarten()" ${_scraperBezig?'disabled':''}>
+      ${_scraperBezig ? '⟳ Bezig...' : 'Scraper starten →'}
+    </button>
 
-    <div id="sc-resultaten" style="margin-bottom:12px;">
-      ${_scraperPreviewLeads.length ? '' : '<div style="padding:20px;text-align:center;color:var(--text3);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);">Klik op "Scrape & Preview" om leads op te halen. Claude beoordeelt elk bedrijf op basis van jouw focusgebied.</div>'}
-    </div>
+    <div id="sc-review-sectie"></div>
   </div>`;
 
-  // Herstel preview resultaten als die er al waren
-  if(_scraperPreviewLeads.length) renderScraperResultaten(_scraperPreviewLeads);
-
-  // Sla focusgebied op bij typen
+  // Bewaar focus bij typen
   const focusEl = document.getElementById('sc-focus');
-  if(focusEl) focusEl.addEventListener('input', () => {
-    const st = scraperGetSettings();
-    st.focusgebied = focusEl.value;
-    st.partner = document.getElementById('sc-partner')?.value || st.partner;
-    st.limit = parseInt(document.getElementById('sc-limit')?.value) || 10;
+  if(focusEl) focusEl.addEventListener('input', ()=>{
+    const st=scraperGetSettings();
+    st.focusgebied=focusEl.value;
     scraperSaveSettings(st);
   });
+
+  // Laad wachtende leads
+  scraperHaalResultatenOp().then(leads => {
+    const sec = document.getElementById('sc-review-sectie');
+    if(!sec) return;
+    if(!leads.length){
+      sec.innerHTML='<div style="text-align:center;padding:20px;color:var(--text3);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);">Geen leads wachtend op beoordeling</div>';
+      return;
+    }
+    renderScraperReview(leads, sec);
+  });
+}
+
+function renderScraperReview(leads, container){
+  const scoreKleur = s => s >= 9 ? '#1a7a3a' : s >= 7 ? '#1a5fb4' : '#8a6200';
+  const scoreBg = s => s >= 9 ? '#eaf7ef' : s >= 7 ? '#eaf1fd' : '#fff8e6';
+
+  container.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:18px 20px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;display:flex;align-items:center;gap:6px;">
+          <span style="display:block;width:3px;height:12px;background:var(--gold);border-radius:2px;"></span>
+          ${leads.length} leads wachten op beoordeling
+        </div>
+        <div style="display:flex;gap:6px;">
+          <button class="btn xs ghost" onclick="scraperAllesSelecteren(true)">Alles selecteren</button>
+          <button class="btn xs ghost" onclick="scraperAllesSelecteren(false)">Deselecteren</button>
+        </div>
+      </div>
+
+      ${leads.map((l,i) => `
+      <div style="border:1px solid var(--border);border-radius:var(--r);margin-bottom:8px;padding:12px 14px;background:var(--surface);">
+        <div style="display:flex;align-items:flex-start;gap:10px;">
+          <input type="checkbox" id="sc-lead-${i}" data-id="${l.id}" checked style="margin-top:3px;width:16px;height:16px;cursor:pointer;flex-shrink:0;">
+          <div style="flex:1;min-width:0;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap;">
+              <span style="font-size:14px;font-weight:600;color:var(--text);">${l.organisatie}</span>
+              <span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;background:${scoreBg(l.score)};color:${scoreKleur(l.score)};">Score ${l.score}/10</span>
+              ${l.segment ? `<span style="font-size:11px;padding:2px 7px;border-radius:10px;background:var(--surface2);color:var(--text2);">${l.segment}</span>` : ''}
+            </div>
+            <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--text3);margin-bottom:4px;">
+              ${l.regio ? `<span>📍 ${l.regio}</span>` : ''}
+              ${l.medewerkers ? `<span>👥 ${l.medewerkers}</span>` : ''}
+              ${l.sector ? `<span>🏢 ${l.sector}</span>` : ''}
+              ${l.website ? `<a href="${l.website}" target="_blank" style="color:var(--blue-t);text-decoration:none;">🌐 Website ↗</a>` : ''}
+            </div>
+            ${l.haakje ? `<div style="font-size:12.5px;color:var(--navy);background:var(--navy-fade);border-left:3px solid var(--navy);padding:6px 10px;border-radius:0 var(--r) var(--r) 0;margin-top:4px;">"${l.haakje}"</div>` : ''}
+            <div style="font-size:11.5px;color:var(--text3);margin-top:4px;">${l.reden}</div>
+          </div>
+        </div>
+      </div>`).join('')}
+
+      <div style="margin-top:12px;display:flex;gap:8px;align-items:center;">
+        <button class="btn pri" style="padding:10px 20px;" onclick="scraperBevestigen()">Doorsturen naar CRM →</button>
+        <span style="font-size:12px;color:var(--text3);" id="sc-sel-count">${leads.length} geselecteerd</span>
+      </div>
+    </div>`;
+
+  // Teller bijhouden
+  container.querySelectorAll('input[type=checkbox]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const n = container.querySelectorAll('input[type=checkbox]:checked').length;
+      const el = document.getElementById('sc-sel-count');
+      if(el) el.textContent = n + ' geselecteerd';
+    });
+  });
+
+  // Sla leads op voor gebruik bij doorsturen
+  window._scraperReviewLeads = leads;
+}
+
+function scraperAllesSelecteren(select){
+  document.querySelectorAll('#sc-review-sectie input[type=checkbox]').forEach(cb => cb.checked = select);
+  const n = select ? (window._scraperReviewLeads||[]).length : 0;
+  const el = document.getElementById('sc-sel-count');
+  if(el) el.textContent = n + ' geselecteerd';
+}
+
+async function scraperBevestigen(){
+  const checkboxes = document.querySelectorAll('#sc-review-sectie input[type=checkbox]');
+  const allLeads = window._scraperReviewLeads || [];
+  const doorsturen = [];
+  const afwijzen = [];
+
+  checkboxes.forEach((cb, i) => {
+    const lead = allLeads[i];
+    if(!lead) return;
+    if(cb.checked) doorsturen.push(lead);
+    else afwijzen.push(lead.id);
+  });
+
+  if(!doorsturen.length){ alert('Selecteer minimaal 1 lead.'); return; }
+  if(!confirm(`${doorsturen.length} leads doorsturen naar CRM?`)) return;
+
+  const btn = document.querySelector('#sc-review-sectie .btn.pri');
+  if(btn){ btn.disabled=true; btn.textContent='Bezig...'; }
+
+  try{
+    const r = await scraperDoorsturen(doorsturen, afwijzen);
+    if(r.success){
+      await _loadFromSupabase();
+      alert(`✓ ${r.opgeslagen} leads toegevoegd aan CRM!`);
+      window._scraperReviewLeads = [];
+      renderScraper();
+      // Badge resetten
+      const badge = document.getElementById('scraper-badge');
+      const status = await fetch(`${SCRAPER_BASE}/status?secret=${SCRAPER_SECRET}`).then(x=>x.json()).catch(()=>({wachtend:0}));
+      if(badge){ if(status.wachtend > 0){ badge.style.display=''; badge.textContent=status.wachtend; } else badge.style.display='none'; }
+    }
+  }catch(e){
+    alert('Fout: ' + e.message);
+    if(btn){ btn.disabled=false; btn.textContent='Doorsturen naar CRM →'; }
+  }
 }
 
 // ══════════════ MAIL COMPOSE ══════════════
