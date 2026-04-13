@@ -462,10 +462,7 @@ textarea{resize:vertical;min-height:75px;}
         <input type="text" placeholder="Zoek…" id="search-inp" oninput="handleSearch(this.value)" onkeydown="if(event.key==='Enter')globalSearch(this.value)">
       </div>
       <button class="btn pri" onclick="openAddAcc()">+ Account</button>
-      <div id="user-switch" style="display:flex;gap:4px;align-items:center;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:3px 4px;">
-        <button id="cu-ma" onclick="switchUser('MA')" style="border:none;border-radius:16px;padding:4px 10px;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s;" title="Inloggen als Mees">MA</button>
-        <button id="cu-jk" onclick="switchUser('JK')" style="border:none;border-radius:16px;padding:4px 10px;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s;" title="Inloggen als Julian">JK</button>
-      </div>
+
     </div>
   </div>
 
@@ -1373,9 +1370,9 @@ function _getStoredSession(){
     const s = localStorage.getItem(AUTH_KEY);
     if(!s) return null;
     const session = JSON.parse(s);
-    // Check if session is still valid (24 hours)
+    // Check if session is still valid (6 hours)
     const age = (Date.now() - session.loginTime) / 1000 / 3600;
-    if(age > 24){ localStorage.removeItem(AUTH_KEY); return null; }
+    if(age > 6){ localStorage.removeItem(AUTH_KEY); return null; }
     return session;
   }catch(e){ return null; }
 }
@@ -1575,7 +1572,7 @@ function _mapEv(r){return{id:r.id,_sbId:r.id,title:r.title,type:r.type||'Kennism
 function _mapClient(r){return{id:r.id,name:r.name,sector:r.sector||'',contact:r.contact_person||'',email:r.email||'',color:r.color||'#0d1f3c',note:r.note||''};}
 function _mapTpl(r){return{id:r.id,name:r.name,subj:r.subject||'',body:r.body||''};}
 function _mapAct(r){return{text:r.text,time:new Date(r.created_at).toLocaleDateString('nl-NL',{day:'numeric',month:'short'}),ico:r.icon||'◈',bg:r.bg_color||'#e8f0fb',clientId:r.client_id||null};}
-function _mapNote(r){return{id:r.id,text:r.text,type:r.type||'notitie',by:r.created_by||'MA',contact:r.contact||null,chat:r.chat||null,dur:r.dur||null,time:new Date(r.created_at).toLocaleDateString('nl-NL',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})};}
+function _mapNote(r){return{id:r.id,_sbId:r.id,text:r.text,type:r.type||'notitie',by:r.created_by||'MA',contact:r.contact||null,chat:r.chat||null,dur:r.dur||null,time:new Date(r.created_at).toLocaleDateString('nl-NL',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})};}
 function _mapContact(r){return{id:r.id,first:r.first_name||'',last:r.last_name||'',role:r.role||'',dept:r.department||'',email:r.email||'',phone:r.phone||'',li:r.linkedin||'',note:r.note||''};}
 function _mapDeal(r){return{id:r.id,name:r.name,val:r.value?String(r.value):'',prob:String(r.probability||50),stage:r.stage||'',close:r.close_date||'',note:r.note||''};}
 function _mapProp(r){return{id:r.id,title:r.title,val:r.value?String(r.value):'',stat:r.status||'concept',date:r.sent_date||'',exp:r.expiry_date||'',desc:r.description||''};}
@@ -1717,10 +1714,18 @@ async function _saveClient(c){
 async function _saveNote(accId,note){
   if(!accId){console.warn('_saveNote: geen accId');return;}
   try{
-    const[r]=await _sbPost('notes',{account_id:accId,text:note.text,type:note.type||'notitie',created_by:note.by||'MA',contact:note.contact||null,chat:note.chat?JSON.stringify(note.chat):null,dur:note.dur||null});
-    note.id=r.id;
+    const d={account_id:accId,text:note.text,type:note.type||'notitie',created_by:note.by||'MA',contact:note.contact||null,chat:note.chat?JSON.stringify(note.chat):null,dur:note.dur||null};
+    if(note._sbId){
+      // Bestaande note — patch
+      await _sbPatch('notes',note._sbId,d);
+    } else {
+      // Nieuwe note — insert
+      const[r]=await _sbPost('notes',d);
+      note._sbId=r.id;
+      note.id=r.id;
+    }
   }catch(e){
-    console.error('_saveNote fout:',e.message, 'accId:',accId, 'type:',note.type);
+    console.error('_saveNote fout:',e.message,'accId:',accId,'type:',note.type);
   }
 }
 async function _saveContact(accId,c){
@@ -3551,15 +3556,16 @@ function saveNote(){
     const idx=curAcc.notes.findIndex(n=>n.id===editId);
     if(idx>=0){
       curAcc.notes[idx]={...curAcc.notes[idx],text:finalText,contact,type,chat:chatArr};
-      if(editId&&typeof editId==='number'&&editId<2000000000){
-        _sbPatch('notes',editId,{text:finalText,type,contact:contact||null,chat:chatArr?JSON.stringify(chatArr):null}).catch(e=>console.warn('note edit:',e));
-      }
+      // Gebruik _sbId als die bestaat, anders het id zelf (Supabase UUID)
+      const sbId=curAcc.notes[idx]._sbId||curAcc.notes[idx].id;
+      _sbPatch('notes',sbId,{text:finalText,type,contact:contact||null,chat:chatArr?JSON.stringify(chatArr):null}).catch(e=>console.warn('note edit:',e));
     }
   } else {
     const note={id:Date.now(),text:finalText,type,by:CU,dur:dur||null,contact,chat:chatArr,
       time:new Date().toLocaleDateString('nl-NL',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})};
     curAcc.notes.push(note);
     addActivity(`<strong>${CU==='MA'?'Mees':'Julian'}</strong> voegde ${actStijl(type).label} toe bij <strong>${curAcc.name}</strong>`,'◈',CLRS[curAcc.color%CLRS.length][0]);
+    // Sla op naar Supabase — slechts 1x
     _saveNote(curAcc.id,note).catch(e=>console.warn('note:',e));
   }
 
@@ -3568,18 +3574,8 @@ function saveNote(){
   chatBerichten=[];
   document.getElementById('note-bubble').style.display='none';
   closeM('m-note');
-  if(editId){
-    renderTab('activity');
-    if(document.getElementById('p-dashboard').classList.contains('on'))renderDash();
-  } else {
-    _saveNote(curAcc.id,note).then(()=>{
-      renderTab('activity');
-      if(document.getElementById('p-dashboard').classList.contains('on'))renderDash();
-    }).catch(e=>{
-      console.error('note save:',e);
-      renderTab('activity');
-    });
-  }
+  renderTab('activity');
+  if(document.getElementById('p-dashboard').classList.contains('on'))renderDash();
 }
 
 function saveContact(){
