@@ -80,6 +80,12 @@ Wees streng: alleen bedrijven die echt passen op sector, grootte én locatie.`;
   if (!zoekTekst.trim()) throw new Error('Geen output van zoekstap');
   console.log(`[Search] Zoekstap klaar, ${zoekTekst.length} tekens`);
 
+  // Kort even wachten zodat rate limit window reset
+  await new Promise(r => setTimeout(r, 8000));
+
+  // Beperk input voor stap 2 om rate limit te vermijden
+  const zoekTekstKort = zoekTekst.length > 4000 ? zoekTekst.substring(0, 4000) + '\n...' : zoekTekst;
+
   // Stap 2: converteer naar JSON (geen tools, puur formattering)
   const jsonResponse = await anthropic.messages.create({
     model: 'claude-haiku-4-5-20251001',
@@ -95,7 +101,7 @@ Structuur per bedrijf:
 {"naam":"...","website":"...","stad":"...","sector":"...","score":8,"reden":"max 10 woorden","haakje":"opener of null"}
 
 Bedrijfsinformatie:
-${zoekTekst}
+${zoekTekstKort}
 
 Geef ALLEEN de JSON array:`
     }],
