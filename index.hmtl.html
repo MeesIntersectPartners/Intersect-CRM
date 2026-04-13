@@ -3095,13 +3095,17 @@ function evDrop(e,date,time){
   e.stopPropagation();
   document.querySelectorAll('.week-ev-cell').forEach(c=>c.style.background='');
   if(!_dragEvId)return;
-  const idx=calEvents.findIndex(x=>x.id===_dragEvId);
-  if(idx<0){_dragEvId=null;return;}
-  calEvents[idx]={...calEvents[idx],date,time};
-  ss('ix_calev',calEvents);
-  _saveEvent(calEvents[idx]).catch(()=>{});
+  const evId=_dragEvId;
   _dragEvId=null;
-  setTimeout(()=>renderAgenda(),50);
+  const idx=calEvents.findIndex(x=>x.id===evId);
+  if(idx<0)return;
+  // Open edit modal met nieuwe datum/tijd — gebruiker bevestigt zelf
+  editEvent(evId);
+  setTimeout(()=>{
+    document.getElementById('ev-date').value=date;
+    if(date)updateDateLabel(date);
+    document.getElementById('ev-time').value=time||'';
+  },120);
 }
 
 async function deleteAccount(accId){
