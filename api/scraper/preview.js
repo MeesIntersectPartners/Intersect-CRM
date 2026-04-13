@@ -7,6 +7,51 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 function wacht(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+// Stap 1: Claude vertaalt het focusgebied naar concrete KvK zoekparameters
+async function bepaalZoekStrategie(opdrachtgever, focusgebied) {
+  try {
+    const response = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 500,
+      messages: [{ role: 'user', content: `Je bent een expert in de Nederlandse KvK database en SBI-codes.
+
+Een sales agency verkoopt namens "${opdrachtgever}" en wil de volgende leads vinden:
+"${focusgebied}"
+
+Vertaal dit naar concrete KvK zoekparameters. Geef ALLEEN dit JSON object terug:
+{
+  "sbi_codes": ["<2-4 cijferige SBI codes die het beste passen, max 8>"],
+  "gemeenten": ["<Nederlandse gemeenten om in te zoeken, max 10, relevant voor de zoekopdracht>"],
+  "min_medewerkers": <minimum aantal medewerkers als integer, 0 als niet relevant>,
+  "uitleg": "<één zin: wat zoeken we precies>"
+}
+
+Voorbeelden van SBI codes:
+- 6492/6619 = payment processing / fintech
+- 6201/6209 = software ontwikkeling
+- 7311/7312 = reclame en marketing
+- 7010/7021 = management consultancy
+- 7810/7820 = recruitment / HR
+- 6201 = custom software
+- 6311 = dataverwerking
+- 9001/9002 = evenementen / podiumkunsten
+- 7022 = overig bedrijfsadvies
+- 7411 = design
+
+Gebruik ook gemeenten die passen bij de sector (bijv. Amsterdam voor fintech/tech, Eindhoven voor tech/industrie).` }],
+    });
+    const txt = response.content[0]?.text?.trim().replace(/```json|```/g,'').trim();
+    const strategie = JSON.parse(txt);
+    console.log('[Strategie]', strategie.uitleg);
+    console.log('[SBI codes]', strategie.sbi_codes?.join(', '));
+    console.log('[Gemeenten]', strategie.gemeenten?.join(', '));
+    return strategie;
+  } catch(e) {
+    console.warn('[Strategie] Claude fout:', e.message, '— gebruik standaard filters');
+    return null;
+  }
+}
+
 const SKIP_NAMEN = ['kapsalon','kappers','ziekenhuis','huisarts','tandarts','apotheek',
   'fysiotherap','paramedisch','thuiszorg','verpleeg','maatschap','supermarkt',
   'slager','bakker','pizzeria','restaurant','snackbar','garage','autohandel'];
@@ -59,7 +104,15 @@ module.exports = async function handler(req, res) {
   const verwerkt = new Set();
   const start = Date.now();
 
-  for (const gemeente of GEMEENTEN) {
+  // Stap 1: Claude bepaalt de zoekstrategie op basis van focusgebied
+  const strategie = await bepaalZoekStrategie(opdrachtgever, focusgebied);
+  const zoekGemeenten = strategie?.gemeenten?.length ? strategie.gemeenten : GEMEENTEN.slice(0, 5);
+  const zoekSBI = strategie?.sbi_codes?.length ? strategie.sbi_codes : null;
+  const minMedewerkers = strategie?.min_medewerkers || 10;
+
+  console.log(`[Search] ${zoekGemeenten.length} gemeenten, ${zoekSBI?.length||'standaard'} SBI codes, min ${minMedewerkers} medewerkers`);
+
+  for (const gemeente of zoekGemeenten) {
     if (resultaten.length >= DOEL || Date.now()-start > 55000) break;
     const zoek = await zoekBedrijven(gemeente, 1);
     if (!zoek?.resultaten?.length) continue;
@@ -72,8 +125,17 @@ module.exports = async function handler(req, res) {
         const profiel = await getBedrijfsProfiel(r.kvkNummer);
         await wacht(150);
         const bedrijf = parseBedrijf(r, profiel);
-        if (bedrijf.medewerkers_min > 0 && bedrijf.medewerkers_min < 10) continue;
-        if (!isSBIInteressant(profiel?.sbiActiviteiten || r?.sbiActiviteiten || [])) continue;
+        // Medewerkers filter op basis van strategie
+        if (bedrijf.medewerkers_min > 0 && bedrijf.medewerkers_min < minMedewerkers) continue;
+
+        // SBI filter: als Claude specifieke codes heeft opgegeven, gebruik die
+        const sbiCodes = (profiel?.sbiActiviteiten || r?.sbiActiviteiten || []).map(s => String(s.sbiCode || s));
+        if (zoekSBI && zoekSBI.length) {
+          const matchSBI = sbiCodes.some(code => zoekSBI.some(s => code.startsWith(s)));
+          if (!matchSBI) continue;
+        } else {
+          if (!isSBIInteressant(profiel?.sbiActiviteiten || r?.sbiActiviteiten || [])) continue;
+        }
         const nL = (bedrijf.organisatie||'').toLowerCase();
         if (SKIP_NAMEN.some(s => nL.includes(s))) continue;
         if (await bestaatAl(bedrijf.kvk_nummer, bedrijf.website)) continue;
@@ -102,5 +164,11 @@ module.exports = async function handler(req, res) {
   }
 
   resultaten.sort((a,b) => (b.score||0)-(a.score||0));
-  return res.status(200).json({ success:true, count:resultaten.length, duur_seconden:Math.round((Date.now()-start)/1000), leads:resultaten });
+  return res.status(200).json({
+    success: true,
+    count: resultaten.length,
+    duur_seconden: Math.round((Date.now()-start)/1000),
+    strategie: strategie ? { uitleg: strategie.uitleg, sbi_codes: strategie.sbi_codes, gemeenten: strategie.gemeenten } : null,
+    leads: resultaten,
+  });
 };
