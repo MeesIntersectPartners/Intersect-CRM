@@ -6106,16 +6106,22 @@ async function scraperPreviewStarten(){
 
     _scraperPreviewLeads = data.leads || [];
 
-    // Toon wat Claude heeft gezocht
-    if(data.strategie && resultDiv){
+    // Toon strategie + debug info
+    let bannerHtml = '';
+    if(data.strategie){
       const s = data.strategie;
-      const strategieBanner = document.createElement('div');
-      strategieBanner.style.cssText = 'background:var(--navy-fade);border:1px solid var(--navy);border-radius:var(--r);padding:10px 14px;margin-bottom:12px;font-size:12.5px;';
-      strategieBanner.innerHTML = `<strong style="color:var(--navy);">🔍 Zoekopdracht:</strong> ${s.uitleg || ''}
-        <span style="color:var(--text3);margin-left:8px;">· SBI: ${(s.sbi_codes||[]).join(', ')} · Gemeenten: ${(s.gemeenten||[]).join(', ')}</span>`;
-      resultDiv.innerHTML = '';
-      resultDiv.appendChild(strategieBanner);
+      bannerHtml += `<div style="background:var(--navy-fade);border:1px solid var(--navy);border-radius:var(--r);padding:10px 14px;margin-bottom:8px;font-size:12px;">
+        <strong style="color:var(--navy);">🔍 Gezocht in:</strong> ${(s.gemeenten||[]).join(', ')}
+        ${s.sbi_prefix?.length ? `· SBI filter: ${s.sbi_prefix.join(', ')}` : ''}
+        · ${data.duur_seconden}s · ${data.count} leads
+      </div>`;
     }
+    if(data.debug_log?.length){
+      bannerHtml += `<details style="margin-bottom:8px;"><summary style="font-size:12px;color:var(--text3);cursor:pointer;">Debug log (${data.debug_log.length} regels)</summary>
+        <pre style="font-size:11px;color:var(--text3);padding:8px;background:var(--surface2);border-radius:var(--r);overflow:auto;max-height:200px;">${data.debug_log.join('\n')}</pre>
+      </details>`;
+    }
+    if(resultDiv) resultDiv.innerHTML = bannerHtml;
 
     renderScraperResultaten(_scraperPreviewLeads);
 
