@@ -43,64 +43,81 @@ async function haalBekendeCompanies(db) {
   return { namen, websites };
 }
 
-// Hoofdzoekopdracht — Claude met web search
+// Hoofdzoekopdracht — twee stappen: zoek vrijuit, converteer daarna naar JSON
 async function zoekBedrijven(opdrachtgever, focusgebied, limit, goedgekeurd, bekendeNamen) {
   const voorbeeldTekst = goedgekeurd?.length
     ? `\nEerder goedgekeurde leads (gebruik als kwaliteitsrichtlijn):\n${goedgekeurd.map(l => `- ${l.organisatie} | ${l.sector || '?'} | ${l.regio || '?'}`).join('\n')}`
     : '';
 
-  // Stuur max 40 bekende namen mee zodat Claude ze kan vermijden
   const bekendeStr = [...bekendeNamen].slice(0, 40).join(', ');
   const bekendeNamenTekst = bekendeStr
     ? `\nDeze bedrijven zijn al bekend — NIET opnemen: ${bekendeStr}`
     : '';
 
-  const prompt = `Je bent een B2B sales researcher voor Intersect, een Nederlands sales agency.
-Zoek via web search naar ${limit} concrete, échte Nederlandse bedrijven voor opdrachtgever "${opdrachtgever}".
+  // Stap 1: zoek en analyseer vrijuit via web search
+  const zoekPrompt = `Je bent een B2B sales researcher voor Intersect.
+Zoek via web search naar ${limit} concrete Nederlandse bedrijven voor opdrachtgever "${opdrachtgever}".
 Focusgebied: "${focusgebied}"
 ${voorbeeldTekst}
 ${bekendeNamenTekst}
 
 Doe meerdere gerichte zoekopdrachten. Varieer: branche + stad, vacatures, groeilijsten, nieuws, LinkedIn, etc.
-Wees STRENG: score 7+ alleen als het bedrijf aantoonbaar past op sector, grootte én locatie.
-Het haakje moet SPECIFIEK zijn — gebaseerd op iets concreets wat je over dat bedrijf gevonden hebt. Geen generieke tekst.
-Score < 7 → haakje is null.
+Beschrijf per bedrijf dat je vindt: naam, website, stad, sector, geschat aantal medewerkers, waarom het past, en een specifieke gespreksopener.
+Wees streng: alleen bedrijven die echt passen op sector, grootte én locatie.`;
 
-BEGIN DIRECT MET [ EN GEEF ALLEEN DE JSON ARRAY. GEEN TEKST ERVOOR OF ERNA.
-[{"naam":"...","website":"...","stad":"...","sector":"...","score":8,"reden":"max 10 woorden","haakje":"specifieke opener of null"}]`;
-
-  const response = await anthropic.messages.create({
+  const zoekResponse = await anthropic.messages.create({
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 8000,
-    system: 'Je bent een B2B sales researcher. Reageer ALTIJD met alleen een JSON array. Geen uitleg, geen tekst, geen inleiding. Begin direct met [ en eindig met ].',
     tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-    messages: [{ role: 'user', content: prompt }],
+    messages: [{ role: 'user', content: zoekPrompt }],
   });
 
-  const tekst = (response.content || [])
+  const zoekTekst = (zoekResponse.content || [])
     .filter(b => b.type === 'text')
     .map(b => b.text)
     .join('');
 
-  // Zoek het eerste [ en het bijbehorende laatste ] op
-  const start = tekst.indexOf('[');
-  const eind = tekst.lastIndexOf(']');
-  if (start === -1 || eind === -1 || eind <= start) {
-    throw new Error('Geen JSON array gevonden: ' + tekst.substring(0, 300));
+  if (!zoekTekst.trim()) throw new Error('Geen output van zoekstap');
+  console.log(`[Search] Zoekstap klaar, ${zoekTekst.length} tekens`);
+
+  // Stap 2: converteer naar JSON (geen tools, puur formattering)
+  const jsonResponse = await anthropic.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 4000,
+    system: 'Je converteert bedrijfsinformatie naar een JSON array. Geef ALLEEN de JSON array terug. Begin met [ en eindig met ]. Geen tekst eromheen.',
+    messages: [{
+      role: 'user',
+      content: `Converteer de onderstaande bedrijfsinformatie naar een JSON array.
+Score 1-10 (7+ = goed genoeg, streng zijn).
+Haakje = specifieke gespreksopener gebaseerd op de gevonden info (null als score < 7).
+
+Structuur per bedrijf:
+{"naam":"...","website":"...","stad":"...","sector":"...","score":8,"reden":"max 10 woorden","haakje":"opener of null"}
+
+Bedrijfsinformatie:
+${zoekTekst}
+
+Geef ALLEEN de JSON array:`
+    }],
+  });
+
+  const jsonTekst = (jsonResponse.content || [])
+    .filter(b => b.type === 'text')
+    .map(b => b.text)
+    .join('');
+
+  const start = jsonTekst.indexOf('[');
+  const eind = jsonTekst.lastIndexOf(']');
+  if (start === -1 || eind === -1) {
+    throw new Error('Geen JSON in conversiestap: ' + jsonTekst.substring(0, 300));
   }
 
-  const jsonStr = tekst.substring(start, eind + 1);
-
+  const jsonStr = jsonTekst.substring(start, eind + 1);
   try {
     return JSON.parse(jsonStr);
-  } catch(parseErr) {
-    // Probeer met een schoonmaak-pass: verwijder control characters
+  } catch(e) {
     const schoon = jsonStr.replace(/[\x00-\x09\x0B\x0C\x0E-\x1F]/g, '');
-    try {
-      return JSON.parse(schoon);
-    } catch(e2) {
-      throw new Error(`JSON parse fout: ${parseErr.message} | snippet: ${jsonStr.substring(3300, 3500)}`);
-    }
+    return JSON.parse(schoon);
   }
 }
 
