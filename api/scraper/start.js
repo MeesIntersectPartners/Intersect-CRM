@@ -1,4 +1,5 @@
-const { GEMEENTEN, zoekBedrijven, getBedrijfsProfiel, isSBIInteressant, parseBedrijf } = require('../../lib/kvk');
+const { zoekBedrijvenOpenKVK, parseOpenKVKBedrijf } = require('../../lib/openkvk');
+const { bepaalSegment, isSBIInteressant } = require('../../lib/kvk');
 const { bestaatAl } = require('../../lib/supabase');
 const { createClient } = require('@supabase/supabase-js');
 const Anthropic = require('@anthropic-ai/sdk');
@@ -6,72 +7,62 @@ const Anthropic = require('@anthropic-ai/sdk');
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 function wacht(ms) { return new Promise(r => setTimeout(r, ms)); }
-
-function getDb() {
-  return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
-}
+function getDb() { return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY); }
 
 const SKIP_NAMEN = ['kapsalon','kappers','ziekenhuis','huisarts','tandarts','apotheek',
   'fysiotherap','paramedisch','thuiszorg','verpleeg','maatschap','supermarkt',
   'slager','bakker','pizzeria','restaurant','snackbar','garage','autohandel'];
 
-async function bepaalStrategie(focusgebied) {
+// Claude bepaalt SBI codes + gemeenten op basis van focusgebied
+async function bepaalStrategie(opdrachtgever, focusgebied) {
   try {
     const r = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 400,
-      messages: [{ role: 'user', content: `Nederlandse KvK expert. Vertaal naar zoekparameters voor: "${focusgebied}"
-JSON only: {"gemeenten":["<10 brede Nederlandse gemeenten>"],"sbi_prefix":["<brede 2-cijferige SBI prefixes>"],"min_medewerkers":<integer, standaard 10>}` }]
+      max_tokens: 500,
+      messages: [{ role: 'user', content: `Nederlandse KvK/SBI expert.
+
+Intersect verkoopt voor "${opdrachtgever}" en zoekt:
+"${focusgebied}"
+
+Geef ALLEEN dit JSON terug:
+{
+  "sbi_codes": ["<exacte 4-6 cijferige SBI codes, max 8>"],
+  "gemeenten": ["<max 10 relevante Nederlandse gemeenten>"],
+  "min_medewerkers": <integer>,
+  "uitleg": "<één zin>"
+}
+
+SBI referentie (gebruik volledige codes):
+6201=maatwerksoftware, 6202=IT-advies, 6209=overige IT, 6311=dataverwerking,
+6419=holdings/fintech, 6492=overige kredietverlening, 6619=overige financieel,
+7010=holdings-management, 7021=PR-advies, 7022=management-advies,
+7311=reclamebureau, 7312=media-advies, 7320=marktonderzoek,
+7410=design, 7420=fotografie, 7810=arbeidsbemiddeling, 7820=uitzendbureau,
+9001=podiumkunsten, 9002=uitvoerende kunst, 9003=kunstondersteuning,
+9004=circussen-events, 5829=software-publishing, 6420=holdings` }]
     });
     return JSON.parse(r.content[0].text.trim().replace(/```json|```/g,'').trim());
   } catch(e) {
-    return { gemeenten: ['Amsterdam','Rotterdam','Den Haag','Utrecht','Eindhoven','Groningen','Tilburg','Breda','Arnhem','Nijmegen'], sbi_prefix: null, min_medewerkers: 10 };
+    console.warn('[strategie fout]', e.message);
+    return { sbi_codes: ['6201','6202','7311','7022'], gemeenten: ['Amsterdam','Rotterdam','Den Haag','Utrecht','Eindhoven'], min_medewerkers: 10, uitleg: 'Standaard' };
   }
 }
 
+// Claude beoordeelt lead — score 7+ is goed
 async function beoordeelLead(bedrijf, opdrachtgever, focusgebied) {
   try {
     const r = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 250,
-      messages: [{ role: 'user', content: `B2B sales expert. Intersect verkoopt voor "${opdrachtgever}".
+      messages: [{ role: 'user', content: `Intersect verkoopt voor "${opdrachtgever}".
 Zoekopdracht: "${focusgebied}"
 Bedrijf: ${bedrijf.organisatie} | Sector: ${bedrijf.sector||'?'} | ${bedrijf.medewerkers_raw||'?'} mw | ${bedrijf.regio||'?'} | Website: ${bedrijf.website||'geen'}
-JSON only: {"score":<1-10>,"reden":"<max 10 woorden>","haakje":"<1-2 zinnen gespreksstarter voor mail of bel, null als score onder 7>"}` }]
+JSON only: {"score":<1-10>,"reden":"<max 10 woorden>","haakje":"<1-2 zinnen gespreksstarter voor eerste contact, null als score<7>"}` }]
     });
-    const txt = r.content[0].text.trim().replace(/```json|```/g,'').trim();
-    return JSON.parse(txt);
+    return JSON.parse(r.content[0].text.trim().replace(/```json|```/g,'').trim());
   } catch(e) {
     return { score: 5, reden: 'Niet beoordeeld', haakje: null };
   }
-}
-
-async function slaLeadOp(db, lead, opdrachtgever, focusgebied) {
-  const { error } = await db.from('scraper_results').insert({
-    opdrachtgever,
-    focusgebied,
-    status: 'ter_beoordeling',
-    organisatie: lead.organisatie,
-    sector: lead.sector || '',
-    segment: lead.segment || '',
-    website: lead.website || '',
-    adres: lead.adres || '',
-    regio: lead.regio || '',
-    medewerkers: lead.medewerkers_raw || '',
-    kvk_nummer: lead.kvk_nummer || '',
-    linkedin: lead.linkedin || '',
-    telefoon: lead.telefoon || '',
-    email: lead.email || '',
-    contact_naam: lead.contactpersoon?.naam || '',
-    contact_titel: lead.contactpersoon?.titel || '',
-    contact_telefoon: lead.contactpersoon?.telefoon || '',
-    score: lead.score || 0,
-    reden: lead.reden || '',
-    haakje: lead.haakje || '',
-    notitie: `[${opdrachtgever}] ${lead.haakje || lead.reden || ''}`,
-  });
-  if (error) console.warn('[save] fout:', error.message);
-  return !error;
 }
 
 module.exports = async function handler(req, res) {
@@ -84,111 +75,96 @@ module.exports = async function handler(req, res) {
   const { opdrachtgever, focusgebied, limit = 20 } = req.body || {};
   if (!opdrachtgever || !focusgebied) return res.status(400).json({ error: 'opdrachtgever en focusgebied verplicht' });
 
-  const DOEL = Math.min(parseInt(limit) || 20, 100);
+  const DOEL = Math.min(parseInt(limit)||20, 100);
   const db = getDb();
   const start = Date.now();
   const verwerkt = new Set();
   let opgeslagen = 0;
   let bekeken = 0;
 
-  // Stuur direct terug dat we gestart zijn — vercel blijft draaien op de achtergrond
-  // We sturen de response pas als we klaar zijn (maxDuration: 300)
-
   console.log(`[Start] ${opdrachtgever} | ${focusgebied} | doel: ${DOEL}`);
 
-  const strategie = await bepaalStrategie(focusgebied);
-  const gemeenten = strategie?.gemeenten || GEMEENTEN.slice(0, 8);
-  const sbiPrefix = strategie?.sbi_prefix || null;
-  const minMw = strategie?.min_medewerkers || 10;
+  // Stap 1: Claude bepaalt zoekstrategie
+  const strategie = await bepaalStrategie(opdrachtgever, focusgebied);
+  console.log(`[Strategie] ${strategie.uitleg}`);
+  console.log(`[SBI] ${strategie.sbi_codes?.join(', ')}`);
+  console.log(`[Gemeenten] ${strategie.gemeenten?.join(', ')}`);
 
-  console.log(`[Strategie] ${gemeenten.join(',')} | SBI: ${sbiPrefix?.join(',') || 'breed'}`);
+  // Stap 2: Zoek per SBI code via OpenKVK — direct gefilterd, geen losse profielcalls
+  for (const sbi of (strategie.sbi_codes || [])) {
+    if (opgeslagen >= DOEL || Date.now()-start > 250000) break;
 
-  for (const gemeente of gemeenten) {
-    if (opgeslagen >= DOEL || Date.now() - start > 260000) break;
+    for (const gemeente of (strategie.gemeenten || [])) {
+      if (opgeslagen >= DOEL || Date.now()-start > 250000) break;
 
-    const zoek = await zoekBedrijven(gemeente, 1);
-    if (!zoek?.resultaten?.length) continue;
-    console.log(`[KvK] ${gemeente}: ${zoek.resultaten.length} resultaten`);
+      const data = await zoekBedrijvenOpenKVK({ sbiCode: sbi, gemeente, size: 100 });
+      if (!data?._embedded?.rechtspersoon?.length) {
+        console.log(`[OpenKVK] SBI:${sbi} ${gemeente}: 0`);
+        continue;
+      }
 
-    // Filter kandidaten op naam — geen profielcall nodig
-    const kandidaten = zoek.resultaten.filter(r => {
-      if (verwerkt.has(r.kvkNummer)) return false;
-      const nL = (r.naam || '').toLowerCase();
-      return !SKIP_NAMEN.some(s => nL.includes(s));
-    });
+      const resultaten = data._embedded.rechtspersoon;
+      console.log(`[OpenKVK] SBI:${sbi} ${gemeente}: ${resultaten.length} bedrijven`);
 
-    for (const r of kandidaten) {
-      if (opgeslagen >= DOEL || Date.now() - start > 260000) break;
-      if (verwerkt.has(r.kvkNummer)) continue;
-      verwerkt.add(r.kvkNummer);
-      bekeken++;
+      for (const r of resultaten) {
+        if (opgeslagen >= DOEL || Date.now()-start > 250000) break;
 
-      try {
-        await wacht(500); // Rustig aan — voorkomt KvK rate limiting
-        const profiel = await getBedrijfsProfiel(r.kvkNummer);
-        const bedrijf = parseBedrijf(r, profiel);
+        const kvkNr = r.kvk_nummer;
+        if (!kvkNr || verwerkt.has(kvkNr)) continue;
+        verwerkt.add(kvkNr);
+        bekeken++;
+
+        const bedrijf = parseOpenKVKBedrijf(r);
+        bedrijf.segment = bepaalSegment([{ sbiCode: bedrijf.sbi_code }]);
+
+        // Naam filter
+        const nL = (bedrijf.organisatie||'').toLowerCase();
+        if (SKIP_NAMEN.some(s => nL.includes(s))) continue;
 
         // Medewerkers filter
-        if (bedrijf.medewerkers_min > 0 && bedrijf.medewerkers_min < minMw) continue;
-
-        // SBI filter
-        if (sbiPrefix?.length) {
-          const codes = (profiel?.sbiActiviteiten || []).map(x => String(x.sbiCode || x));
-          if (!codes.some(c => sbiPrefix.some(p => c.startsWith(p)))) continue;
-        } else {
-          if (!isSBIInteressant(profiel?.sbiActiviteiten || [])) continue;
-        }
+        if (bedrijf.medewerkers_min > 0 && bedrijf.medewerkers_min < (strategie.min_medewerkers||10)) continue;
 
         // Al in CRM?
         if (await bestaatAl(bedrijf.kvk_nummer, bedrijf.website)) continue;
 
         // Al in scraper_results?
         const { data: bestaand } = await db.from('scraper_results')
-          .select('id').eq('kvk_nummer', bedrijf.kvk_nummer || '')
-          .eq('status', 'ter_beoordeling').maybeSingle();
+          .select('id').eq('kvk_nummer', kvkNr).eq('status','ter_beoordeling').maybeSingle();
         if (bestaand) continue;
 
         // Claude beoordeling
         const beoordeling = await beoordeelLead(bedrijf, opdrachtgever, focusgebied);
-
-        // Alleen score 7+ opslaan
         if (beoordeling.score < 7) {
           console.log(`[skip] ${bedrijf.organisatie} score:${beoordeling.score}`);
           continue;
         }
 
-        const lead = {
-          ...bedrijf,
-          score: beoordeling.score,
-          reden: beoordeling.reden,
-          haakje: beoordeling.haakje,
-          contactpersoon: null,
-          linkedin: null,
-          email: null,
-          telefoon: null,
-        };
+        // Opslaan in scraper_results
+        const { error } = await db.from('scraper_results').insert({
+          opdrachtgever, focusgebied, status: 'ter_beoordeling',
+          organisatie: bedrijf.organisatie, sector: bedrijf.sector,
+          segment: bedrijf.segment, website: bedrijf.website,
+          adres: bedrijf.adres, regio: bedrijf.regio,
+          medewerkers: bedrijf.medewerkers_raw, kvk_nummer: bedrijf.kvk_nummer,
+          telefoon: bedrijf.telefoon, score: beoordeling.score,
+          reden: beoordeling.reden, haakje: beoordeling.haakje,
+          notitie: `[${opdrachtgever}] ${beoordeling.haakje||beoordeling.reden||''}`,
+        });
 
-        const success = await slaLeadOp(db, lead, opdrachtgever, focusgebied);
-        if (success) {
+        if (!error) {
           opgeslagen++;
           console.log(`[+] ${bedrijf.organisatie} score:${beoordeling.score} (${opgeslagen}/${DOEL})`);
         }
 
-      } catch(e) {
-        console.warn(`[fout] ${r.naam}: ${e.message}`);
+        await wacht(100); // Kleine pauze — OpenKVK heeft geen rate limiting maar netjes blijven
       }
-    }
 
-    await wacht(1000); // Extra pauze tussen gemeenten
+      await wacht(300); // Pauze tussen gemeente calls
+    }
   }
 
-  const duur = Math.round((Date.now() - start) / 1000);
-  console.log(`[Klaar] ${opgeslagen} leads opgeslagen in ${duur}s (${bekeken} bekeken)`);
+  const duur = Math.round((Date.now()-start)/1000);
+  console.log(`[Klaar] ${opgeslagen} leads in ${duur}s (${bekeken} bekeken)`);
 
-  return res.status(200).json({
-    success: true,
-    opgeslagen,
-    bekeken,
-    duur_seconden: duur,
-  });
+  return res.status(200).json({ success: true, opgeslagen, bekeken, duur_seconden: duur });
 };
