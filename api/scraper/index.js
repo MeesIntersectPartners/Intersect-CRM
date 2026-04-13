@@ -96,6 +96,7 @@ Wees streng: alleen bedrijven die echt passen bij het focusgebied.`;
 
   if (!zoekTekst.trim()) throw new Error('Geen output van zoekstap');
   console.log(`[Search] Zoekstap klaar, ${zoekTekst.length} tekens`);
+  console.log(`[Search] Snippet: ${zoekTekst.substring(0, 400)}`);
 
   await wacht(8000);
 
@@ -128,6 +129,7 @@ Geef ALLEEN de JSON array:`
 
   const startIdx = jsonTekst.indexOf('[');
   const eindIdx = jsonTekst.lastIndexOf(']');
+  console.log(`[JSON] Conversie output: ${jsonTekst.substring(0, 500)}`);
   if (startIdx === -1 || eindIdx === -1) {
     throw new Error('Geen JSON: ' + jsonTekst.substring(0, 300));
   }
@@ -190,7 +192,7 @@ async function handleStart(req, res) {
     }
 
     for (const bedrijf of gevonden) {
-      if (!bedrijf.naam || bedrijf.score < 7) continue;
+      if (!bedrijf.naam || bedrijf.score < 6) continue;
 
       const naam = bedrijf.naam.toLowerCase().trim();
       const domein = extractDomein(bedrijf.website);
