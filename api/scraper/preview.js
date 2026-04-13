@@ -16,45 +16,52 @@ async function bepaalZoekStrategie(opdrachtgever, focusgebied) {
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 500,
-      messages: [{ role: 'user', content: `Expert in Nederlandse KvK en SBI-codes.
+      messages: [{ role: 'user', content: `Expert in Nederlandse KvK database en SBI-codes.
 
 Intersect (sales agency) zoekt voor "${opdrachtgever}":
 "${focusgebied}"
 
+De KvK API ondersteunt zoeken op: plaatsnaam en naam van het bedrijf.
+SBI codes worden ALLEEN gebruikt als nafilter na het ophalen van resultaten.
+
 Geef ALLEEN dit JSON terug:
 {
-  "sbi_codes": ["<2-4 cijferige SBI codes, max 6, breed genoeg om resultaten te geven>"],
-  "gemeenten": ["<max 6 relevante gemeenten>"],
+  "gemeenten": ["<8-12 Nederlandse gemeenten breed genoeg om veel resultaten te geven>"],
+  "sbi_codes": ["<2-4 cijferige SBI codes om op te filteren NADAT we zoeken>"],
+  "naam_zoekterm": "<optioneel: zoekterm op bedrijfsnaam als dat relevant is, anders null>",
   "min_medewerkers": <integer, gebruik 10 als standaard>,
   "uitleg": "<één zin wat we zoeken>"
 }
 
-SBI referentie: 6201-6209=software/IT, 6419=holdings/fintech, 6492=financiële diensten,
-6619=overige financieel, 7010-7022=consultancy/management, 7311-7312=reclame/marketing,
-7320=marktonderzoek, 7410=design, 7810-7830=recruitment/HR, 9001-9004=evenementen/cultuur
+Gebruik ALTIJD brede gemeentenlijst: Amsterdam, Rotterdam, Den Haag, Utrecht, Eindhoven, Groningen, Tilburg, Breda zijn goede standaards.
+Voor fintech/payments: voeg ook Haarlem, Leiden toe.
 
-Gebruik BREDE SBI codes als er weinig bedrijven zijn (bijv. voor fintech gebruik 64 ipv 6492).` }],
+SBI referentie: 62=IT/software, 63=data/info, 64=financieel, 65=verzekering,
+66=financiële diensten, 70=holdings/management, 73=reclame/marketing,
+74=zakelijke diensten, 78=recruitment/HR, 82=administratieve diensten,
+90-91=kunst/evenementen/cultuur` }],
     });
     const txt = response.content[0]?.text?.trim().replace(/```json|```/g,'').trim();
     const s = JSON.parse(txt);
-    console.log('[Strategie]', s.uitleg, '| SBI:', s.sbi_codes?.join(','), '| Gemeenten:', s.gemeenten?.join(','));
+    console.log('[Strategie]', s.uitleg);
+    console.log('[Gemeenten]', s.gemeenten?.join(', '));
+    console.log('[SBI filter]', s.sbi_codes?.join(', '));
     return s;
   } catch(e) {
     console.warn('[Strategie] fout:', e.message);
-    return null;
+    return { gemeenten: GEMEENTEN.slice(0,8), sbi_codes: null, min_medewerkers: 10, uitleg: 'Standaard zoek' };
   }
 }
 
-// Stap 2: Claude snel beoordelen op KvK data alleen (geen website scrape)
+// Stap 2: Claude beoordeelt lead op basis van KvK data
 async function beoordeelLead(bedrijf, opdrachtgever, focusgebied) {
   try {
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 200,
-      messages: [{ role: 'user', content: `B2B sales, Intersect werkt voor "${opdrachtgever}".
-Zoekopdracht: "${focusgebied}"
-Bedrijf: ${bedrijf.organisatie} | Sector: ${bedrijf.sector||'?'} | ${bedrijf.medewerkers_raw||'?'} medewerkers | ${bedrijf.regio||'?'}
-JSON only: {"score":<1-10>,"reden":"<max 10 woorden>","haakje":"<1 zin opener, null als score<6>"}` }],
+      messages: [{ role: 'user', content: `Intersect werkt voor "${opdrachtgever}". Zoekopdracht: "${focusgebied}"
+Bedrijf: ${bedrijf.organisatie} | Sector: ${bedrijf.sector||'?'} | ${bedrijf.medewerkers_raw||'?'} mw | ${bedrijf.regio||'?'} | Website: ${bedrijf.website||'geen'}
+JSON only: {"score":<1-10>,"reden":"<max 10 woorden>","haakje":"<1 zin opener voor mail/bel, null als score<6>"}` }],
     });
     const txt = response.content[0]?.text?.trim().replace(/```json|```/g,'').trim();
     return JSON.parse(txt);
@@ -79,31 +86,25 @@ module.exports = async function handler(req, res) {
   const verwerkt = new Set();
   const start = Date.now();
 
-  // Stap 1: Zoekstrategie
+  // Stap 1: Zoekstrategie van Claude
   const strategie = await bepaalZoekStrategie(opdrachtgever, focusgebied);
-  const zoekSBI = strategie?.sbi_codes?.length ? strategie.sbi_codes : null;
-  const zoekGemeenten = strategie?.gemeenten?.length ? strategie.gemeenten : GEMEENTEN.slice(0,5);
+  const zoekGemeenten = strategie?.gemeenten?.length ? strategie.gemeenten : GEMEENTEN.slice(0,8);
+  const filterSBI = strategie?.sbi_codes?.length ? strategie.sbi_codes : null;
   const minMedewerkers = strategie?.min_medewerkers || 10;
+  const naamZoekterm = strategie?.naam_zoekterm || null;
 
-  // Zoeklijst opbouwen
-  const zoekLijst = [];
-  if (zoekSBI?.length) {
-    for (const sbi of zoekSBI.slice(0,4)) {
-      zoekLijst.push({ gemeente: null, sbi }); // heel NL op SBI
-      for (const g of zoekGemeenten.slice(0,3)) {
-        zoekLijst.push({ gemeente: g, sbi });
-      }
-    }
-  } else {
-    for (const g of zoekGemeenten) zoekLijst.push({ gemeente: g, sbi: null });
-  }
+  console.log(`[Search] ${zoekGemeenten.length} gemeenten, SBI filter: ${filterSBI?.join(',')||'breed'}, min: ${minMedewerkers}`);
 
-  for (const { gemeente, sbi } of zoekLijst) {
+  for (const gemeente of zoekGemeenten) {
     if (resultaten.length >= DOEL || Date.now()-start > 45000) break;
 
-    const zoek = await zoekBedrijven(gemeente, 1, sbi);
-    if (!zoek?.resultaten?.length) continue;
-    console.log(`[KvK] ${zoek.resultaten.length} gevonden — ${gemeente||'NL'} SBI:${sbi||'-'}`);
+    // KvK zoekt op gemeente (+ optioneel naam)
+    const zoek = await zoekBedrijven(gemeente, 1, null, naamZoekterm);
+    if (!zoek?.resultaten?.length) {
+      console.log(`[KvK] Geen resultaten voor ${gemeente}`);
+      continue;
+    }
+    console.log(`[KvK] ${zoek.resultaten.length} gevonden in ${gemeente}`);
 
     for (const r of zoek.resultaten) {
       if (resultaten.length >= DOEL || Date.now()-start > 45000) break;
@@ -115,15 +116,24 @@ module.exports = async function handler(req, res) {
         await wacht(100);
         const bedrijf = parseBedrijf(r, profiel);
 
+        // Medewerkers filter
         if (bedrijf.medewerkers_min > 0 && bedrijf.medewerkers_min < minMedewerkers) continue;
-        if (!sbi && !isSBIInteressant(profiel?.sbiActiviteiten || r?.sbiActiviteiten || [])) continue;
+
+        // SBI nafilter
+        if (filterSBI && filterSBI.length) {
+          const codes = (profiel?.sbiActiviteiten || r?.sbiActiviteiten || []).map(s => String(s.sbiCode || s));
+          const match = codes.some(code => filterSBI.some(f => code.startsWith(f)));
+          if (!match) continue;
+        } else {
+          if (!isSBIInteressant(profiel?.sbiActiviteiten || r?.sbiActiviteiten || [])) continue;
+        }
+
         const nL = (bedrijf.organisatie||'').toLowerCase();
         if (SKIP_NAMEN.some(s => nL.includes(s))) continue;
 
-        // In preview: bestaatAl check optioneel — toon ook bestaande zodat je context hebt
         const bestaatAlReds = await bestaatAl(bedrijf.kvk_nummer, bedrijf.website);
 
-        // Snel beoordelen op KvK data (geen website scrape in preview)
+        // Snel beoordelen
         const beoordeling = await beoordeelLead(bedrijf, opdrachtgever, focusgebied);
         if (beoordeling.score < 4) continue;
 
@@ -148,7 +158,7 @@ module.exports = async function handler(req, res) {
     success: true,
     count: resultaten.length,
     duur_seconden: Math.round((Date.now()-start)/1000),
-    strategie: strategie ? { uitleg: strategie.uitleg, sbi_codes: strategie.sbi_codes, gemeenten: strategie.gemeenten } : null,
+    strategie: { uitleg: strategie?.uitleg, gemeenten: zoekGemeenten, sbi_filter: filterSBI },
     leads: resultaten,
   });
 };
