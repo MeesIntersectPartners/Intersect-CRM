@@ -13,7 +13,24 @@ try {
 }
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-function getDb() { return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY); }
+function wacht(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function apiCallMetRetry(fn, maxPogingen = 3) {
+  for (let poging = 1; poging <= maxPogingen; poging++) {
+    try {
+      return await fn();
+    } catch(e) {
+      const is429 = e.status === 429 || e.message?.includes('429') || e.message?.includes('rate_limit');
+      if (is429 && poging < maxPogingen) {
+        const wachttijd = poging * 65000; // 65s, 130s
+        console.log(`[RateLimit] Poging ${poging}/${maxPogingen} — wacht ${wachttijd/1000}s...`);
+        await wacht(wachttijd);
+        continue;
+      }
+      throw e;
+    }
+  }
+}
 
 function extractDomein(website) {
   try {
@@ -65,12 +82,12 @@ Doe meerdere gerichte zoekopdrachten. Varieer: branche + stad, vacatures, groeil
 Beschrijf per bedrijf dat je vindt: naam, website, stad, sector, geschat aantal medewerkers, waarom het past, en een specifieke gespreksopener.
 Wees streng: alleen bedrijven die echt passen op sector, grootte én locatie.`;
 
-  const zoekResponse = await anthropic.messages.create({
+  const zoekResponse = await apiCallMetRetry(() => anthropic.messages.create({
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 8000,
     tools: [{ type: 'web_search_20250305', name: 'web_search' }],
     messages: [{ role: 'user', content: zoekPrompt }],
-  });
+  }));
 
   const zoekTekst = (zoekResponse.content || [])
     .filter(b => b.type === 'text')
@@ -87,7 +104,7 @@ Wees streng: alleen bedrijven die echt passen op sector, grootte én locatie.`;
   const zoekTekstKort = zoekTekst.length > 4000 ? zoekTekst.substring(0, 4000) + '\n...' : zoekTekst;
 
   // Stap 2: converteer naar JSON (geen tools, puur formattering)
-  const jsonResponse = await anthropic.messages.create({
+  const jsonResponse = await apiCallMetRetry(() => anthropic.messages.create({
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 4000,
     system: 'Je converteert bedrijfsinformatie naar een JSON array. Geef ALLEEN de JSON array terug. Begin met [ en eindig met ]. Geen tekst eromheen.',
@@ -105,7 +122,7 @@ ${zoekTekstKort}
 
 Geef ALLEEN de JSON array:`
     }],
-  });
+  }));
 
   const jsonTekst = (jsonResponse.content || [])
     .filter(b => b.type === 'text')
