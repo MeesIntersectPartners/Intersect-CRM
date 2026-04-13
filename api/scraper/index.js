@@ -1,217 +1,237 @@
-// POST /api/scraper?action=start|save|results
-// GET  /api/scraper?action=status
+// Lead scraper — Claude + web search als motor
+// OpenKVK volledig vervangen, dedup op naam + website + DB
+// POST /api/scraper?action=start|results  GET ?action=status
 
-let zoekBedrijvenOpenKVK, parseOpenKVKBedrijf, getBedrijven, bestaatAl, createClient, Anthropic;
+let voegAccountToe, bestaatAl, createClient, Anthropic;
 try {
-  ({ zoekBedrijvenOpenKVK, parseOpenKVKBedrijf, getBedrijven } = require('../../lib/openkvk'));
-  ({ bestaatAl } = require('../../lib/supabase'));
+  ({ voegAccountToe, bestaatAl } = require('../../lib/supabase'));
   ({ createClient } = require('@supabase/supabase-js'));
   Anthropic = require('@anthropic-ai/sdk');
-  console.log('[Init] Alle modules geladen');
+  console.log('[Init] Modules geladen');
 } catch(e) {
-  console.error('[Init] Module laad fout:', e.message);
+  console.error('[Init] Fout:', e.message);
 }
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-function wacht(ms) { return new Promise(r => setTimeout(r, ms)); }
 function getDb() { return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY); }
 
-const SKIP_NAMEN = ['kapsalon','kappers','ziekenhuis','huisarts','tandarts','apotheek',
-  'fysiotherap','paramedisch','thuiszorg','verpleeg','maatschap','supermarkt',
-  'slager','bakker','pizzeria','restaurant','snackbar','garage','autohandel',
-  'vereniging van eigen','v.v.e.','vve ','stichting','buurtvereniging'];
-
-async function bepaalStrategie(opdrachtgever, focusgebied) {
+function extractDomein(website) {
   try {
-    const r = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001', max_tokens: 600,
-      messages: [{ role: 'user', content: `Nederlandse KvK/B2B sales expert.
-Intersect verkoopt voor "${opdrachtgever}" en zoekt: "${focusgebied}"
-JSON only (geen uitleg erbuiten):
-{
-  "zoekwoorden": ["<2-4 Nederlandse zoektermen voor OpenKVK, bijv. 'software','IT advies','automatisering'>"],
-  "gemeenten": ["<max 6 gemeenten in het doelgebied>"],
-  "uitleg": "<één zin>"
-}
-Zoekwoorden moeten aansluiten bij de bedrijfsnamen die je zoekt. Kies specifieke branchetermen.` }]
-    });
-    const parsed = JSON.parse(r.content[0].text.trim().replace(/```json|```/g,'').trim());
-    // Zorg voor fallbacks
-    if (!parsed.zoekwoorden?.length) parsed.zoekwoorden = ['software', 'IT'];
-    if (!parsed.gemeenten?.length) parsed.gemeenten = ['Amsterdam', 'Rotterdam', 'Utrecht', 'Den Haag'];
-    return parsed;
-  } catch(e) {
-    console.warn('[Strategie] Fallback:', e.message);
-    return {
-      zoekwoorden: ['software', 'IT advies'],
-      gemeenten: ['Amsterdam', 'Rotterdam', 'Den Haag', 'Utrecht'],
-      uitleg: 'Standaard IT-strategie'
-    };
-  }
+    if (!website) return null;
+    const url = website.startsWith('http') ? website : 'https://' + website;
+    return new URL(url).hostname.replace('www.', '').toLowerCase();
+  } catch { return null; }
 }
 
-async function beoordeelLead(bedrijf, opdrachtgever, focusgebied) {
-  try {
-    const r = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001', max_tokens: 300,
-      messages: [{ role: 'user', content: `Je bent een kritische B2B sales filter voor Intersect.
-Opdrachtgever: "${opdrachtgever}" | Zoekopdracht: "${focusgebied}"
+// Haal alle bekende bedrijven op uit CRM + scraper history voor dedup
+async function haalBekendeCompanies(db) {
+  const [{ data: accounts }, { data: scraper }] = await Promise.all([
+    db.from('accounts').select('name, website').limit(5000),
+    db.from('scraper_results').select('organisatie, website').limit(5000),
+  ]);
 
-Bedrijf:
-- Naam: ${bedrijf.organisatie}
-- Sector: ${bedrijf.sector || 'onbekend'}
-- Locatie: ${bedrijf.regio || 'onbekend'}
-- Website: ${bedrijf.website || 'geen'}
+  const namen = new Set([
+    ...(accounts || []).map(a => a.name?.toLowerCase().trim()).filter(Boolean),
+    ...(scraper || []).map(a => a.organisatie?.toLowerCase().trim()).filter(Boolean),
+  ]);
 
-Scoringsregels — wees STRENG:
-- 8-10: Naam/sector sluit DUIDELIJK aan bij zoekopdracht (bijv. "Software BV", "IT Consultancy")
-- 7:   Redelijke match, enige twijfel
-- 4-6: Twijfelgeval of onvoldoende info
-- 1-3: Verkeerde sector, VvE, stichting, horeca, retail, zorg, bouw, of geen info
+  const websites = new Set([
+    ...(accounts || []).map(a => extractDomein(a.website)).filter(Boolean),
+    ...(scraper || []).map(a => extractDomein(a.website)).filter(Boolean),
+  ]);
 
-Geef NOOIT 7+ alleen op basis van locatie of naam die niet branche-specifiek is.
-Het haakje moet CONCREET zijn — vermeld iets specifieks over hun naam of sector. Geen generieke zinnen.
+  return { namen, websites };
+}
 
-JSON only: {"score":<1-10>,"reden":"<max 10 woorden>","haakje":"<1-2 zinnen persoonlijke opener, null als score<7>"}` }]
-    });
-    return JSON.parse(r.content[0].text.trim().replace(/```json|```/g,'').trim());
-  } catch(e) { return { score: 5, reden: 'Niet beoordeeld', haakje: null }; }
+// Hoofdzoekopdracht — Claude met web search
+async function zoekBedrijven(opdrachtgever, focusgebied, limit, goedgekeurd, bekendeNamen) {
+  const voorbeeldTekst = goedgekeurd?.length
+    ? `\nEerder goedgekeurde leads (gebruik als kwaliteitsrichtlijn):\n${goedgekeurd.map(l => `- ${l.organisatie} | ${l.sector || '?'} | ${l.regio || '?'}`).join('\n')}`
+    : '';
+
+  // Stuur max 40 bekende namen mee zodat Claude ze kan vermijden
+  const bekendeStr = [...bekendeNamen].slice(0, 40).join(', ');
+  const bekendeNamenTekst = bekendeStr
+    ? `\nDeze bedrijven zijn al bekend — NIET opnemen: ${bekendeStr}`
+    : '';
+
+  const prompt = `Je bent een B2B sales researcher voor Intersect, een Nederlands sales agency.
+Zoek via web search naar ${limit} concrete, échte Nederlandse bedrijven voor opdrachtgever "${opdrachtgever}".
+Focusgebied: "${focusgebied}"
+${voorbeeldTekst}
+${bekendeNamenTekst}
+
+Doe meerdere gerichte zoekopdrachten. Varieer: branche + stad, vacatures, groeilijsten, nieuws, LinkedIn, etc.
+Wees STRENG: score 7+ alleen als het bedrijf aantoonbaar past op sector, grootte én locatie.
+Het haakje moet SPECIFIEK zijn — gebaseerd op iets concreets wat je over dat bedrijf gevonden hebt. Geen generieke tekst.
+Score < 7 → haakje is null.
+
+Reageer ALLEEN met een JSON array, geen tekst eromheen:
+[{"naam":"...","website":"...","stad":"...","sector":"...","score":8,"reden":"max 10 woorden","haakje":"specifieke opener of null"}]`;
+
+  const response = await anthropic.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 4000,
+    tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+    messages: [{ role: 'user', content: prompt }],
+  });
+
+  const tekst = (response.content || [])
+    .filter(b => b.type === 'text')
+    .map(b => b.text)
+    .join('');
+
+  const match = tekst.match(/\[[\s\S]*\]/);
+  if (!match) throw new Error('Geen JSON gevonden: ' + tekst.substring(0, 300));
+
+  return JSON.parse(match[0]);
 }
 
 async function handleStart(req, res) {
   const { opdrachtgever, focusgebied, limit = 20 } = req.body || {};
-  if (!opdrachtgever || !focusgebied) return res.status(400).json({ error: 'opdrachtgever en focusgebied verplicht' });
+  if (!opdrachtgever || !focusgebied) {
+    return res.status(400).json({ error: 'opdrachtgever en focusgebied verplicht' });
+  }
 
-  const DOEL = Math.min(parseInt(limit) || 20, 100);
+  const DOEL = Math.min(parseInt(limit) || 20, 50);
   const db = getDb();
   const start = Date.now();
-  const verwerkt = new Set(); // KvK-nummers al gezien (dedup over alle queries heen)
-  let opgeslagen = 0, bekeken = 0;
 
   console.log(`[Start] ${opdrachtgever} | ${focusgebied} | doel:${DOEL}`);
-  const strategie = await bepaalStrategie(opdrachtgever, focusgebied);
-  console.log(`[Strategie] ${strategie.uitleg}`);
-  console.log(`[Zoekwoorden] ${strategie.zoekwoorden.join(', ')}`);
-  console.log(`[Gemeenten] ${strategie.gemeenten.join(', ')}`);
 
-  // Loop: zoekwoord × gemeente — zodat OpenKVK al gefilterd teruggeeft
-  outer:
-  for (const zoekwoord of strategie.zoekwoorden) {
-    for (const gemeente of strategie.gemeenten) {
-      if (opgeslagen >= DOEL || Date.now() - start > 230000) break outer;
+  // Eerder goedgekeurde leads als kwaliteitsvoorbeeld
+  const { data: goedgekeurd } = await db.from('scraper_results')
+    .select('organisatie, sector, regio')
+    .eq('opdrachtgever', opdrachtgever)
+    .eq('status', 'doorgestuurd')
+    .order('created_at', { ascending: false })
+    .limit(8);
 
-      const data = await zoekBedrijvenOpenKVK({ gemeente, zoekwoord, size: 100 });
-      const resultaten = getBedrijven(data);
-      console.log(`[OpenKVK] "${zoekwoord} ${gemeente}": ${resultaten.length}`);
-      if (!resultaten.length) continue;
+  // Bekende bedrijven ophalen voor dedup
+  const { namen: bekendeNamen, websites: bekendeWebsites } = await haalBekendeCompanies(db);
+  console.log(`[Dedup] ${bekendeNamen.size} bekende namen`);
 
-      for (const r of resultaten) {
-        if (opgeslagen >= DOEL || Date.now() - start > 230000) break;
-        const kvkNr = r.dossiernummer;
-        if (!kvkNr || verwerkt.has(kvkNr)) continue;
-        verwerkt.add(kvkNr);
-        bekeken++;
+  // Claude zoekt
+  let gevonden;
+  try {
+    gevonden = await zoekBedrijven(opdrachtgever, focusgebied, DOEL, goedgekeurd, bekendeNamen);
+    console.log(`[Search] ${gevonden.length} kandidaten ontvangen`);
+  } catch(e) {
+    console.error('[Search] Fout:', e.message);
+    return res.status(500).json({ error: 'Zoekfout: ' + e.message });
+  }
 
-        const bedrijf = parseOpenKVKBedrijf(r);
+  let opgeslagen = 0;
 
-        // Naam-filter (snelle skip voor duidelijk irrelevante entiteiten)
-        const nL = (bedrijf.organisatie || '').toLowerCase();
-        if (SKIP_NAMEN.some(s => nL.includes(s))) continue;
+  for (const bedrijf of gevonden) {
+    if (!bedrijf.naam || bedrijf.score < 7) continue;
 
-        // Duplicaat-check in DB
-        if (await bestaatAl(bedrijf.kvk_nummer, bedrijf.website)) continue;
-        const { data: bestaand } = await db.from('scraper_results')
-          .select('id').eq('kvk_nummer', kvkNr).eq('status', 'ter_beoordeling').maybeSingle();
-        if (bestaand) continue;
+    const naam = bedrijf.naam.toLowerCase().trim();
+    const domein = extractDomein(bedrijf.website);
 
-        // Claude beoordeling
-        const beoordeling = await beoordeelLead(bedrijf, opdrachtgever, focusgebied);
-        if (beoordeling.score < 7) {
-          console.log(`[skip] ${bedrijf.organisatie} ${beoordeling.score} — ${beoordeling.reden}`);
-          continue;
-        }
+    // Dedup: naam
+    if (bekendeNamen.has(naam)) {
+      console.log(`[skip-naam] ${bedrijf.naam}`);
+      continue;
+    }
 
-        const { error } = await db.from('scraper_results').insert({
-          opdrachtgever, focusgebied, status: 'ter_beoordeling',
-          organisatie:  bedrijf.organisatie,
-          sector:       bedrijf.sector    || '',
-          segment:      bedrijf.sbi_code  || '',
-          website:      bedrijf.website   || '',
-          adres:        bedrijf.adres     || '',
-          regio:        gemeente,
-          medewerkers:  '',
-          kvk_nummer:   bedrijf.kvk_nummer,
-          telefoon:     bedrijf.telefoon  || '',
-          score:        beoordeling.score,
-          reden:        beoordeling.reden,
-          haakje:       beoordeling.haakje || '',
-          notitie:      `[${opdrachtgever}] ${beoordeling.haakje || beoordeling.reden || ''}`,
-        });
-        if (!error) {
-          opgeslagen++;
-          console.log(`[+] ${bedrijf.organisatie} | score:${beoordeling.score} | ${beoordeling.reden} (${opgeslagen}/${DOEL})`);
-        }
-        await wacht(100);
-      }
-      await wacht(400);
+    // Dedup: website
+    if (domein && bekendeWebsites.has(domein)) {
+      console.log(`[skip-web] ${bedrijf.naam}`);
+      continue;
+    }
+
+    // Dedup: extra DB-check via bestaatAl
+    if (await bestaatAl(null, bedrijf.website)) {
+      console.log(`[skip-db] ${bedrijf.naam}`);
+      continue;
+    }
+
+    const { error } = await db.from('scraper_results').insert({
+      opdrachtgever,
+      focusgebied,
+      status:      'ter_beoordeling',
+      organisatie: bedrijf.naam,
+      sector:      bedrijf.sector   || '',
+      segment:     '',
+      website:     bedrijf.website  || '',
+      adres:       '',
+      regio:       bedrijf.stad     || '',
+      medewerkers: '',
+      kvk_nummer:  null,
+      telefoon:    '',
+      score:       bedrijf.score,
+      reden:       bedrijf.reden    || '',
+      haakje:      bedrijf.haakje   || '',
+      notitie:     `[${opdrachtgever}] ${bedrijf.haakje || bedrijf.reden || ''}`,
+    });
+
+    if (!error) {
+      opgeslagen++;
+      bekendeNamen.add(naam);
+      if (domein) bekendeWebsites.add(domein);
+      console.log(`[+] ${bedrijf.naam} | score:${bedrijf.score} | ${bedrijf.sector || '?'}`);
     }
   }
 
   const duur = Math.round((Date.now() - start) / 1000);
-  console.log(`[Klaar] ${opgeslagen} leads in ${duur}s (${bekeken} uniek bekeken)`);
-  return res.status(200).json({ success: true, opgeslagen, bekeken, duur_seconden: duur });
+  console.log(`[Klaar] ${opgeslagen} leads in ${duur}s`);
+  return res.status(200).json({ success: true, opgeslagen, duur_seconden: duur });
 }
 
 async function handleStatus(req, res) {
   const db = getDb();
   const { count } = await db.from('scraper_results')
-    .select('*', { count: 'exact', head: true }).eq('status', 'ter_beoordeling');
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'ter_beoordeling');
   return res.status(200).json({ wachtend: count || 0 });
 }
 
 async function handleResults(req, res) {
   const db = getDb();
+
   if (req.method === 'GET') {
     const { data, error } = await db.from('scraper_results')
-      .select('*').eq('status', 'ter_beoordeling').order('score', { ascending: false });
+      .select('*')
+      .eq('status', 'ter_beoordeling')
+      .order('score', { ascending: false });
     if (error) return res.status(500).json({ error: error.message });
     return res.status(200).json({ success: true, leads: data || [] });
   }
+
+  // POST: doorsturen naar CRM of afwijzen
   const { doorsturen, afwijzen } = req.body || {};
   let opgeslagen = 0;
   const fouten = [];
+
   for (const lead of (doorsturen || [])) {
-    const naamDelen = (lead.contact_naam || '').trim().split(' ');
-    const { error } = await db.from('accounts').insert({
-      name: lead.organisatie, status: 'lead',
-      sector: lead.sector || '', segment: lead.segment || '',
-      website: lead.website || '', linkedin: lead.linkedin || '',
-      phone: lead.telefoon || '', kvk: lead.kvk_nummer || '',
-      address: lead.adres || '',
-      address_url: lead.adres ? `https://www.google.com/maps/search/?q=${encodeURIComponent(lead.adres)}` : '',
-      pipeline_stage: 'Nieuw', value: null, owner: 'MA',
-      note: lead.notitie || '', color_index: 0,
-      added_date: new Date().toISOString().split('T')[0],
-      contact_first: naamDelen[0] || '',
-      contact_last: naamDelen.slice(1).join(' ') || '',
-      contact_role: lead.contact_titel || '',
-      contact_phone: lead.contact_telefoon || '',
-      contact_email: lead.email || '',
+    const id = await voegAccountToe({
+      ...lead,
+      contactpersoon: {
+        naam:  lead.contact_naam  || '',
+        titel: lead.contact_rol   || '',
+      },
+      contactTelefoon: lead.contact_telefoon || '',
+      email:           lead.contact_email    || '',
     });
-    if (error) fouten.push(lead.organisatie);
-    else {
+
+    if (id) {
       opgeslagen++;
       await db.from('scraper_results').update({ status: 'doorgestuurd' }).eq('id', lead.id);
+    } else {
+      fouten.push(lead.organisatie);
     }
   }
+
   for (const id of (afwijzen || [])) {
     await db.from('scraper_results').update({ status: 'afgewezen' }).eq('id', id);
   }
+
   return res.status(200).json({ success: true, opgeslagen, fouten: fouten.length });
 }
 
 module.exports = async function handler(req, res) {
-  console.log('[Handler]', req.method, req.url, 'body:', JSON.stringify(req.body || {}).substring(0, 100));
+  console.log('[Handler]', req.method, req.url);
   const secret = process.env.CRON_SECRET;
   const geldig = req.headers.authorization === `Bearer ${secret}`
     || req.body?.secret === secret
@@ -219,7 +239,6 @@ module.exports = async function handler(req, res) {
   if (!geldig) return res.status(401).json({ error: 'Unauthorized' });
 
   const action = req.query.action || req.body?.action;
-  console.log('[Action]', action);
   if (action === 'start')   return handleStart(req, res);
   if (action === 'status')  return handleStatus(req, res);
   if (action === 'results') return handleResults(req, res);
