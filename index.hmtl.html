@@ -1512,28 +1512,7 @@ async function _doLogin(){
     renderClientBar();
     setTimeout(()=>{ runWorkflowEngine(false); updateWfBadge(); renderWatNu(); }, 600);
 
-    // Achtergrond sync elke 60 seconden — alleen als geen modal open is
-    setInterval(async () => {
-      try {
-        // Niet refreshen als er een modal open is
-        const modalOpen = document.querySelector('[id^="m-"].on');
-        if (modalOpen) return;
-        await _loadFromSupabase();
-        // Herrender huidige pagina
-        const activePage = document.querySelector('.page.on, .acc-detail.on');
-        if (!activePage) return;
-        const id = activePage.id?.replace('p-','');
-        if (id === 'dashboard') renderDash();
-        else if (id === 'accounts') renderAccList();
-        else if (id === 'pipeline') renderPipeline();
-        else if (id === 'contacts') renderContacts();
-        else if (id === 'todos') renderTodos();
-        else if (id === 'activity') renderActivity();
-        else if (id === 'agenda') renderAgenda();
-        else if (id === 'actiecenter') renderActieCenter();
-        else if (id === 'lijsten') renderLijsten();
-      } catch(e) { console.warn('Achtergrond sync:', e); }
-    }, 60000);
+    // Data wordt alleen geladen bij navigatie (klik) — geen achtergrond sync
 
   }catch(e){
     err.textContent = e.message || 'Inloggen mislukt. Controleer je gegevens.';
@@ -3400,10 +3379,12 @@ function saveAcc(){
   _saveAcc(a).then(()=>{
     _logAct(`<strong>${CU==='MA'?'Mees':'Julian'}</strong> heeft <strong>${a.name}</strong> ${editId?'bijgewerkt':'toegevoegd als '+slbl(a.status)}`,'◈',CLRS[a.color%CLRS.length][0]).catch(()=>{});
     activity.unshift({text:`<strong>${CU==='MA'?'Mees':'Julian'}</strong> heeft <strong>${a.name}</strong> ${editId?'bijgewerkt':'toegevoegd als '+slbl(a.status)}`,time:'Zojuist',ico:'◈',bg:CLRS[a.color%CLRS.length][0]});
-    nav('accounts');
+    if(editId) openDetail(a.id);
+    else nav('accounts');
   }).catch(e=>{
     console.error('Save acc:',e);
-    nav('accounts');
+    if(editId) openDetail(a.id);
+    else nav('accounts');
   });
 }
 
