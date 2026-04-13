@@ -7,6 +7,8 @@
   ],
   "functions": {
     "api/cron/scrape.js": { "maxDuration": 300 },
+    "api/scraper/preview.js": { "maxDuration": 60 },
+    "api/scraper/save.js": { "maxDuration": 30 },
     "api/mail.js": { "maxDuration": 30 },
     "api/mail-upload.js": { "maxDuration": 30 },
     "api/mail-suggest.js": { "maxDuration": 60 },
