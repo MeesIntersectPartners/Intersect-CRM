@@ -81,10 +81,26 @@ Reageer ALLEEN met een JSON array, geen tekst eromheen:
     .map(b => b.text)
     .join('');
 
-  const match = tekst.match(/\[[\s\S]*\]/);
-  if (!match) throw new Error('Geen JSON gevonden: ' + tekst.substring(0, 300));
+  // Zoek het eerste [ en het bijbehorende laatste ] op
+  const start = tekst.indexOf('[');
+  const eind = tekst.lastIndexOf(']');
+  if (start === -1 || eind === -1 || eind <= start) {
+    throw new Error('Geen JSON array gevonden: ' + tekst.substring(0, 300));
+  }
 
-  return JSON.parse(match[0]);
+  const jsonStr = tekst.substring(start, eind + 1);
+
+  try {
+    return JSON.parse(jsonStr);
+  } catch(parseErr) {
+    // Probeer met een schoonmaak-pass: verwijder control characters
+    const schoon = jsonStr.replace(/[\x00-\x09\x0B\x0C\x0E-\x1F]/g, '');
+    try {
+      return JSON.parse(schoon);
+    } catch(e2) {
+      throw new Error(`JSON parse fout: ${parseErr.message} | snippet: ${jsonStr.substring(3300, 3500)}`);
+    }
+  }
 }
 
 async function handleStart(req, res) {
