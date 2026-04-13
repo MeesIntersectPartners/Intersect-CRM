@@ -6188,6 +6188,8 @@ function renderScraper(){
   const el=document.getElementById('p-scraper');if(!el)return;
   const s=scraperGetSettings();
   const clients=accs.filter(a=>a.status==='klant');
+  const geselecteerdeNaam = s.partner || clients[0]?.name || 'Audio Obscura';
+  const geselecteerdeKlant = clients.find(c=>c.name===geselecteerdeNaam);
 
   el.innerHTML=`<div style="max-width:760px;">
     <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:700;color:var(--navy);margin-bottom:16px;">Lead Scraper</div>
@@ -6197,7 +6199,7 @@ function renderScraper(){
       <div style="width:20px;height:20px;border:3px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite;flex-shrink:0;"></div>
       <div>
         <div style="font-weight:600;margin-bottom:2px;">Scraper is bezig...</div>
-        <div style="font-size:12px;opacity:.7;">Claude beoordeelt leads op de achtergrond. Je krijgt een melding als hij klaar is.</div>
+        <div style="font-size:12px;opacity:.7;">Claude zoekt via web. Je krijgt een melding als hij klaar is.</div>
       </div>
     </div>` : ''}
 
@@ -6207,9 +6209,9 @@ function renderScraper(){
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
         <div>
           <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px;">Opdrachtgever</label>
-          <select id="sc-partner" style="width:100%;font-size:13px;padding:7px 10px;">
-            ${clients.map(c=>`<option ${c.name===(s.partner||'Audio Obscura')?'selected':''}>${c.name}</option>`).join('')}
-            ${!clients.find(c=>c.name===(s.partner||'Audio Obscura'))?`<option selected>Audio Obscura</option>`:''}
+          <select id="sc-partner" style="width:100%;font-size:13px;padding:7px 10px;" onchange="scraperLaadOpdrachtgeverInfo()">
+            ${clients.map(c=>`<option ${c.name===geselecteerdeNaam?'selected':''}>${c.name}</option>`).join('')}
+            ${!clients.find(c=>c.name===geselecteerdeNaam)?`<option selected>${geselecteerdeNaam}</option>`:''}
           </select>
         </div>
         <div>
@@ -6218,9 +6220,15 @@ function renderScraper(){
         </div>
       </div>
 
+      <div style="margin-bottom:12px;">
+        <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px;">Wat verkoopt/biedt deze opdrachtgever? <span style="font-weight:400;color:var(--text3);">— Claude gebruikt dit als context bij het zoeken</span></label>
+        <textarea id="sc-opdrachtgever-info" rows="3" placeholder="Bijv: Audio Obscura organiseert premium events op bijzondere locaties. Intersect verkoopt Curated Business Experiences — bedrijven kunnen klanten, relaties of medewerkers hosten in een exclusieve setting bij een rave in de Van Nellefabriek." style="width:100%;font-size:13px;padding:9px 12px;resize:vertical;">${geselecteerdeKlant?.note||''}</textarea>
+        <button onclick="scraperSlaOpdrachtgeverInfo()" style="margin-top:6px;font-size:12px;padding:5px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;color:var(--text2);">Opslaan</button>
+      </div>
+
       <div>
-        <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px;">Focusgebied <span style="font-weight:400;color:var(--text3);">— Claude gebruikt dit om te filteren en beoordelen</span></label>
-        <textarea id="sc-focus" rows="3" placeholder="Bijv: Groeiende tech- of marketingbedrijven in de Randstad, 20-150 medewerkers, met een directeur die zelf beslissingen neemt." style="width:100%;font-size:13px;padding:9px 12px;resize:vertical;">${s.focusgebied||''}</textarea>
+        <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px;">Focusgebied <span style="font-weight:400;color:var(--text3);">— de doelgroep die je wil bereiken</span></label>
+        <textarea id="sc-focus" rows="3" placeholder="Bijv: Commerciële bedrijven in de Randstad met 50+ medewerkers, actief salesteam of relatiebeheer budget, B2B" style="width:100%;font-size:13px;padding:9px 12px;resize:vertical;">${s.focusgebied||''}</textarea>
       </div>
     </div>
 
@@ -6231,15 +6239,11 @@ function renderScraper(){
     <div id="sc-review-sectie"></div>
   </div>`;
 
-  // Bewaar focus bij typen
   const focusEl = document.getElementById('sc-focus');
   if(focusEl) focusEl.addEventListener('input', ()=>{
-    const st=scraperGetSettings();
-    st.focusgebied=focusEl.value;
-    scraperSaveSettings(st);
+    const st=scraperGetSettings(); st.focusgebied=focusEl.value; scraperSaveSettings(st);
   });
 
-  // Laad wachtende leads
   scraperHaalResultatenOp().then(leads => {
     const sec = document.getElementById('sc-review-sectie');
     if(!sec) return;
@@ -6249,6 +6253,34 @@ function renderScraper(){
     }
     renderScraperReview(leads, sec);
   });
+}
+
+function scraperLaadOpdrachtgeverInfo(){
+  const naam = document.getElementById('sc-partner')?.value;
+  const klant = accs.find(a=>a.name===naam && a.status==='klant');
+  const el = document.getElementById('sc-opdrachtgever-info');
+  if(el) el.value = klant?.note || '';
+  const s = scraperGetSettings();
+  scraperSaveSettings({...s, partner: naam});
+}
+
+async function scraperSlaOpdrachtgeverInfo(){
+  const opdrachtgever = document.getElementById('sc-partner')?.value;
+  const info = document.getElementById('sc-opdrachtgever-info')?.value || '';
+  if(!opdrachtgever) return;
+  try {
+    const r = await fetch(`${SCRAPER_BASE}/index?action=save_opdrachtgever&secret=${SCRAPER_SECRET}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ secret: SCRAPER_SECRET, opdrachtgever, info }),
+    });
+    const d = await r.json();
+    if(d.success){
+      const klant = accs.find(a=>a.name===opdrachtgever);
+      if(klant) klant.note = info;
+      alert('✓ Opgeslagen');
+    }
+  } catch(e) { alert('Fout bij opslaan: ' + e.message); }
 }
 
 function renderScraperReview(leads, container){
