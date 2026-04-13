@@ -7,60 +7,53 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 function wacht(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-// Stap 1: Claude vertaalt het focusgebied naar concrete KvK zoekparameters
+const SKIP_NAMEN = ['kapsalon','kappers','ziekenhuis','huisarts','tandarts','apotheek',
+  'fysiotherap','paramedisch','thuiszorg','verpleeg','maatschap','supermarkt',
+  'slager','bakker','pizzeria','restaurant','snackbar','garage','autohandel'];
+
+// Stap 1: Claude vertaalt focusgebied naar KvK zoekparameters
 async function bepaalZoekStrategie(opdrachtgever, focusgebied) {
   try {
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 500,
-      messages: [{ role: 'user', content: `Je bent een expert in de Nederlandse KvK database en SBI-codes.
+      messages: [{ role: 'user', content: `Je bent expert in de Nederlandse KvK database en SBI-codes.
 
-Een sales agency verkoopt namens "${opdrachtgever}" en wil de volgende leads vinden:
+Sales agency Intersect verkoopt namens "${opdrachtgever}" en zoekt:
 "${focusgebied}"
 
-Vertaal dit naar concrete KvK zoekparameters. Geef ALLEEN dit JSON object terug:
+Geef ALLEEN dit JSON object terug:
 {
-  "sbi_codes": ["<2-4 cijferige SBI codes die het beste passen, max 8>"],
-  "gemeenten": ["<Nederlandse gemeenten om in te zoeken, max 10, relevant voor de zoekopdracht>"],
-  "min_medewerkers": <minimum aantal medewerkers als integer, 0 als niet relevant>,
-  "uitleg": "<één zin: wat zoeken we precies>"
+  "sbi_codes": ["<2-4 cijferige SBI codes die het beste passen, max 6>"],
+  "gemeenten": ["<Nederlandse gemeenten relevant voor deze sector, max 8>"],
+  "min_medewerkers": <integer, 0 als niet relevant>,
+  "uitleg": "<één zin: wat zoeken we exact>"
 }
 
-Voorbeelden van SBI codes:
-- 6492/6619 = payment processing / fintech
-- 6201/6209 = software ontwikkeling
-- 7311/7312 = reclame en marketing
-- 7010/7021 = management consultancy
-- 7810/7820 = recruitment / HR
-- 6201 = custom software
-- 6311 = dataverwerking
-- 9001/9002 = evenementen / podiumkunsten
-- 7022 = overig bedrijfsadvies
-- 7411 = design
-
-Gebruik ook gemeenten die passen bij de sector (bijv. Amsterdam voor fintech/tech, Eindhoven voor tech/industrie).` }],
+SBI code referentie:
+6201-6209 = software/IT, 6311 = dataverwerking, 6419 = holdings/fintech
+6492 = overige kredietverlening, 6619 = overige financiële diensten
+7010 = holdings, 7021-7022 = management consultancy
+7311-7312 = reclame/marketing bureaus, 7320 = marktonderzoek
+7410 = design, 7810-7830 = recruitment/HR/uitzend
+5829 = software publishing, 6202 = IT consultancy
+9001-9004 = podiumkunsten/evenementen, 9102 = musea/cultuur` }],
     });
     const txt = response.content[0]?.text?.trim().replace(/```json|```/g,'').trim();
-    const strategie = JSON.parse(txt);
-    console.log('[Strategie]', strategie.uitleg);
-    console.log('[SBI codes]', strategie.sbi_codes?.join(', '));
-    console.log('[Gemeenten]', strategie.gemeenten?.join(', '));
-    return strategie;
+    const s = JSON.parse(txt);
+    console.log('[Strategie]', s.uitleg);
+    return s;
   } catch(e) {
-    console.warn('[Strategie] Claude fout:', e.message, '— gebruik standaard filters');
+    console.warn('[Strategie] fout:', e.message);
     return null;
   }
 }
 
-const SKIP_NAMEN = ['kapsalon','kappers','ziekenhuis','huisarts','tandarts','apotheek',
-  'fysiotherap','paramedisch','thuiszorg','verpleeg','maatschap','supermarkt',
-  'slager','bakker','pizzeria','restaurant','snackbar','garage','autohandel'];
-
+// Stap 2: Claude beoordeelt individuele lead
 async function beoordeelLead(bedrijf, scrapeData, opdrachtgever, focusgebied) {
   const signalen = scrapeData ? [
     scrapeData.heeftVacatures ? `Actief werven (${scrapeData.vacatureAantal} vacatures)` : null,
     scrapeData.heeftCultuurSignaal ? 'Communiceert over beleving/cultuur' : null,
-    scrapeData.heeftNieuws ? 'Actief blog/nieuws' : null,
     scrapeData.bestContact ? `Contact: ${scrapeData.bestContact.naam} (${scrapeData.bestContact.titel||'?'})` : null,
   ].filter(Boolean).join('\n') : 'Geen websitedata';
 
@@ -68,20 +61,16 @@ async function beoordeelLead(bedrijf, scrapeData, opdrachtgever, focusgebied) {
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 300,
-      messages: [{ role: 'user', content: `Je bent B2B sales expert voor Intersect (sales agency NL).
+      messages: [{ role: 'user', content: `B2B sales expert voor Intersect.
 
 OPDRACHTGEVER: ${opdrachtgever}
-FOCUSGEBIED: ${focusgebied}
+ZOEKOPDRACHT: ${focusgebied}
 
-BEDRIJF:
-Naam: ${bedrijf.organisatie}
-Sector: ${bedrijf.sector||'?'} | Segment: ${bedrijf.segment||'?'}
-Medewerkers: ${bedrijf.medewerkers_raw||'?'} | Regio: ${bedrijf.regio||'?'}
-Website: ${bedrijf.website||'geen'}
-Signalen: ${signalen}
+BEDRIJF: ${bedrijf.organisatie}
+Sector: ${bedrijf.sector||'?'} | ${bedrijf.medewerkers_raw||'?'} medewerkers | ${bedrijf.regio||'?'}
+Website: ${bedrijf.website||'geen'} | Signalen: ${signalen}
 
-Geef ALLEEN dit JSON object terug:
-{"score":<1-10>,"reden":"<één zin>","haakje":"<1-2 zinnen gespreksstarter voor mail/bel, niet beginnen met bedrijfsnaam, null als score onder 6>"}` }],
+JSON only: {"score":<1-10>,"reden":"<één zin>","haakje":"<1-2 zinnen opener voor mail/bel, null als score<6>"}` }],
     });
     const txt = response.content[0]?.text?.trim().replace(/```json|```/g,'').trim();
     return JSON.parse(txt);
@@ -92,6 +81,7 @@ Geef ALLEEN dit JSON object terug:
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
   const secret = process.env.CRON_SECRET;
   const geldig = req.headers.authorization === `Bearer ${secret}` || req.body?.secret === secret;
   if (!geldig) return res.status(401).json({ error: 'Unauthorized' });
@@ -104,48 +94,67 @@ module.exports = async function handler(req, res) {
   const verwerkt = new Set();
   const start = Date.now();
 
-  // Stap 1: Claude bepaalt de zoekstrategie op basis van focusgebied
+  // Stap 1: Claude bepaalt zoekstrategie
   const strategie = await bepaalZoekStrategie(opdrachtgever, focusgebied);
-  const zoekGemeenten = strategie?.gemeenten?.length ? strategie.gemeenten : GEMEENTEN.slice(0, 5);
   const zoekSBI = strategie?.sbi_codes?.length ? strategie.sbi_codes : null;
+  const zoekGemeenten = strategie?.gemeenten?.length ? strategie.gemeenten : GEMEENTEN.slice(0,5);
   const minMedewerkers = strategie?.min_medewerkers || 10;
 
-  console.log(`[Search] ${zoekGemeenten.length} gemeenten, ${zoekSBI?.length||'standaard'} SBI codes, min ${minMedewerkers} medewerkers`);
+  console.log(`[Search] SBI:${zoekSBI?.join(',')||'standaard'} Gemeenten:${zoekGemeenten.join(',')} Min:${minMedewerkers}`);
 
-  for (const gemeente of zoekGemeenten) {
-    if (resultaten.length >= DOEL || Date.now()-start > 55000) break;
-    const zoek = await zoekBedrijven(gemeente, 1);
+  // Bouw zoeklijst: als SBI codes beschikbaar, zoek per SBI+gemeente combinatie
+  const zoekLijst = [];
+  if (zoekSBI && zoekSBI.length) {
+    for (const sbi of zoekSBI.slice(0,4)) {
+      for (const gemeente of zoekGemeenten.slice(0,4)) {
+        zoekLijst.push({ gemeente, sbi });
+      }
+      zoekLijst.push({ gemeente: null, sbi }); // ook heel NL
+    }
+  } else {
+    for (const gemeente of zoekGemeenten) {
+      zoekLijst.push({ gemeente, sbi: null });
+    }
+  }
+
+  for (const { gemeente, sbi } of zoekLijst) {
+    if (resultaten.length >= DOEL || Date.now()-start > 50000) break;
+
+    const zoek = await zoekBedrijven(gemeente, 1, sbi);
     if (!zoek?.resultaten?.length) continue;
+    console.log(`[KvK] ${zoek.resultaten.length} resultaten — ${gemeente||'NL'} SBI:${sbi||'-'}`);
 
     for (const r of zoek.resultaten) {
-      if (resultaten.length >= DOEL || Date.now()-start > 55000) break;
+      if (resultaten.length >= DOEL || Date.now()-start > 50000) break;
       if (verwerkt.has(r.kvkNummer)) continue;
       verwerkt.add(r.kvkNummer);
+
       try {
         const profiel = await getBedrijfsProfiel(r.kvkNummer);
         await wacht(150);
         const bedrijf = parseBedrijf(r, profiel);
-        // Medewerkers filter op basis van strategie
+
         if (bedrijf.medewerkers_min > 0 && bedrijf.medewerkers_min < minMedewerkers) continue;
 
-        // SBI filter: als Claude specifieke codes heeft opgegeven, gebruik die
-        const sbiCodes = (profiel?.sbiActiviteiten || r?.sbiActiviteiten || []).map(s => String(s.sbiCode || s));
-        if (zoekSBI && zoekSBI.length) {
-          const matchSBI = sbiCodes.some(code => zoekSBI.some(s => code.startsWith(s)));
-          if (!matchSBI) continue;
-        } else {
-          if (!isSBIInteressant(profiel?.sbiActiviteiten || r?.sbiActiviteiten || [])) continue;
-        }
+        // Als we op SBI gezocht hebben, vertrouw die match — anders standaard filter
+        if (!sbi && !isSBIInteressant(profiel?.sbiActiviteiten || r?.sbiActiviteiten || [])) continue;
+
         const nL = (bedrijf.organisatie||'').toLowerCase();
         if (SKIP_NAMEN.some(s => nL.includes(s))) continue;
         if (await bestaatAl(bedrijf.kvk_nummer, bedrijf.website)) continue;
 
         let scrapeData = null;
         if (bedrijf.website) {
-          try { scrapeData = await Promise.race([scrapeWebsite(bedrijf.website), new Promise((_,rj)=>setTimeout(()=>rj(new Error('timeout')),5000))]); } catch(e){}
+          try {
+            scrapeData = await Promise.race([
+              scrapeWebsite(bedrijf.website),
+              new Promise((_,rj) => setTimeout(() => rj(new Error('timeout')), 5000))
+            ]);
+          } catch(e) {}
         }
 
         const beoordeling = await beoordeelLead(bedrijf, scrapeData, opdrachtgever, focusgebied);
+        if (beoordeling.score < 5) continue; // Skip slechte matches direct
 
         resultaten.push({
           organisatie: bedrijf.organisatie, sector: bedrijf.sector, segment: bedrijf.segment,
@@ -158,12 +167,13 @@ module.exports = async function handler(req, res) {
           notitie: `[${opdrachtgever}] ${beoordeling.haakje||beoordeling.reden||''}`,
         });
         console.log(`[+] ${bedrijf.organisatie} score:${beoordeling.score}`);
-      } catch(e) { console.warn('[fout]', r.naam, e.message); }
+      } catch(e) { console.warn('[fout]', r?.naam, e.message); }
       await wacht(200);
     }
   }
 
   resultaten.sort((a,b) => (b.score||0)-(a.score||0));
+
   return res.status(200).json({
     success: true,
     count: resultaten.length,
