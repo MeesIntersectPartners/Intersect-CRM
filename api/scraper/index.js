@@ -66,12 +66,13 @@ Wees STRENG: score 7+ alleen als het bedrijf aantoonbaar past op sector, grootte
 Het haakje moet SPECIFIEK zijn — gebaseerd op iets concreets wat je over dat bedrijf gevonden hebt. Geen generieke tekst.
 Score < 7 → haakje is null.
 
-Reageer ALLEEN met een JSON array, geen tekst eromheen:
+BEGIN DIRECT MET [ EN GEEF ALLEEN DE JSON ARRAY. GEEN TEKST ERVOOR OF ERNA.
 [{"naam":"...","website":"...","stad":"...","sector":"...","score":8,"reden":"max 10 woorden","haakje":"specifieke opener of null"}]`;
 
   const response = await anthropic.messages.create({
     model: 'claude-haiku-4-5-20251001',
-    max_tokens: 4000,
+    max_tokens: 8000,
+    system: 'Je bent een B2B sales researcher. Reageer ALTIJD met alleen een JSON array. Geen uitleg, geen tekst, geen inleiding. Begin direct met [ en eindig met ].',
     tools: [{ type: 'web_search_20250305', name: 'web_search' }],
     messages: [{ role: 'user', content: prompt }],
   });
