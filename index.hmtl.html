@@ -6105,6 +6105,18 @@ async function scraperPreviewStarten(){
     if(!data.success){ throw new Error(data.error || 'Onbekende fout'); }
 
     _scraperPreviewLeads = data.leads || [];
+
+    // Toon wat Claude heeft gezocht
+    if(data.strategie && resultDiv){
+      const s = data.strategie;
+      const strategieBanner = document.createElement('div');
+      strategieBanner.style.cssText = 'background:var(--navy-fade);border:1px solid var(--navy);border-radius:var(--r);padding:10px 14px;margin-bottom:12px;font-size:12.5px;';
+      strategieBanner.innerHTML = `<strong style="color:var(--navy);">🔍 Zoekopdracht:</strong> ${s.uitleg || ''}
+        <span style="color:var(--text3);margin-left:8px;">· SBI: ${(s.sbi_codes||[]).join(', ')} · Gemeenten: ${(s.gemeenten||[]).join(', ')}</span>`;
+      resultDiv.innerHTML = '';
+      resultDiv.appendChild(strategieBanner);
+    }
+
     renderScraperResultaten(_scraperPreviewLeads);
 
   } catch(e) {
