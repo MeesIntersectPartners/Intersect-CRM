@@ -672,6 +672,7 @@ textarea{resize:vertical;min-height:75px;}
           <th>Opdrachtgevers</th>
         </tr></thead>
         <tbody id="acc-tbody"></tbody></table>
+        <div id="dup-banner" style="display:none;gap:8px;align-items:center;padding:10px 14px;background:var(--gold-fade,#fff8e6);border:1px solid var(--gold,#d4a017);border-radius:var(--r);margin-bottom:8px;flex-wrap:wrap;"></div>
         <div class="empty" id="acc-empty" style="display:none;"><p>Geen accounts gevonden</p><button class="btn pri" style="margin-top:10px;" onclick="openAddAcc()">+ Toevoegen</button></div>
       </div>
     </div>
@@ -1349,8 +1350,8 @@ textarea{resize:vertical;min-height:75px;}
     </div>
     <div class="mf">
       <button class="btn ghost" onclick="closeM('m-event')">Annuleren</button>
-      <button class="btn" onclick="saveEventAndExport()" style="gap:5px;">Opslaan + .ics ↗</button>
-      <button class="btn pri" onclick="saveEvent()">Opslaan</button>
+      <button class="btn" id="m-event-save-ics" onclick="saveEventAndExport()" style="gap:5px;">Opslaan + .ics ↗</button>
+      <button class="btn pri" id="m-event-save" onclick="saveEvent()">Opslaan</button>
     </div>
   </div>
 </div>
@@ -1858,6 +1859,7 @@ function openDetail(id){
           <button class="btn sm" style="background:var(--gold);border-color:var(--gold);color:var(--navy);font-weight:600;" onclick="openAddEvent(${a.id})">+ Afspraak plannen</button>
           <button class="btn sm" style="background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.2);color:#fff;" onclick="openLinkModal(${a.id})">Koppelen</button>
           <button class="btn sm" style="background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.15);color:rgba(255,255,255,.7);" onclick="nav('accounts')">← Terug</button>
+          <button class="btn sm" style="background:rgba(220,38,38,.15);border-color:rgba(220,38,38,.4);color:#fca5a5;" onclick="deleteAccount(${a.id})">🗑 Verwijderen</button>
           ${a.web?`<a href="${a.web}" target="_blank" class="btn sm" style="background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.15);color:rgba(255,255,255,.7);">Website ↗</a>`:''}
         </div>
       </div>
@@ -2815,12 +2817,12 @@ function renderWeekView(evs){
         const [eh,em]=ev.time.split(':').map(Number);
         return eh===h&&Math.floor(em/15)*15===m;
       });
-      html+=`<div class="week-ev-cell${isT?' today-c':''}" onclick="openAddEventOnDate('${ds}','${timeStr}')">`;
+      html+=`<div class="week-ev-cell${isT?' today-c':''}" onclick="openAddEventOnDate('${ds}','${timeStr}')" ondragover="event.preventDefault();event.currentTarget.style.background='var(--navy-fade)'" ondragleave="event.currentTarget.style.background=''" ondrop="evDrop(event,'${ds}','${timeStr}')">`;
       slotEvs.forEach(ev=>{
         const a=accs.find(x=>x.id===ev.acc);
         const [bg,fg]=a?CLRS[a.color%CLRS.length]:['#e8f0fb','#1a5fb4'];
         const durPx=Math.max(Math.round((ev.dur||60)*PX_PER_MIN)-2,SLOT_H);
-        html+=`<div class="w-ev" style="background:${bg};color:${fg};height:${durPx}px;" onclick="event.stopPropagation();showEventPopup(event,${ev.id})">
+        html+=`<div class="w-ev" draggable="true" data-evid="${ev.id}" style="background:${bg};color:${fg};height:${durPx}px;cursor:grab;" onclick="event.stopPropagation();showEventPopup(event,${ev.id})" ondragstart="evDragStart(event,${ev.id})">
           <div style="font-size:10px;opacity:.7;">${ev.time}</div>
           <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${ev.title}</div>
           ${ev.dur>20?`<div style="font-size:9.5px;opacity:.6;">${ev.dur} min</div>`:''}
@@ -3006,7 +3008,8 @@ function showEventPopup(e,evId){
     <div style="display:flex;flex-direction:column;gap:5px;font-size:12.5px;color:var(--text2);">
       <div style="display:flex;gap:7px;align-items:center;"><span style="color:var(--text3);width:14px;">◷</span>${d}${ev.time?' · '+ev.time:''} · ${ev.dur||60} min</div>
       ${ev.loc?`<div style="display:flex;gap:7px;align-items:center;"><span style="color:var(--text3);width:14px;">⌖</span><span>${ev.loc}</span><a href="https://maps.google.com/?q=${encodeURIComponent(ev.loc)}" target="_blank" onclick="event.stopPropagation()" style="font-size:10.5px;color:var(--blue-t);text-decoration:none;margin-left:4px;">🗺</a></div>`:''}
-      ${acc?`<div style="display:flex;gap:7px;align-items:center;"><div style="width:12px;height:12px;border-radius:3px;background:${bg};flex-shrink:0;"></div>${acc.name}</div>`:''}
+      ${acc?`<div style="display:flex;gap:7px;align-items:center;"><div style="width:12px;height:12px;border-radius:3px;background:${bg};flex-shrink:0;"></div><span onclick="event.stopPropagation();document.querySelectorAll('.ev-popup').forEach(p=>p.remove());openDetail(${acc.id})" style="cursor:pointer;color:var(--blue-t);text-decoration:underline;">${acc.name}</span></div>`:''}
+      ${ev.contactName?`<div style="display:flex;gap:7px;align-items:center;"><span style="color:var(--text3);width:14px;">👤</span><span style="font-size:12.5px;">${ev.contactName}</span></div>`:''}
       ${ev.note?`<div style="font-size:11.5px;color:var(--text3);margin-top:4px;border-top:1px solid var(--border);padding-top:6px;">${ev.note}</div>`:''}
     </div>
     <div style="display:flex;gap:6px;margin-top:12px;align-items:center;">
@@ -3039,8 +3042,11 @@ function editEvent(evId){
     document.getElementById('ev-note').value=ev.note||'';
     document.querySelectorAll('#ev-type-btns button').forEach(b=>b.classList.toggle('ev-type-on',b.dataset.t===ev.type));
     document.getElementById('ev-type').value=ev.type||'Kennismaking';
+    // Edit modus: knoppen aanpassen
     const saveBtn=document.getElementById('m-event-save');
+    const saveIcsBtn=document.getElementById('m-event-save-ics');
     if(saveBtn){saveBtn.textContent='Opslaan wijzigingen';saveBtn.onclick=()=>saveEditedEvent(evId);}
+    if(saveIcsBtn)saveIcsBtn.style.display='none';
   },80);
 }
 
@@ -3062,6 +3068,43 @@ function saveEditedEvent(evId){
   closeM('m-event');
   if(document.getElementById('p-agenda').classList.contains('on'))renderAgenda();
   if(document.getElementById('p-dashboard').classList.contains('on'))renderDash();
+}
+
+// Drag & drop agenda
+let _dragEvId=null;
+function evDragStart(e,evId){
+  _dragEvId=evId;
+  e.dataTransfer.effectAllowed='move';
+  e.target.style.opacity='.5';
+  setTimeout(()=>{if(e.target)e.target.style.opacity='';},0);
+}
+function evDrop(e,date,time){
+  e.preventDefault();
+  e.currentTarget.style.background='';
+  if(!_dragEvId)return;
+  const idx=calEvents.findIndex(x=>x.id===_dragEvId);
+  if(idx<0)return;
+  calEvents[idx]={...calEvents[idx],date,time};
+  ss('ix_calev',calEvents);
+  _saveEvent(calEvents[idx]).catch(()=>{});
+  _dragEvId=null;
+  renderAgenda();
+}
+
+async function deleteAccount(accId){
+  if(!confirm('Account verwijderen? Dit verwijdert ook alle gekoppelde notities, deals en contacten.'))return;
+  accs=accs.filter(a=>a.id!==accId);
+  ss('ix_accs',accs);
+  try{
+    const H={'apikey':'sb_publishable_8BI2HQ9f0_jTnUR7Q1-B7Q_xflM7k7Q','Authorization':'Bearer sb_publishable_8BI2HQ9f0_jTnUR7Q1-B7Q_xflM7k7Q','Content-Type':'application/json'};
+    const BASE='https://wjmalzbdxbtnkyngaccw.supabase.co/rest/v1/';
+    await fetch(BASE+'notes?account_id=eq.'+accId,{method:'DELETE',headers:H});
+    await fetch(BASE+'contacts?account_id=eq.'+accId,{method:'DELETE',headers:H});
+    await fetch(BASE+'deals?account_id=eq.'+accId,{method:'DELETE',headers:H});
+    await fetch(BASE+'proposals?account_id=eq.'+accId,{method:'DELETE',headers:H});
+    await fetch(BASE+'accounts?id=eq.'+accId,{method:'DELETE',headers:H});
+  }catch(e){console.warn('deleteAccount:',e);}
+  nav('accounts');
 }
 
 function deleteEvent(evId){
@@ -3160,6 +3203,24 @@ function renderAccList(){
       else if(accSortField==='val'){return((parseFloat(accClientVal(b))||0)-(parseFloat(accClientVal(a))||0))*accSortDir;}
       return va.localeCompare(vb)*accSortDir;
     });
+  }
+
+  // Duplicaten detectie over ALLE accounts (niet alleen gefilterd)
+  const nameCounts={};
+  accs.forEach(a=>{
+    const key=a.name.trim().toLowerCase();
+    if(!nameCounts[key])nameCounts[key]=[];
+    nameCounts[key].push(a);
+  });
+  const dups=Object.values(nameCounts).filter(g=>g.length>1);
+  const dupBanner=document.getElementById('dup-banner');
+  if(dupBanner){
+    if(dups.length){
+      dupBanner.style.display='flex';
+      dupBanner.innerHTML='<span style="font-size:13px;font-weight:600;color:#92610a;">⚠ Mogelijke duplicaten: </span><span style="font-size:12.5px;color:var(--text2);">'+dups.map(g=>g.map(a=>`<span onclick="openDetail(${a.id})" style="cursor:pointer;color:var(--blue-t);text-decoration:underline;">${a.name}</span>`).join(' & ')).join(' · ')+'</span><button onclick="this.parentElement.style.display='none'" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--text3);font-size:16px;padding:0 4px;">✕</button>';
+    } else {
+      dupBanner.style.display='none';
+    }
   }
 
   const tbody=document.getElementById('acc-tbody');
@@ -3733,7 +3794,16 @@ function openAddDeal(){['d-name','d-val','d-prob','d-close','d-note'].forEach(id
 function openAddProposal(){['p-title','p-val','p-date','p-exp','p-desc'].forEach(id=>document.getElementById(id).value='');document.getElementById('p-stat').value='concept';document.getElementById('m-prop').classList.add('on');}
 function openAddTemplate(){['tpl-name','tpl-subj','tpl-body'].forEach(id=>document.getElementById(id).value='');document.getElementById('m-tpl').classList.add('on');}
 function openImport(){document.getElementById('import-preview').style.display='none';document.getElementById('import-btn').style.display='none';document.getElementById('m-import').classList.add('on');}
-function closeM(id){document.getElementById(id).classList.remove('on');}
+function closeM(id){
+  document.getElementById(id)?.classList.remove('on');
+  // Reset event modal knoppen na sluiten
+  if(id==='m-event'){
+    const saveBtn=document.getElementById('m-event-save');
+    const saveIcsBtn=document.getElementById('m-event-save-ics');
+    if(saveBtn){saveBtn.textContent='Opslaan';saveBtn.onclick=saveEvent;}
+    if(saveIcsBtn)saveIcsBtn.style.display='';
+  }
+}
 
 // ══════════════ MAIL ══════════════
 function applyTemplate(id){
