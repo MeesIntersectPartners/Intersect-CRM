@@ -13,6 +13,7 @@ try {
 }
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+function getDb() { return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY); }
 function wacht(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 async function apiCallMetRetry(fn, maxPogingen = 3) {
