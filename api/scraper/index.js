@@ -147,11 +147,14 @@ async function handleResults(req, res) {
 }
 
 module.exports = async function handler(req, res) {
+  console.log('[Handler] aangeroepen', req.method, req.url, 'body:', JSON.stringify(req.body||{}).substring(0,100));
   const secret = process.env.CRON_SECRET;
   const geldig = req.headers.authorization===`Bearer ${secret}` || req.body?.secret===secret || req.query?.secret===secret;
+  console.log('[Auth] geldig:', geldig, 'secret aanwezig:', !!secret);
   if (!geldig) return res.status(401).json({error:'Unauthorized'});
 
   const action = req.query.action || req.body?.action;
+  console.log('[Action]', action);
   if (action==='start') return handleStart(req, res);
   if (action==='status') return handleStatus(req, res);
   if (action==='results') return handleResults(req, res);
