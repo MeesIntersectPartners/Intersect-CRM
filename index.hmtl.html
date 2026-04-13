@@ -6131,7 +6131,7 @@ async function scraperStarten(){
   // Start scraper — fire and forget, wacht NIET op response
   // De scraper draait op de achtergrond, poll checkt elke 30s of er leads zijn
   const controller = new AbortController();
-  fetch(`${SCRAPER_BASE}/index?action=start`, {
+  fetch(`${SCRAPER_BASE}/index?action=start&secret=${SCRAPER_SECRET}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ secret: SCRAPER_SECRET, opdrachtgever, focusgebied, limit }),
