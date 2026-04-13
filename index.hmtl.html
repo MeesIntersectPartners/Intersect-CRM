@@ -6085,7 +6085,7 @@ function scraperStartPoll(){
   if(_scraperPollInterval) clearInterval(_scraperPollInterval);
   _scraperPollInterval = setInterval(async()=>{
     try{
-      const r = await fetch(`${SCRAPER_BASE}/status?secret=${SCRAPER_SECRET}`);
+      const r = await fetch(`${SCRAPER_BASE}/index?action=status&secret=${SCRAPER_SECRET}`);
       const d = await r.json();
       const badge = document.getElementById('scraper-badge');
       if(d.wachtend > 0){
@@ -6126,39 +6126,57 @@ async function scraperStarten(){
   scraperSaveSettings({...s, partner: opdrachtgever, focusgebied, limit});
 
   _scraperBezig = true;
-  renderScraper(); // Toon bezig staat
+  renderScraper(); // Toon bezig staat direct
 
-  // Start scraper op achtergrond
-  fetch(`${SCRAPER_BASE}/start`, {
+  // Start scraper — fire and forget, wacht NIET op response
+  // De scraper draait op de achtergrond, poll checkt elke 30s of er leads zijn
+  const controller = new AbortController();
+  fetch(`${SCRAPER_BASE}/index?action=start`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ secret: SCRAPER_SECRET, opdrachtgever, focusgebied, limit }),
+    signal: controller.signal,
   }).then(async r => {
     const d = await r.json();
     _scraperBezig = false;
-    if(d.success){
+    if(d.success && d.opgeslagen > 0){
       toonScraperNotificatie(d.opgeslagen);
       const badge = document.getElementById('scraper-badge');
-      if(badge && d.opgeslagen > 0){ badge.style.display=''; badge.textContent=d.opgeslagen; }
+      if(badge){ badge.style.display=''; badge.textContent=d.opgeslagen; }
+    } else if(d.success) {
+      toonScraperNotificatie(0);
     }
     renderScraper();
   }).catch(e => {
-    _scraperBezig = false;
-    console.error('Scraper fout:', e);
-    renderScraper();
+    if(e.name !== 'AbortError'){
+      console.warn('Scraper melding:', e.message);
+    }
+    // Niet per se een fout — scraper kan nog draaien
+    // Poll pikt het op als er leads klaar zijn
   });
+
+  // Toon melding dat hij gestart is
+  setTimeout(()=>{
+    const container = document.getElementById('agenda-notif-container');
+    if(!container) return;
+    const n = document.createElement('div');
+    n.style.cssText='background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:var(--r-lg);padding:14px 18px;box-shadow:0 4px 20px rgba(0,0,0,.15);pointer-events:all;font-size:13px;max-width:300px;';
+    n.innerHTML=`<div style="font-weight:700;margin-bottom:4px;">⟳ Scraper gestart</div><div style="color:var(--text2);font-size:12px;">Claude is aan het zoeken voor ${opdrachtgever}. Je krijgt een melding als hij klaar is.</div>`;
+    container.appendChild(n);
+    setTimeout(()=>n.remove(), 5000);
+  }, 500);
 }
 
 async function scraperHaalResultatenOp(){
   try{
-    const r = await fetch(`${SCRAPER_BASE}/results?secret=${SCRAPER_SECRET}`);
+    const r = await fetch(`${SCRAPER_BASE}/index?action=results&secret=${SCRAPER_SECRET}`);
     const d = await r.json();
     return d.leads || [];
   }catch(e){ return []; }
 }
 
 async function scraperDoorsturen(doorsturen, afwijzen){
-  const r = await fetch(`${SCRAPER_BASE}/results`, {
+  const r = await fetch(`${SCRAPER_BASE}/index?action=results`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ secret: SCRAPER_SECRET, doorsturen, afwijzen }),
@@ -6326,7 +6344,7 @@ async function scraperBevestigen(){
       renderScraper();
       // Badge resetten
       const badge = document.getElementById('scraper-badge');
-      const status = await fetch(`${SCRAPER_BASE}/status?secret=${SCRAPER_SECRET}`).then(x=>x.json()).catch(()=>({wachtend:0}));
+      const status = await fetch(`${SCRAPER_BASE}/index?action=status&secret=${SCRAPER_SECRET}`).then(x=>x.json()).catch(()=>({wachtend:0}));
       if(badge){ if(status.wachtend > 0){ badge.style.display=''; badge.textContent=status.wachtend; } else badge.style.display='none'; }
     }
   }catch(e){
