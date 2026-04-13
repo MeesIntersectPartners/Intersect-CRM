@@ -4,11 +4,17 @@
 // POST /api/scraper?action=results (GET ook)
 // GET  /api/scraper?action=status
 
-const { zoekBedrijvenOpenKVK, parseOpenKVKBedrijf, getBedrijven } = require('../../lib/openkvk');
-const { bepaalSegment, isSBIInteressant } = require('../../lib/kvk');
-const { bestaatAl } = require('../../lib/supabase');
-const { createClient } = require('@supabase/supabase-js');
-const Anthropic = require('@anthropic-ai/sdk');
+let zoekBedrijvenOpenKVK, parseOpenKVKBedrijf, getBedrijven, bepaalSegment, isSBIInteressant, bestaatAl, createClient, Anthropic;
+try {
+  ({ zoekBedrijvenOpenKVK, parseOpenKVKBedrijf, getBedrijven } = require('../../lib/openkvk'));
+  ({ bepaalSegment, isSBIInteressant } = require('../../lib/kvk'));
+  ({ bestaatAl } = require('../../lib/supabase'));
+  ({ createClient } = require('@supabase/supabase-js'));
+  Anthropic = require('@anthropic-ai/sdk');
+  console.log('[Init] Alle modules geladen');
+} catch(e) {
+  console.error('[Init] Module laad fout:', e.message);
+}
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 function wacht(ms) { return new Promise(r => setTimeout(r, ms)); }
