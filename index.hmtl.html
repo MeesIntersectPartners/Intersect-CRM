@@ -6126,7 +6126,8 @@ async function scraperPreviewStarten(){
     renderScraperResultaten(_scraperPreviewLeads);
 
   } catch(e) {
-    if(resultDiv) resultDiv.innerHTML = `<div style="padding:20px;text-align:center;color:var(--red-t);">Fout: ${e.message}</div>`;
+    console.error('Scraper fout:', e);
+    if(resultDiv) resultDiv.innerHTML += `<div style="padding:20px;text-align:center;color:var(--red-t);">❌ Fout: ${e.message}</div>`;
   } finally {
     if(btn){ btn.disabled=false; btn.textContent='Scrape & Preview →'; }
   }
@@ -6137,7 +6138,8 @@ function renderScraperResultaten(leads){
   if(!resultDiv) return;
 
   if(!leads.length){
-    resultDiv.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3);">Geen geschikte leads gevonden. Pas het focusgebied aan.</div>';
+    // Bewaar bestaande debug banner, voeg melding eraan toe
+    resultDiv.innerHTML += '<div style="padding:20px;text-align:center;color:var(--text3);">Geen geschikte leads gevonden. Pas het focusgebied aan.</div>';
     return;
   }
 
