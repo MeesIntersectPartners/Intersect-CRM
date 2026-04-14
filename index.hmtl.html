@@ -1977,6 +1977,7 @@ function openDetail(id){
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button class="btn sm" style="background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.2);color:#fff;" onclick="openEditAcc(${a.id})">✎ Bewerken</button>
           <button class="btn sm" style="background:var(--gold);border-color:var(--gold);color:var(--navy);font-weight:600;" onclick="openAddEvent(${a.id})">+ Afspraak plannen</button>
+          <button class="btn sm" style="background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.2);color:#fff;" onclick="openLijstenPopup(${a.id})">Lijsten</button>
           <button class="btn sm" style="background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.2);color:#fff;" onclick="openLinkModal(${a.id})">Koppelen</button>
           <button class="btn sm" style="background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.15);color:rgba(255,255,255,.7);" onclick="nav('accounts')">← Terug</button>
           <button class="btn sm" style="background:rgba(220,38,38,.15);border-color:rgba(220,38,38,.4);color:#fca5a5;" onclick="deleteAccount(${a.id})">🗑 Verwijderen</button>
@@ -6349,6 +6350,75 @@ function verwijderUitLijst(lijstId, accId) {
   lijst.accounts = (lijst.accounts||[]).filter(id => id !== accId);
   _saveLijst(lijst).catch(e => console.warn('Save lijst:', e));
   renderLijsten();
+}
+
+function openLijstenPopup(accId) {
+  // Verwijder bestaande popup
+  document.getElementById('lijsten-popup')?.remove();
+
+  const a = accs.find(x => x.id === accId);
+  if (!a) return;
+
+  const popup = document.createElement('div');
+  popup.id = 'lijsten-popup';
+  popup.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:600;display:flex;align-items:center;justify-content:center;';
+
+  const renderPopupLijsten = (zoek = '') => {
+    const gefilterd = lijsten.filter(l => !zoek || l.naam.toLowerCase().includes(zoek.toLowerCase()));
+    return gefilterd.map(l => {
+      const inLijst = (l.accounts||[]).includes(accId);
+      return `<div style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--border);cursor:pointer;" onclick="lijstToggleAccount(${l.id},${accId},this)">
+        <div style="width:18px;height:18px;border-radius:4px;border:2px solid ${inLijst?'var(--navy)':'var(--border)'};background:${inLijst?'var(--navy)':'transparent'};display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          ${inLijst?'<span style="color:#fff;font-size:11px;">✓</span>':''}
+        </div>
+        <div style="flex:1;">
+          <div style="font-size:13px;font-weight:500;color:var(--text);">${l.naam}</div>
+          <div style="font-size:11px;color:var(--text3);">${(l.accounts||[]).length} accounts</div>
+        </div>
+      </div>`;
+    }).join('') || '<div style="padding:16px;text-align:center;font-size:13px;color:var(--text3);">Geen lijsten gevonden</div>';
+  };
+
+  popup.innerHTML = `
+    <div style="background:var(--surface);border-radius:var(--r-lg);width:380px;max-height:500px;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,.2);overflow:hidden;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border);">
+        <div>
+          <div style="font-size:14px;font-weight:700;color:var(--navy);">Lijsten — ${a.name}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px;">Klik om toe te voegen of te verwijderen</div>
+        </div>
+        <button onclick="document.getElementById('lijsten-popup').remove()" style="background:none;border:none;cursor:pointer;font-size:18px;color:var(--text3);">✕</button>
+      </div>
+      <div style="padding:12px 14px;border-bottom:1px solid var(--border);">
+        <input type="text" id="lijsten-popup-zoek" placeholder="Zoek lijst…" oninput="document.getElementById('lijsten-popup-list').innerHTML=window._lijstenPopupRender(this.value)" style="width:100%;font-size:13px;padding:7px 10px;">
+      </div>
+      <div id="lijsten-popup-list" style="overflow-y:auto;flex:1;">${renderPopupLijsten()}</div>
+    </div>`;
+
+  window._lijstenPopupRender = renderPopupLijsten;
+  popup.addEventListener('click', e => { if(e.target === popup) popup.remove(); });
+  document.body.appendChild(popup);
+}
+
+function lijstToggleAccount(lijstId, accId, el) {
+  const lijst = lijsten.find(l => l.id === lijstId);
+  if (!lijst) return;
+  if (!lijst.accounts) lijst.accounts = [];
+  const idx = lijst.accounts.indexOf(accId);
+  if (idx >= 0) {
+    lijst.accounts.splice(idx, 1);
+  } else {
+    lijst.accounts.push(accId);
+  }
+  _saveLijst(lijst).catch(e => console.warn('Save lijst:', e));
+  // Update UI in popup
+  const inLijst = lijst.accounts.includes(accId);
+  const box = el.querySelector('div');
+  if (box) {
+    box.style.borderColor = inLijst ? 'var(--navy)' : 'var(--border)';
+    box.style.background = inLijst ? 'var(--navy)' : 'transparent';
+    box.innerHTML = inLijst ? '<span style="color:#fff;font-size:11px;">✓</span>' : '';
+  }
+  el.nextElementSibling?.querySelector?.('.text-xs')?.remove?.();
 }
 
 // Lijsten veld in account modal
