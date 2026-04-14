@@ -6096,25 +6096,27 @@ function scraperStartPoll(){
       } else {
         if(badge) badge.style.display='none';
       }
+      // Filter job voor huidige gebruiker
+      const mijnJob = (d.jobs||[]).find(j => j.gebruiker === CU);
       // Als er een actieve job is en wij niet bezig zijn — herstart automatisch
-      if(d.job && d.job.status === 'bezig' && !_scraperBezig){
-        console.log(`[Poll] Job hervat: ${d.job.gevonden}/${d.job.target}`);
+      if(mijnJob && mijnJob.status === 'bezig' && !_scraperBezig){
+        console.log(`[Poll] Job hervat: ${mijnJob.gevonden}/${mijnJob.target}`);
         _scraperBezig = true;
-        _scraperJobId = d.job.id;
-        _scraperTarget = d.job.target;
-        _scraperTotaal = d.job.gevonden;
+        _scraperJobId = mijnJob.id;
+        _scraperTarget = mijnJob.target;
+        _scraperTotaal = mijnJob.gevonden;
         renderScraper();
-        scraperHervat(d.job);
+        scraperHervat(mijnJob);
         return;
       }
       // Voortgang tonen in bezig-banner
-      if(_scraperBezig && d.job){
-        _scraperTotaal = d.job.gevonden;
+      if(_scraperBezig && mijnJob){
+        _scraperTotaal = mijnJob.gevonden;
         const banner = document.getElementById('sc-voortgang');
-        if(banner) banner.textContent = `${d.job.gevonden}/${d.job.target} gevonden...`;
+        if(banner) banner.textContent = `${mijnJob.gevonden}/${mijnJob.target} gevonden...`;
       }
       // Klaar melding
-      if(_scraperBezig && (!d.job || d.job.status === 'klaar')){
+      if(_scraperBezig && (!mijnJob || mijnJob.status === 'klaar')){
         _scraperBezig = false;
         toonScraperNotificatie(d.wachtend, _scraperTotaal, _scraperTarget);
         renderScraper();
@@ -6134,6 +6136,7 @@ async function scraperHervat(job){
         focusgebied: job.focusgebied,
         limit: job.target,
         job_id: job.id,
+        gebruiker: job.gebruiker || CU,
       }),
     });
     const d = await r.json();
@@ -6189,7 +6192,7 @@ async function scraperStarten(){
   fetch(`${SCRAPER_BASE}/index?action=start&secret=${SCRAPER_SECRET}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ secret: SCRAPER_SECRET, opdrachtgever, focusgebied, limit }),
+    body: JSON.stringify({ secret: SCRAPER_SECRET, opdrachtgever, focusgebied, limit, gebruiker: CU }),
   }).then(async r => {
     const d = await r.json();
     _scraperTotaal = d.totaal || 0;
