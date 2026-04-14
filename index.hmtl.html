@@ -1063,7 +1063,7 @@ textarea{resize:vertical;min-height:75px;}
 <!-- ADD CONTACT MODAL -->
 <div class="modal-bg" id="m-contact">
   <div class="modal">
-    <div class="mh"><span class="mt">Contactpersoon toevoegen</span><button class="btn sm ghost" onclick="closeM('m-contact')">✕</button></div>
+    <div class="mh"><span class="mt" id="m-contact-title">Contactpersoon toevoegen</span><button class="btn sm ghost" onclick="closeM('m-contact')">✕</button></div>
     <div class="mb">
       <div class="fr">
         <div class="fg"><label class="fl">Voornaam *</label><input type="text" id="c-first"></div>
@@ -1073,13 +1073,26 @@ textarea{resize:vertical;min-height:75px;}
         <div class="fg"><label class="fl">Functie</label><input type="text" id="c-role"></div>
         <div class="fg"><label class="fl">Afdeling</label><input type="text" id="c-dept"></div>
       </div>
-      <div class="fg"><label class="fl">E-mail</label><input type="email" id="c-email"></div>
-      <div class="fr">
-        <div class="fg"><label class="fl">Telefoon</label><input type="tel" id="c-phone"></div>
-        <div class="fg"><label class="fl">LinkedIn profiel</label><input type="text" id="c-li" placeholder="linkedin.com/in/naam"></div>
+      <div class="fg">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+          <label class="fl" style="margin:0;">E-mail <span style="font-size:10px;color:var(--text3);font-weight:400;">— eerste is primair</span></label>
+          <button class="btn xs ghost" onclick="contactVoegEmailToe()" id="c-email-add-btn">+ E-mail</button>
+        </div>
+        <input type="email" id="c-email" placeholder="primair e-mailadres" style="margin-bottom:6px;">
+        <input type="email" id="c-email2" placeholder="tweede e-mailadres" style="display:none;">
       </div>
+      <div class="fg">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+          <label class="fl" style="margin:0;">Telefoon <span style="font-size:10px;color:var(--text3);font-weight:400;">— eerste is primair</span></label>
+          <button class="btn xs ghost" onclick="contactVoegTelefoonToe()" id="c-phone-add-btn">+ Telefoon</button>
+        </div>
+        <input type="tel" id="c-phone" placeholder="primair telefoonnummer" style="margin-bottom:6px;">
+        <input type="tel" id="c-phone2" placeholder="tweede telefoonnummer" style="display:none;">
+      </div>
+      <div class="fg"><label class="fl">LinkedIn profiel</label><input type="text" id="c-li" placeholder="linkedin.com/in/naam"></div>
       <div class="fg"><label class="fl">LinkedIn connecties <span style="font-weight:400;color:var(--text3);font-size:11px;">— interessante mensen via hen</span></label><textarea id="c-connections" style="min-height:55px;" placeholder="bijv. Jan de Vries (CEO BlueStar), Peter Klaassen (CFO TechCo)…"></textarea></div>
       <div class="fg"><label class="fl">Notitie</label><textarea id="c-note" style="min-height:60px;"></textarea></div>
+      <input type="hidden" id="c-edit-id" value="">
     </div>
     <div class="mf"><button class="btn ghost" onclick="closeM('m-contact')">Annuleren</button><button class="btn pri" onclick="saveContact()">Opslaan</button></div>
   </div>
@@ -1578,7 +1591,7 @@ function _mapNote(r){
   if(r.chat){try{chat=typeof r.chat==='string'?JSON.parse(r.chat):r.chat;}catch(e){chat=null;}}
   return{id:r.id,_sbId:r.id,text:r.text,type:r.type||'notitie',by:r.created_by||'MA',contact:r.contact||null,chat,dur:r.dur||null,time:new Date(r.created_at).toLocaleDateString('nl-NL',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})};
 }
-function _mapContact(r){return{id:r.id,first:r.first_name||'',last:r.last_name||'',role:r.role||'',dept:r.department||'',email:r.email||'',phone:r.phone||'',li:r.linkedin||'',note:r.note||''};}
+function _mapContact(r){return{id:r.id,first:r.first_name||'',last:r.last_name||'',role:r.role||'',dept:r.department||'',email:r.email||'',email2:r.email2||'',phone:r.phone||'',phone2:r.phone2||'',li:r.linkedin||'',note:r.note||''};}
 function _mapDeal(r){return{id:r.id,name:r.name,val:r.value?String(r.value):'',prob:String(r.probability||50),stage:r.stage||'',close:r.close_date||'',note:r.note||''};}
 function _mapProp(r){return{id:r.id,title:r.title,val:r.value?String(r.value):'',stat:r.status||'concept',date:r.sent_date||'',exp:r.expiry_date||'',desc:r.description||''};}
 
@@ -1734,8 +1747,13 @@ async function _saveNote(accId,note){
   }
 }
 async function _saveContact(accId,c){
-  const[r]=await _sbPost('contacts',{account_id:accId,first_name:c.first||'',last_name:c.last||'',role:c.role||'',department:c.dept||'',email:c.email||'',phone:c.phone||'',linkedin:c.li||'',note:c.note||''});
-  c.id=r.id;
+  const d={account_id:accId,first_name:c.first||'',last_name:c.last||'',role:c.role||'',department:c.dept||'',email:c.email||'',email2:c.email2||'',phone:c.phone||'',phone2:c.phone2||'',linkedin:c.li||'',note:c.note||''};
+  if(c.id && typeof c.id==='number' && c.id < 2000000000){
+    await _sbPatch('contacts',c.id,d);
+  } else {
+    const[r]=await _sbPost('contacts',d);
+    c.id=r.id;
+  }
 }
 async function _saveDeal(accId,d){
   const[r]=await _sbPost('deals',{account_id:accId,name:d.name,value:parseFloat(d.val)||null,probability:parseInt(d.prob)||50,stage:d.stage||'Verkenning',close_date:d.close||null,note:d.note||''});
@@ -2030,12 +2048,15 @@ function renderTab(t){
             </div>
             <div class="cc-role">${ct.role||''}${ct.dept?' · '+ct.dept:''}</div>
             <div class="cc-links">
-              ${ct.email?`<a href="mailto:${ct.email}" class="cc-link">✉ ${ct.email}</a>`:''}
-              ${ct.phone?`<span style="font-size:11.5px;color:var(--text2);">${ct.phone}</span>`:''}
+              ${ct.email?`<a href="mailto:${ct.email}" class="cc-link">✉ ${ct.email}${!ct._primary?'<span style=\'font-size:10px;color:var(--text3);margin-left:3px;\'>primair</span>':''}</a>`:''}
+              ${ct.email2?`<a href="mailto:${ct.email2}" class="cc-link">✉ ${ct.email2}</a>`:''}
+              ${ct.phone?`<span style="font-size:11.5px;color:var(--text2);">${ct.phone}${!ct._primary?'<span style=\'font-size:10px;color:var(--text3);margin-left:3px;\'>primair</span>':''}</span>`:''}
+              ${ct.phone2?`<span style="font-size:11.5px;color:var(--text2);">${ct.phone2}</span>`:''}
               ${ct.li?`<a href="https://${ct.li}" target="_blank" class="cc-link">LinkedIn</a>`:''}
             </div>
             ${ct.connections?`<div style="font-size:11.5px;color:var(--text2);margin-top:5px;"><span style="font-weight:600;color:var(--text3);">Connecties:</span> ${ct.connections}</div>`:''}
             ${ct.note?`<div style="font-size:11.5px;color:var(--text3);margin-top:4px;">${ct.note}</div>`:''}
+            ${!ct._primary?`<button class="btn xs ghost" style="margin-top:8px;" onclick="event.stopPropagation();openEditContact(${ct.id})">Bewerken</button>`:''}
           </div>
         </div>`).join(''):`<div class="empty"><p>Nog geen contacten</p></div>`}`;
   }
@@ -3589,8 +3610,26 @@ function saveContact(){
   const last=document.getElementById('c-last').value.trim();
   if(!first&&!last)return;
   if(!curAcc.contacts)curAcc.contacts=[];
-  const contact={id:Date.now(),first,last,role:document.getElementById('c-role').value.trim(),dept:document.getElementById('c-dept').value.trim(),email:document.getElementById('c-email').value.trim(),phone:document.getElementById('c-phone').value.trim(),li:document.getElementById('c-li').value.trim(),connections:document.getElementById('c-connections').value.trim(),note:document.getElementById('c-note').value.trim()};
-  curAcc.contacts.push(contact);
+  const editId=parseInt(document.getElementById('c-edit-id').value)||null;
+  const contact={
+    id: editId || Date.now(),
+    first, last,
+    role:document.getElementById('c-role').value.trim(),
+    dept:document.getElementById('c-dept').value.trim(),
+    email:document.getElementById('c-email').value.trim(),
+    email2:document.getElementById('c-email2').value.trim(),
+    phone:document.getElementById('c-phone').value.trim(),
+    phone2:document.getElementById('c-phone2').value.trim(),
+    li:document.getElementById('c-li').value.trim(),
+    connections:document.getElementById('c-connections').value.trim(),
+    note:document.getElementById('c-note').value.trim()
+  };
+  if(editId){
+    const ci=curAcc.contacts.findIndex(c=>c.id===editId);
+    if(ci>-1)curAcc.contacts[ci]=contact;
+  } else {
+    curAcc.contacts.push(contact);
+  }
   const idx=accs.findIndex(a=>a.id===curAcc.id);
   accs[idx]=curAcc;ss('ix_accs',accs);
   _saveContact(curAcc.id,contact).then(()=>{
@@ -3848,7 +3887,51 @@ function openQuickNote(type){
   document.getElementById('m-note-sub').textContent = curAcc.name;
   document.getElementById('m-note').classList.add('on');
 }
-function openAddContact(){['c-first','c-last','c-role','c-dept','c-email','c-phone','c-li','c-connections','c-note'].forEach(id=>document.getElementById(id).value='');document.getElementById('m-contact').classList.add('on');}
+function openAddContact(){
+  ['c-first','c-last','c-role','c-dept','c-email','c-email2','c-phone','c-phone2','c-li','c-connections','c-note'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('c-edit-id').value='';
+  document.getElementById('c-email2').style.display='none';
+  document.getElementById('c-phone2').style.display='none';
+  document.getElementById('c-email-add-btn').style.display='';
+  document.getElementById('c-phone-add-btn').style.display='';
+  document.getElementById('m-contact-title').textContent='Contactpersoon toevoegen';
+  document.getElementById('m-contact').classList.add('on');
+}
+
+function openEditContact(cId){
+  const ct=curAcc.contacts.find(c=>c.id===cId);
+  if(!ct)return;
+  document.getElementById('c-first').value=ct.first||'';
+  document.getElementById('c-last').value=ct.last||'';
+  document.getElementById('c-role').value=ct.role||'';
+  document.getElementById('c-dept').value=ct.dept||'';
+  document.getElementById('c-email').value=ct.email||'';
+  document.getElementById('c-email2').value=ct.email2||'';
+  document.getElementById('c-phone').value=ct.phone||'';
+  document.getElementById('c-phone2').value=ct.phone2||'';
+  document.getElementById('c-li').value=ct.li||'';
+  document.getElementById('c-connections').value=ct.connections||'';
+  document.getElementById('c-note').value=ct.note||'';
+  document.getElementById('c-edit-id').value=cId;
+  document.getElementById('c-email2').style.display=ct.email2?'':'none';
+  document.getElementById('c-phone2').style.display=ct.phone2?'':'none';
+  document.getElementById('c-email-add-btn').style.display=ct.email2?'none':'';
+  document.getElementById('c-phone-add-btn').style.display=ct.phone2?'none':'';
+  document.getElementById('m-contact-title').textContent='Contactpersoon bewerken';
+  document.getElementById('m-contact').classList.add('on');
+}
+
+function contactVoegEmailToe(){
+  document.getElementById('c-email2').style.display='';
+  document.getElementById('c-email-add-btn').style.display='none';
+  document.getElementById('c-email2').focus();
+}
+
+function contactVoegTelefoonToe(){
+  document.getElementById('c-phone2').style.display='';
+  document.getElementById('c-phone-add-btn').style.display='none';
+  document.getElementById('c-phone2').focus();
+}
 function openAddDeal(){['d-name','d-val','d-prob','d-close','d-note'].forEach(id=>document.getElementById(id).value='');document.getElementById('d-stage').value='Verkenning';document.getElementById('m-deal').classList.add('on');}
 function openAddProposal(){['p-title','p-val','p-date','p-exp','p-desc'].forEach(id=>document.getElementById(id).value='');document.getElementById('p-stat').value='concept';document.getElementById('m-prop').classList.add('on');}
 function openAddTemplate(){['tpl-name','tpl-subj','tpl-body'].forEach(id=>document.getElementById(id).value='');document.getElementById('m-tpl').classList.add('on');}
