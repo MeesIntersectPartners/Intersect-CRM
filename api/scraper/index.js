@@ -133,7 +133,7 @@ Geef ALLEEN de JSON array:`
 }
 
 async function handleStart(req, res) {
-  const { opdrachtgever, focusgebied, limit = 20, job_id } = req.body || {};
+  const { opdrachtgever, focusgebied, limit = 20, job_id, gebruiker = 'MA' } = req.body || {};
   if (!opdrachtgever || !focusgebied) {
     return res.status(400).json({ error: 'opdrachtgever en focusgebied verplicht' });
   }
@@ -153,7 +153,7 @@ async function handleStart(req, res) {
   if (!job) {
     // Kijk of er al een actieve job is voor deze opdrachtgever
     const { data: bestaandeJob } = await db.from('scraper_jobs')
-      .select('*').eq('opdrachtgever', opdrachtgever).eq('status', 'bezig').maybeSingle();
+      .select('*').eq('opdrachtgever', opdrachtgever).eq('status', 'bezig').eq('gebruiker', gebruiker).maybeSingle();
 
     if (bestaandeJob && bestaandeJob.target === TARGET) {
       job = bestaandeJob;
@@ -161,7 +161,7 @@ async function handleStart(req, res) {
     } else {
       // Sluit eventuele oude jobs
       await db.from('scraper_jobs').update({ status: 'gestopt' })
-        .eq('opdrachtgever', opdrachtgever).eq('status', 'bezig');
+        .eq('opdrachtgever', opdrachtgever).eq('status', 'bezig').eq('gebruiker', gebruiker);
 
       // Haal opdrachtgever info
       const { data: klant } = await db.from('accounts')
@@ -171,6 +171,7 @@ async function handleStart(req, res) {
         opdrachtgever, focusgebied,
         opdrachtgever_info: klant?.note || '',
         target: TARGET, gevonden: 0, status: 'bezig',
+        gebruiker,
       }).select().single();
       job = nieuweJob;
       console.log(`[Job] Nieuwe job ${job.id} — target: ${TARGET}`);
@@ -295,13 +296,13 @@ async function handleSaveOpdrachtgever(req, res) {
 
 async function handleStatus(req, res) {
   const db = getDb();
-  const [{ count }, { data: actieveJob }] = await Promise.all([
+  const [{ count }, actieveJobs] = await Promise.all([
     db.from('scraper_results').select('*', { count: 'exact', head: true }).eq('status', 'ter_beoordeling'),
-    db.from('scraper_jobs').select('*').eq('status', 'bezig').order('created_at', { ascending: false }).limit(1).maybeSingle(),
+    db.from('scraper_jobs').select('*').eq('status', 'bezig').order('created_at', { ascending: false }).limit(10),
   ]);
   return res.status(200).json({
     wachtend: count || 0,
-    job: actieveJob || null,
+    jobs: actieveJobs?.data || [],
   });
 }
 
