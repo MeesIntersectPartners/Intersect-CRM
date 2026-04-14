@@ -4020,9 +4020,9 @@ function loadDetTemplate(){
   const id=parseInt(sel.value);if(!id)return;
   const tpl=templates.find(t=>t.id===id);
   if(!tpl||!curAcc)return;
-  const name=[curAcc.cf,curAcc.cl].filter(Boolean).join(' ');
-  document.getElementById('det-mail-subj').value=tpl.subj.replace(/\[bedrijf\]/g,curAcc.name).replace(/\[naam\]/g,name||curAcc.name);
-  document.getElementById('det-mail-body').value=tpl.body.replace(/\[bedrijf\]/g,curAcc.name).replace(/\[naam\]/g,name||curAcc.name);
+  const voornaam=curAcc.cf||[curAcc.cf,curAcc.cl].filter(Boolean).join(' ')||curAcc.name;
+  document.getElementById('det-mail-subj').value=tpl.subj.replace(/\[bedrijf\]/g,curAcc.name).replace(/\[naam\]/g,voornaam);
+  document.getElementById('det-mail-body').value=tpl.body.replace(/\[bedrijf\]/g,curAcc.name).replace(/\[naam\]/g,voornaam);
 }
 function sendDetMail(){
   const to=document.getElementById('det-mail-to').value;
@@ -6735,7 +6735,7 @@ async function mcVerstuur() {
   const contact = document.getElementById('mc-contact').value.trim();
   const aan = document.getElementById('mc-to').value.trim();
   const cc = document.getElementById('mc-cc').value.trim();
-  const onderwerp = document.getElementById('mc-subject').value.trim();
+  let onderwerp = document.getElementById('mc-subject').value.trim();
   const inhoudEl = document.getElementById('mc-body');
   let inhoud = inhoudEl.innerHTML.trim();
 
@@ -6745,10 +6745,12 @@ async function mcVerstuur() {
   if (!onderwerp) { alert('Vul een onderwerp in.'); return; }
   if (!inhoud) { alert('Schrijf een bericht.'); return; }
 
-  // Vervang [naam] en [bedrijf]
-  const contactNaam = curAcc ? [curAcc.cf, curAcc.cl].filter(Boolean).join(' ') : '';
-  inhoud = inhoud.replace(/\[naam\]/gi, contactNaam || '[naam]');
-  inhoud = inhoud.replace(/\[bedrijf\]/gi, curAcc ? curAcc.name : '[bedrijf]');
+  // Vervang [naam] (voornaam) en [bedrijf]
+  const contactVoornaam = curAcc ? (curAcc.cf || [curAcc.cf, curAcc.cl].filter(Boolean).join(' ') || curAcc.name) : '';
+  const bedrijfNaam = curAcc ? curAcc.name : '';
+  onderwerp = onderwerp.replace(/\[naam\]/gi, contactVoornaam || '[naam]').replace(/\[bedrijf\]/gi, bedrijfNaam || '[bedrijf]');
+  inhoud = inhoud.replace(/\[naam\]/gi, contactVoornaam || '[naam]');
+  inhoud = inhoud.replace(/\[bedrijf\]/gi, bedrijfNaam || '[bedrijf]');
 
   const btn = document.getElementById('mc-send-btn');
   btn.textContent = 'Versturen…';
