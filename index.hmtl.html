@@ -2056,7 +2056,7 @@ function renderTab(t){
             </div>
             ${ct.connections?`<div style="font-size:11.5px;color:var(--text2);margin-top:5px;"><span style="font-weight:600;color:var(--text3);">Connecties:</span> ${ct.connections}</div>`:''}
             ${ct.note?`<div style="font-size:11.5px;color:var(--text3);margin-top:4px;">${ct.note}</div>`:''}
-            ${!ct._primary?`<button class="btn xs ghost" style="margin-top:8px;" onclick="event.stopPropagation();openEditContact(${ct.id})">Bewerken</button>`:''}
+            ${!ct._primary?`<button class="btn xs ghost" style="margin-top:8px;" onclick="event.stopPropagation();openEditContact(${ct.id})">Bewerken</button>`:`<button class="btn xs ghost" style="margin-top:8px;" onclick="event.stopPropagation();openEditPrimaryContact()">Bewerken</button>`}
           </div>
         </div>`).join(''):`<div class="empty"><p>Nog geen contacten</p></div>`}`;
   }
@@ -3611,6 +3611,20 @@ function saveContact(){
   if(!first&&!last)return;
   if(!curAcc.contacts)curAcc.contacts=[];
   const editId=parseInt(document.getElementById('c-edit-id').value)||null;
+  const editRaw=document.getElementById('c-edit-id').value;
+
+  // Primaire contactpersoon bewerken — sla op in account
+  if(editRaw==='_primary'){
+    curAcc.cf=first;
+    curAcc.cl=last;
+    curAcc.cr=document.getElementById('c-role').value.trim();
+    curAcc.cp=document.getElementById('c-phone').value.trim();
+    curAcc.ce=document.getElementById('c-email').value.trim();
+    const idx2=accs.findIndex(a=>a.id===curAcc.id);
+    accs[idx2]=curAcc;ss('ix_accs',accs);
+    _saveAcc(curAcc).then(()=>{ closeM('m-contact'); renderTab('contacts'); });
+    return;
+  }
   const contact={
     id: editId || Date.now(),
     first, last,
@@ -3931,6 +3945,28 @@ function contactVoegTelefoonToe(){
   document.getElementById('c-phone2').style.display='';
   document.getElementById('c-phone-add-btn').style.display='none';
   document.getElementById('c-phone2').focus();
+}
+
+function openEditPrimaryContact(){
+  if(!curAcc)return;
+  document.getElementById('c-first').value=curAcc.cf||'';
+  document.getElementById('c-last').value=curAcc.cl||'';
+  document.getElementById('c-role').value=curAcc.cr||'';
+  document.getElementById('c-dept').value='';
+  document.getElementById('c-email').value=curAcc.ce||'';
+  document.getElementById('c-email2').value='';
+  document.getElementById('c-phone').value=curAcc.cp||'';
+  document.getElementById('c-phone2').value='';
+  document.getElementById('c-li').value='';
+  document.getElementById('c-connections').value='';
+  document.getElementById('c-note').value='';
+  document.getElementById('c-edit-id').value='_primary';
+  document.getElementById('c-email2').style.display='none';
+  document.getElementById('c-phone2').style.display='none';
+  document.getElementById('c-email-add-btn').style.display='';
+  document.getElementById('c-phone-add-btn').style.display='';
+  document.getElementById('m-contact-title').textContent='Primaire contactpersoon bewerken';
+  document.getElementById('m-contact').classList.add('on');
 }
 function openAddDeal(){['d-name','d-val','d-prob','d-close','d-note'].forEach(id=>document.getElementById(id).value='');document.getElementById('d-stage').value='Verkenning';document.getElementById('m-deal').classList.add('on');}
 function openAddProposal(){['p-title','p-val','p-date','p-exp','p-desc'].forEach(id=>document.getElementById(id).value='');document.getElementById('p-stat').value='concept';document.getElementById('m-prop').classList.add('on');}
