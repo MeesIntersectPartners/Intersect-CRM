@@ -1580,7 +1580,7 @@ async function _sbUpsert(t,d,conflict){
 }
 
 // ── DATA MAPPERS ──────────────────────────────
-function _mapAcc(r){return{id:r.id,name:r.name,status:r.status||'lead',sector:r.sector||'',seg:r.segment||'',web:r.website||'',li:r.linkedin||'',phone:r.phone||'',kvk:r.kvk||'',addr:r.address||'',addrUrl:r.address_url||'',pipe:r.pipeline_stage||'Nieuw',val:r.value?String(r.value):'',owner:r.owner||'MA',note:r.note||'',color:r.color_index||0,added:r.added_date||'',cf:r.contact_first||'',cl:r.contact_last||'',cr:r.contact_role||'',cp:r.contact_phone||'',ce:r.contact_email||'',contacts:[],deals:[],proposals:[],notes:[],docs:[],clientLinks:{}};}
+function _mapAcc(r){return{id:r.id,name:r.name,status:r.status||'lead',sector:r.sector||'',seg:r.segment||'',web:r.website||'',li:r.linkedin||'',phone:r.phone||'',kvk:r.kvk||'',addr:r.address||'',addrUrl:r.address_url||'',pipe:r.pipeline_stage||'Nieuw',val:r.value?String(r.value):'',owner:r.owner||'MA',note:r.note||'',color:r.color_index||0,added:r.added_date||'',cf:r.contact_first||'',cl:r.contact_last||'',cr:r.contact_role||'',cp:r.contact_phone||'',ce:r.contact_email||'',cli:r.contact_linkedin||'',ce2:r.contact_email2||'',cp2:r.contact_phone2||'',contacts:[],deals:[],proposals:[],notes:[],docs:[],clientLinks:{}};}
 function _mapTodo(r){return{id:r.id,title:r.title,done:r.done||false,prio:r.priority||'medium',due:r.due_date||'',acc:r.account_id||null,owner:r.owner||'MA',auto:r.is_auto||false,ruleId:r.rule_id||null,clientId:r.client_id||null,doneDate:r.done_date||null};}
 function _mapEv(r){return{id:r.id,_sbId:r.id,title:r.title,type:r.type||'Kennismaking',date:r.event_date,time:r.start_time||'',dur:r.duration_minutes||60,loc:r.location||'',acc:r.account_id||null,owner:r.owner||'MA',note:r.note||'',contactName:r.contact_name||'',contactEmail:r.contact_email||''};}
 function _mapClient(r){return{id:r.id,name:r.name,sector:r.sector||'',contact:r.contact_person||'',email:r.email||'',color:r.color||'#0d1f3c',note:r.note||''};}
@@ -1669,7 +1669,7 @@ async function _loadFromSupabase(){
 
 // ── SUPABASE SAVE HELPERS ─────────────────────
 async function _saveAcc(a){
-  const d={name:a.name,status:a.status,sector:a.sector||'',segment:a.seg||'',website:a.web||'',linkedin:a.li||'',phone:a.phone||'',kvk:a.kvk||'',address:a.addr||'',address_url:a.addrUrl||'',pipeline_stage:a.pipe||'Nieuw',value:parseFloat(a.val)||null,owner:a.owner||'MA',note:a.note||'',color_index:a.color||0,added_date:a.added||new Date().toISOString().split('T')[0],contact_first:a.cf||'',contact_last:a.cl||'',contact_role:a.cr||'',contact_phone:a.cp||'',contact_email:a.ce||''};
+  const d={name:a.name,status:a.status,sector:a.sector||'',segment:a.seg||'',website:a.web||'',linkedin:a.li||'',phone:a.phone||'',kvk:a.kvk||'',address:a.addr||'',address_url:a.addrUrl||'',pipeline_stage:a.pipe||'Nieuw',value:parseFloat(a.val)||null,owner:a.owner||'MA',note:a.note||'',color_index:a.color||0,added_date:a.added||new Date().toISOString().split('T')[0],contact_first:a.cf||'',contact_last:a.cl||'',contact_role:a.cr||'',contact_phone:a.cp||'',contact_email:a.ce||'',contact_linkedin:a.cli||'',contact_email2:a.ce2||'',contact_phone2:a.cp2||''};
   let id=a.id;
   if(id&&typeof id==='number'&&id<2000000000){await _sbPatch('accounts',id,d);}
   else{const[r]=await _sbPost('accounts',d);id=r.id;a.id=id;}
@@ -2033,32 +2033,48 @@ function renderTab(t){
       </div>` : ''}`;
   }
   else if(t==='contacts'){
-    const all=[...(a.cf?[{id:0,first:a.cf,last:a.cl,role:a.cr,dept:'',email:a.ce,phone:a.cp,li:'',note:'Primaire contactpersoon',_primary:true}]:[]),...(a.contacts||[])];
+    const all=[...(a.cf?[{id:0,first:a.cf,last:a.cl,role:a.cr,dept:'',email:a.ce,email2:a.ce2||'',phone:a.cp,phone2:a.cp2||'',li:a.cli||'',note:'',_primary:true}]:[]),...(a.contacts||[])];
     c.innerHTML=`
       <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
         <button class="btn pri sm" onclick="openAddContact()">+ Contactpersoon</button>
       </div>
-      ${all.length?all.map(ct=>`
-        <div class="cc" style="margin-bottom:8px;">
-          <div class="av" style="background:${CLRS[a.color%CLRS.length][0]};color:${CLRS[a.color%CLRS.length][1]};width:38px;height:38px;font-size:13px;">${initials(ct.first+' '+ct.last)}</div>
-          <div class="cc-body">
-            <div style="display:flex;align-items:center;gap:7px;">
-              <div class="cc-name">${ct.first} ${ct.last}</div>
-              ${ct._primary?`<span class="tag" style="font-size:10px;">primair</span>`:''}
+      ${all.length?all.map((ct,ci)=>{
+        const cid='ct-detail-'+ci;
+        return `
+        <div style="border:1px solid var(--border);border-radius:var(--r-lg);margin-bottom:8px;overflow:hidden;background:var(--surface);">
+          <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;" onclick="const el=document.getElementById('${cid}');const open=el.style.display==='block';el.style.display=open?'none':'block';this.querySelector('.ct-chev').textContent=open?'▸':'▾';">
+            <div class="av" style="background:${CLRS[a.color%CLRS.length][0]};color:${CLRS[a.color%CLRS.length][1]};width:36px;height:36px;font-size:13px;flex-shrink:0;">${initials(ct.first+' '+ct.last)}</div>
+            <div style="flex:1;min-width:0;">
+              <div style="display:flex;align-items:center;gap:7px;margin-bottom:2px;">
+                <span style="font-size:14px;font-weight:600;color:var(--text);">${ct.first} ${ct.last}</span>
+                ${ct._primary?`<span class="tag" style="font-size:10px;">primair</span>`:''}
+              </div>
+              <div style="font-size:12px;color:var(--text2);">${ct.role||''}${ct.dept?' · '+ct.dept:''}</div>
+              <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:3px;">
+                ${ct.email?`<span style="font-size:12px;color:var(--text3);">✉ ${ct.email}</span>`:''}
+                ${ct.phone?`<span style="font-size:12px;color:var(--text3);">📞 ${ct.phone}</span>`:''}
+              </div>
             </div>
-            <div class="cc-role">${ct.role||''}${ct.dept?' · '+ct.dept:''}</div>
-            <div class="cc-links">
-              ${ct.email?`<a href="mailto:${ct.email}" class="cc-link">✉ ${ct.email}${!ct._primary?'<span style=\'font-size:10px;color:var(--text3);margin-left:3px;\'>primair</span>':''}</a>`:''}
-              ${ct.email2?`<a href="mailto:${ct.email2}" class="cc-link">✉ ${ct.email2}</a>`:''}
-              ${ct.phone?`<span style="font-size:11.5px;color:var(--text2);">${ct.phone}${!ct._primary?'<span style=\'font-size:10px;color:var(--text3);margin-left:3px;\'>primair</span>':''}</span>`:''}
-              ${ct.phone2?`<span style="font-size:11.5px;color:var(--text2);">${ct.phone2}</span>`:''}
-              ${ct.li?`<a href="https://${ct.li}" target="_blank" class="cc-link">LinkedIn</a>`:''}
-            </div>
-            ${ct.connections?`<div style="font-size:11.5px;color:var(--text2);margin-top:5px;"><span style="font-weight:600;color:var(--text3);">Connecties:</span> ${ct.connections}</div>`:''}
-            ${ct.note?`<div style="font-size:11.5px;color:var(--text3);margin-top:4px;">${ct.note}</div>`:''}
-            ${!ct._primary?`<button class="btn xs ghost" style="margin-top:8px;" onclick="event.stopPropagation();openEditContact(${ct.id})">Bewerken</button>`:`<button class="btn xs ghost" style="margin-top:8px;" onclick="event.stopPropagation();openEditPrimaryContact()">Bewerken</button>`}
+            <span class="ct-chev" style="font-size:11px;color:var(--text3);flex-shrink:0;">▸</span>
           </div>
-        </div>`).join(''):`<div class="empty"><p>Nog geen contacten</p></div>`}`;
+          <div id="${cid}" style="display:none;padding:14px;border-top:1px solid var(--border);background:var(--surface2);">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+              <div>
+                ${ct.email?`<div style="margin-bottom:6px;"><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">E-mail${ct.email2?' (primair)':''}</div><a href="mailto:${ct.email}" style="font-size:13px;color:var(--blue);text-decoration:none;">${ct.email}</a></div>`:''}
+                ${ct.email2?`<div style="margin-bottom:6px;"><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">E-mail 2</div><a href="mailto:${ct.email2}" style="font-size:13px;color:var(--blue);text-decoration:none;">${ct.email2}</a></div>`:''}
+              </div>
+              <div>
+                ${ct.phone?`<div style="margin-bottom:6px;"><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">Telefoon${ct.phone2?' (primair)':''}</div><span style="font-size:13px;color:var(--text);">${ct.phone}</span></div>`:''}
+                ${ct.phone2?`<div style="margin-bottom:6px;"><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">Telefoon 2</div><span style="font-size:13px;color:var(--text);">${ct.phone2}</span></div>`:''}
+              </div>
+            </div>
+            ${ct.li?`<div style="margin-bottom:8px;"><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">LinkedIn</div><a href="https://${ct.li.replace('https://','')}" target="_blank" style="font-size:13px;color:var(--blue);text-decoration:none;">${ct.li}</a></div>`:''}
+            ${ct.connections?`<div style="margin-bottom:8px;"><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">Connecties</div><div style="font-size:13px;color:var(--text2);">${ct.connections}</div></div>`:''}
+            ${ct.note?`<div style="margin-bottom:8px;"><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">Notitie</div><div style="font-size:13px;color:var(--text2);">${ct.note}</div></div>`:''}
+            <button class="btn xs ghost" onclick="event.stopPropagation();${ct._primary?'openEditPrimaryContact()':'openEditContact('+ct.id+')'}">Bewerken</button>
+          </div>
+        </div>`;
+      }).join(''):`<div class="empty"><p>Nog geen contacten</p></div>`}`;
   }
   else if(t==='deals'){
     c.innerHTML=`
@@ -3619,7 +3635,10 @@ function saveContact(){
     curAcc.cl=last;
     curAcc.cr=document.getElementById('c-role').value.trim();
     curAcc.cp=document.getElementById('c-phone').value.trim();
+    curAcc.cp2=document.getElementById('c-phone2').value.trim();
     curAcc.ce=document.getElementById('c-email').value.trim();
+    curAcc.ce2=document.getElementById('c-email2').value.trim();
+    curAcc.cli=document.getElementById('c-li').value.trim();
     const idx2=accs.findIndex(a=>a.id===curAcc.id);
     accs[idx2]=curAcc;ss('ix_accs',accs);
     _saveAcc(curAcc).then(()=>{ closeM('m-contact'); renderTab('contacts'); });
@@ -3954,17 +3973,17 @@ function openEditPrimaryContact(){
   document.getElementById('c-role').value=curAcc.cr||'';
   document.getElementById('c-dept').value='';
   document.getElementById('c-email').value=curAcc.ce||'';
-  document.getElementById('c-email2').value='';
+  document.getElementById('c-email2').value=curAcc.ce2||'';
   document.getElementById('c-phone').value=curAcc.cp||'';
-  document.getElementById('c-phone2').value='';
-  document.getElementById('c-li').value='';
+  document.getElementById('c-phone2').value=curAcc.cp2||'';
+  document.getElementById('c-li').value=curAcc.cli||'';
   document.getElementById('c-connections').value='';
   document.getElementById('c-note').value='';
   document.getElementById('c-edit-id').value='_primary';
-  document.getElementById('c-email2').style.display='none';
-  document.getElementById('c-phone2').style.display='none';
-  document.getElementById('c-email-add-btn').style.display='';
-  document.getElementById('c-phone-add-btn').style.display='';
+  document.getElementById('c-email2').style.display=curAcc.ce2?'':'none';
+  document.getElementById('c-phone2').style.display=curAcc.cp2?'':'none';
+  document.getElementById('c-email-add-btn').style.display=curAcc.ce2?'none':'';
+  document.getElementById('c-phone-add-btn').style.display=curAcc.cp2?'none':'';
   document.getElementById('m-contact-title').textContent='Primaire contactpersoon bewerken';
   document.getElementById('m-contact').classList.add('on');
 }
