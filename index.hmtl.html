@@ -6392,6 +6392,9 @@ function openLijstenPopup(accId) {
         <input type="text" id="lijsten-popup-zoek" placeholder="Zoek lijst…" oninput="document.getElementById('lijsten-popup-list').innerHTML=window._lijstenPopupRender(this.value)" style="width:100%;font-size:13px;padding:7px 10px;">
       </div>
       <div id="lijsten-popup-list" style="overflow-y:auto;flex:1;">${renderPopupLijsten()}</div>
+      <div style="padding:12px 14px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;">
+        <button class="btn pri" onclick="document.getElementById('lijsten-popup').remove()">Gereed</button>
+      </div>
     </div>`;
 
   window._lijstenPopupRender = renderPopupLijsten;
