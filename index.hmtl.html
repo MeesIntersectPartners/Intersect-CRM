@@ -753,32 +753,78 @@ textarea{resize:vertical;min-height:75px;}
     <div class="page" id="p-outreach">
       <div class="g2">
         <div>
+          <!-- Bulk selectie -->
           <div class="card" style="margin-bottom:14px;">
-            <div class="card-hd"><span class="card-title">E-mail samenstellen</span></div>
-            <div class="mail-compose">
-              <div class="mail-field">
-                <span class="mail-field-lbl">Aan</span>
-                <input type="text" id="mail-to" placeholder="Selecteer contacten of typ een e-mailadres…">
+            <div class="card-hd" style="justify-content:space-between;">
+              <span class="card-title">Selecteer ontvangers</span>
+              <span id="bulk-sel-count" style="font-size:12px;color:var(--text3);">0 geselecteerd</span>
+            </div>
+
+            <!-- Zoek + lijsten filter -->
+            <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+              <input type="text" id="bulk-zoek" placeholder="Zoek op naam…" oninput="renderBulkLijst()" style="flex:1;min-width:150px;font-size:13px;padding:6px 10px;">
+              <select id="bulk-lijst-filter" onchange="bulkSelecteerLijst()" style="font-size:13px;padding:6px 10px;">
+                <option value="">Alle accounts</option>
+              </select>
+              <button class="btn sm ghost" onclick="bulkDeselectAll()">Deselecteren</button>
+            </div>
+
+            <!-- Account lijst -->
+            <div id="bulk-list" style="max-height:360px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--r);"></div>
+          </div>
+
+          <!-- Mail samenstellen -->
+          <div class="card">
+            <div class="card-hd"><span class="card-title">Mail samenstellen</span></div>
+
+            <!-- Verzendaccount + opdrachtgever -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+              <div>
+                <label style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Verzenden via</label>
+                <select id="bulk-from" style="width:100%;font-size:13px;padding:7px 10px;"></select>
               </div>
-              <div class="mail-field">
-                <span class="mail-field-lbl">Onderwerp</span>
-                <input type="text" id="mail-subj" placeholder="Onderwerp van de e-mail…">
-              </div>
-              <div class="mail-body">
-                <textarea id="mail-body" placeholder="Schrijf hier je e-mail…&#10;&#10;Gebruik [naam] voor de naam van de contactpersoon.&#10;Gebruik [bedrijf] voor de bedrijfsnaam."></textarea>
-              </div>
-              <div class="mail-foot">
-                <button class="btn sm ghost" onclick="loadTemplate()">Template laden</button>
-                <button class="btn sm pri" onclick="sendMail()">Openen in Mail ↗</button>
+              <div>
+                <label style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Opdrachtgever</label>
+                <select id="bulk-opdrachtgever" style="width:100%;font-size:13px;padding:7px 10px;">
+                  <option value="">— geen —</option>
+                </select>
               </div>
             </div>
-          </div>
-          <div class="card">
-            <div class="card-hd"><span class="card-title">Bulk outreach</span><span style="font-size:11px;color:var(--text3);">Selecteer accounts</span></div>
-            <div id="bulk-list" style="max-height:220px;overflow-y:auto;"></div>
-            <div style="display:flex;gap:8px;margin-top:10px;justify-content:flex-end;">
-              <button class="btn sm" onclick="selectAllBulk()">Alles selecteren</button>
-              <button class="btn sm pri" onclick="bulkMail()">Mail sturen naar selectie ↗</button>
+
+            <!-- Type + template -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+              <div>
+                <label style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Type</label>
+                <select id="bulk-type" style="width:100%;font-size:13px;padding:7px 10px;">
+                  <option value="mailshot">Mailshot</option>
+                  <option value="opvolg_mailshot">Opvolg Mailshot</option>
+                </select>
+              </div>
+              <div>
+                <label style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Template</label>
+                <div style="display:flex;gap:6px;">
+                  <select id="bulk-template" style="flex:1;font-size:13px;padding:7px 10px;"></select>
+                  <button class="btn sm ghost" onclick="bulkLaadTemplate()">Laden</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="mail-compose">
+              <div class="mail-field">
+                <span class="mail-field-lbl">Onderwerp</span>
+                <input type="text" id="bulk-subject" placeholder="Bijv: Audio Obscura x [bedrijf]">
+              </div>
+              <div class="mail-body">
+                <textarea id="bulk-body" style="min-height:180px;" placeholder="Schrijf hier je bulk mail…&#10;&#10;Gebruik [naam] voor voornaam contactpersoon.&#10;Gebruik [bedrijf] voor bedrijfsnaam."></textarea>
+              </div>
+            </div>
+
+            <!-- Ontbrekende emails waarschuwing -->
+            <div id="bulk-warning" style="display:none;margin-top:10px;"></div>
+
+            <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;align-items:center;">
+              <span id="bulk-verstuur-info" style="font-size:12px;color:var(--text3);"></span>
+              <button class="btn pri" id="bulk-send-btn" onclick="bulkVerstuur()">Versturen via Outlook →</button>
             </div>
           </div>
         </div>
@@ -3490,21 +3536,216 @@ function renderTodos(){
 }
 
 function renderOutreach(){
-  // bulk list
-  const bl=document.getElementById('bulk-list');
-  bl.innerHTML=accs.filter(a=>a.ce).map(a=>`
-    <div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px solid var(--border);">
-      <input type="checkbox" class="bulk-chk" data-id="${a.id}" style="width:14px;height:14px;">
-      <div style="flex:1;"><span style="font-size:13px;font-weight:500;">${a.name}</span><span style="font-size:12px;color:var(--text3);margin-left:7px;">${[a.cf,a.cl].filter(Boolean).join(' ')} · ${a.ce}</span></div>
-      <span class="badge ${a.status}" style="font-size:10px;">${slbl(a.status)}</span>
-    </div>`).join('');
-  // templates
+  renderBulkLijst();
+  renderBulkVerzendaccounts();
+  renderBulkOpdrachtgevers();
+  renderBulkTemplates();
+  // templates lijst rechts
   const tl=document.getElementById('templates-list');
-  tl.innerHTML=templates.length?templates.map(t=>`
+  if(tl) tl.innerHTML=templates.length?templates.map(t=>`
     <div class="template-card" onclick="applyTemplate(${t.id})">
       <div class="template-name">${t.name}</div>
       <div class="template-preview">${t.subj}</div>
     </div>`).join(''):`<div class="empty"><p>Nog geen templates</p></div>`;
+}
+
+function renderBulkVerzendaccounts(){
+  const sel = document.getElementById('bulk-from');
+  if(!sel) return;
+  const data = instGetData();
+  sel.innerHTML = '<option value="">— kies e-mailaccount —</option>';
+  ['MA','JK'].forEach(user => {
+    const emails = data[`ms_email_${user}`] || [];
+    const naam = user === 'MA' ? 'Mees' : 'Julian';
+    emails.forEach((email, i) => {
+      sel.innerHTML += `<option value="${email}">${email} (${naam}${i===0?' · primair':''})</option>`;
+    });
+  });
+  const curEmails = data[`ms_email_${CU}`] || [];
+  if(curEmails.length) sel.value = curEmails[0];
+}
+
+function renderBulkOpdrachtgevers(){
+  const sel = document.getElementById('bulk-opdrachtgever');
+  if(!sel) return;
+  sel.innerHTML = '<option value="">— geen —</option>';
+  accs.filter(a=>a.status==='klant').forEach(k => {
+    sel.innerHTML += `<option value="${k.id}">${k.name}</option>`;
+  });
+}
+
+function renderBulkTemplates(){
+  const sel = document.getElementById('bulk-template');
+  if(!sel) return;
+  // Vul lijst filter ook
+  const lijstSel = document.getElementById('bulk-lijst-filter');
+  if(lijstSel){
+    lijstSel.innerHTML = '<option value="">Alle accounts</option>';
+    lijsten.forEach(l => {
+      lijstSel.innerHTML += `<option value="${l.id}">${l.naam} (${(l.accounts||[]).length})</option>`;
+    });
+  }
+  sel.innerHTML = '<option value="">— geen template —</option>';
+  (templates||[]).forEach(t => {
+    sel.innerHTML += `<option value="${t.id}">${t.name}</option>`;
+  });
+}
+
+function renderBulkLijst(){
+  const bl = document.getElementById('bulk-list');
+  if(!bl) return;
+  const zoek = (document.getElementById('bulk-zoek')?.value||'').toLowerCase();
+  const lijstId = parseInt(document.getElementById('bulk-lijst-filter')?.value)||null;
+
+  // Filter accounts
+  let gefilterd = accs;
+  if(lijstId){
+    const lijst = lijsten.find(l=>l.id===lijstId);
+    const ids = new Set(lijst?.accounts||[]);
+    gefilterd = accs.filter(a=>ids.has(a.id));
+  }
+  if(zoek) gefilterd = gefilterd.filter(a=>a.name.toLowerCase().includes(zoek)||(a.cf||'').toLowerCase().includes(zoek)||(a.cl||'').toLowerCase().includes(zoek));
+
+  // Sorteer: met email eerst, dan zonder
+  gefilterd = [...gefilterd].sort((a,b)=>{
+    if(a.ce && !b.ce) return -1;
+    if(!a.ce && b.ce) return 1;
+    return a.name.localeCompare(b.name);
+  });
+
+  if(!gefilterd.length){
+    bl.innerHTML = '<div style="padding:20px;text-align:center;font-size:13px;color:var(--text3);">Geen accounts gevonden</div>';
+    return;
+  }
+
+  bl.innerHTML = gefilterd.map(a => {
+    const contact = [a.cf,a.cl].filter(Boolean).join(' ');
+    const heeftEmail = !!a.ce;
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--border);${heeftEmail?'':'opacity:.5;'}">
+      <input type="checkbox" class="bulk-chk" data-id="${a.id}" ${heeftEmail?'':'disabled title="Geen e-mailadres"'} style="width:15px;height:15px;flex-shrink:0;" onchange="updateBulkCount()">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${a.name}</div>
+        <div style="font-size:11.5px;color:var(--text3);">${contact||''}${contact&&a.ce?' · ':''}${a.ce||'<span style="color:#c0392b;">geen e-mail</span>'}</div>
+      </div>
+      <span class="badge ${a.status}" style="font-size:10px;flex-shrink:0;">${slbl(a.status)}</span>
+    </div>`;
+  }).join('');
+
+  updateBulkCount();
+}
+
+function bulkSelecteerLijst(){
+  const lijstId = parseInt(document.getElementById('bulk-lijst-filter')?.value)||null;
+  renderBulkLijst();
+  if(lijstId){
+    const lijst = lijsten.find(l=>l.id===lijstId);
+    const ids = new Set(lijst?.accounts||[]);
+    document.querySelectorAll('.bulk-chk').forEach(cb=>{
+      const id = parseInt(cb.dataset.id);
+      if(ids.has(id) && !cb.disabled) cb.checked = true;
+    });
+    updateBulkCount();
+  }
+}
+
+function updateBulkCount(){
+  const n = document.querySelectorAll('.bulk-chk:checked').length;
+  const el = document.getElementById('bulk-sel-count');
+  if(el) el.textContent = n + ' geselecteerd';
+  // Update verstuur info
+  const info = document.getElementById('bulk-verstuur-info');
+  if(info) info.textContent = n ? `${n} mails worden verstuurd` : '';
+}
+
+function bulkDeselectAll(){
+  document.querySelectorAll('.bulk-chk').forEach(cb=>cb.checked=false);
+  updateBulkCount();
+}
+
+function bulkLaadTemplate(){
+  const tplId = parseInt(document.getElementById('bulk-template')?.value);
+  if(!tplId) return;
+  const tpl = (templates||[]).find(t=>t.id===tplId);
+  if(!tpl) return;
+  document.getElementById('bulk-subject').value = tpl.subj||'';
+  document.getElementById('bulk-body').value = tpl.body||'';
+}
+
+async function bulkVerstuur(){
+  const van = document.getElementById('bulk-from')?.value;
+  const opdrachtgeverId = parseInt(document.getElementById('bulk-opdrachtgever')?.value)||null;
+  const onderwerp = document.getElementById('bulk-subject')?.value.trim();
+  const body = document.getElementById('bulk-body')?.value.trim();
+  const mailType = document.getElementById('bulk-type')?.value||'mailshot';
+
+  if(!van){ alert('Kies een verzendaccount.'); return; }
+  if(!onderwerp){ alert('Vul een onderwerp in.'); return; }
+  if(!body){ alert('Schrijf een bericht.'); return; }
+
+  const geselecteerdeIds = [...document.querySelectorAll('.bulk-chk:checked')].map(cb=>parseInt(cb.dataset.id));
+  if(!geselecteerdeIds.length){ alert('Selecteer minimaal 1 ontvanger.'); return; }
+
+  const teVersturen = geselecteerdeIds.map(id=>accs.find(a=>a.id===id)).filter(a=>a&&a.ce);
+  const zonderEmail = geselecteerdeIds.map(id=>accs.find(a=>a.id===id)).filter(a=>a&&!a.ce);
+
+  // Toon waarschuwing voor ontbrekende emails
+  const warnEl = document.getElementById('bulk-warning');
+  if(zonderEmail.length){
+    warnEl.style.display='';
+    warnEl.innerHTML=`<div style="background:#fff8e6;border:1px solid #f59e0b;border-radius:var(--r);padding:10px 12px;margin-bottom:8px;">
+      <div style="font-size:12px;font-weight:700;color:#92610a;margin-bottom:4px;">⚠ ${zonderEmail.length} account${zonderEmail.length>1?'s worden':'wordt'} overgeslagen (geen e-mail):</div>
+      <div style="font-size:12px;color:#92610a;">${zonderEmail.map(a=>`<span onclick="openDetail(${a.id})" style="cursor:pointer;text-decoration:underline;">${a.name}</span>`).join(', ')}</div>
+    </div>`;
+  } else {
+    warnEl.style.display='none';
+  }
+
+  if(!teVersturen.length){ alert('Geen accounts met e-mailadres in de selectie.'); return; }
+  if(!confirm(`${teVersturen.length} mails versturen via ${van}?`)) return;
+
+  const btn = document.getElementById('bulk-send-btn');
+  btn.disabled = true;
+  const opdrachtgever = accs.find(a=>a.id===opdrachtgeverId);
+  let verstuurd = 0, fouten = [];
+
+  for(const a of teVersturen){
+    const voornaam = a.cf || a.name;
+    const onderwerpV = onderwerp.replace(/\[naam\]/gi, voornaam).replace(/\[bedrijf\]/gi, a.name);
+    const bodyV = body.replace(/\[naam\]/gi, voornaam).replace(/\[bedrijf\]/gi, a.name);
+    btn.textContent = `Versturen ${verstuurd+1}/${teVersturen.length}…`;
+
+    try {
+      const res = await fetch('/api/mail', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-email': van },
+        body: JSON.stringify({ aan: a.ce, cc: [], onderwerp: onderwerpV, inhoud: bodyV, log_acc_id: a.id, mail_type: mailType, bijlages: [] }),
+      });
+      if(!res.ok) throw new Error(await res.text());
+
+      // Log als notitie
+      const contact = [a.cf,a.cl].filter(Boolean).join(' ');
+      const noteText = `${mailType==='mailshot'?'Mailshot':'Opvolg Mailshot'} verstuurd${opdrachtgever?' voor '+opdrachtgever.name:''}\nVan: ${van} → Aan: ${a.ce}\nOnderwerp: ${onderwerpV}\n\n${bodyV}`;
+      const note = { type: mailType, text: noteText, by: CU, contact, id: Date.now()+verstuurd };
+      a.notes = a.notes || [];
+      a.notes.push(note);
+      const idx = accs.findIndex(x=>x.id===a.id);
+      if(idx>=0) accs[idx]=a;
+      _saveNote(a.id, note).catch(()=>{});
+      verstuurd++;
+    } catch(e){
+      fouten.push(a.name);
+      console.error('Bulk mail fout:', a.name, e.message);
+    }
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Versturen via Outlook →';
+
+  const msg = fouten.length
+    ? `✓ ${verstuurd} mails verstuurd. ${fouten.length} mislukt: ${fouten.join(', ')}`
+    : `✓ ${verstuurd} mails verstuurd!`;
+  alert(msg);
+  bulkDeselectAll();
 }
 
 function renderActivity(){
@@ -4034,14 +4275,7 @@ function quickMail(id){
   const a=accs.find(x=>x.id===id);if(!a)return;
   curTab='outreach';openDetail(id);
 }
-function selectAllBulk(){document.querySelectorAll('.bulk-chk').forEach(c=>c.checked=true);}
-function bulkMail(){
-  const ids=[...document.querySelectorAll('.bulk-chk:checked')].map(c=>parseInt(c.dataset.id));
-  const emails=ids.map(id=>accs.find(a=>a.id===id)?.ce).filter(Boolean);
-  const subj=encodeURIComponent(document.getElementById('mail-subj').value||'Kennismaking Intersect');
-  const body=encodeURIComponent(document.getElementById('mail-body').value||'');
-  window.open(`mailto:${emails.join(',')}?subject=${subj}&body=${body}`);
-}
+// selectAllBulk en bulkMail vervangen door renderBulkLijst / bulkVerstuur
 
 // ══════════════ CSV IMPORT ══════════════
 function handleCSV(input){
@@ -5904,6 +6138,7 @@ function renderLijsten() {
           <div style="display:flex;gap:8px;">
             <button class="btn sm ghost" onclick="openLijstBewerken(${curLijst.id})">Bewerken</button>
             <button class="btn sm" style="background:#eaf1fd;border-color:#1a5fb4;color:#1a5fb4;" onclick="openAccountsToevoegen(${curLijst.id})">+ Accounts toevoegen</button>
+            <button class="btn sm pri" onclick="openBulkMail(${curLijst.id})">✉ Bulk mail →</button>
           </div>
         </div>
 
