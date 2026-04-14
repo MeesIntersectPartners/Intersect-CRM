@@ -6628,12 +6628,18 @@ function openMailCompose(type, prefillAan, prefillOnderwerp) {
   const mcCont = document.getElementById('mc-contact');
   if (mcCont) {
     mcCont.innerHTML = '<option value="">— kies contactpersoon —</option>';
-    const primair = [curAcc.cf, curAcc.cl].filter(Boolean).join(' ');
-    if (primair) mcCont.innerHTML += `<option value="${primair}" selected>${primair}${curAcc.cr?' ('+curAcc.cr+')':''}</option>`;
+    const primairNaam = [curAcc.cf, curAcc.cl].filter(Boolean).join(' ');
+    if (primairNaam) mcCont.innerHTML += `<option value="${curAcc.ce||''}" data-naam="${curAcc.cf||primairNaam}" selected>${primairNaam}${curAcc.cr?' ('+curAcc.cr+')':''}</option>`;
     (curAcc.contacts||[]).forEach(ct => {
       const naam = [ct.first, ct.last].filter(Boolean).join(' ');
-      if (naam) mcCont.innerHTML += `<option value="${naam}">${naam}${ct.role?' ('+ct.role+')':''}</option>`;
+      if (naam) mcCont.innerHTML += `<option value="${ct.email||''}" data-naam="${ct.first||naam}">${naam}${ct.role?' ('+ct.role+')':''}</option>`;
     });
+    // Als contactpersoon wijzigt: update Aan-veld automatisch
+    mcCont.onchange = function() {
+      const email = this.value;
+      const naam = this.selectedOptions[0]?.dataset.naam || '';
+      if (email) document.getElementById('mc-to').value = email;
+    };
   }
   document.getElementById('m-mail-compose').classList.add('on');
   setTimeout(() => document.getElementById('mc-body').focus(), 100);
@@ -6745,8 +6751,10 @@ async function mcVerstuur() {
   if (!onderwerp) { alert('Vul een onderwerp in.'); return; }
   if (!inhoud) { alert('Schrijf een bericht.'); return; }
 
-  // Vervang [naam] (voornaam) en [bedrijf]
-  const contactVoornaam = curAcc ? (curAcc.cf || [curAcc.cf, curAcc.cl].filter(Boolean).join(' ') || curAcc.name) : '';
+  // Vervang [naam] (voornaam van geselecteerde contactpersoon) en [bedrijf]
+  const mcContEl = document.getElementById('mc-contact');
+  const geselecteerdeVoornaam = mcContEl?.selectedOptions[0]?.dataset.naam || curAcc?.cf || '';
+  const contactVoornaam = geselecteerdeVoornaam || (curAcc ? curAcc.name : '');
   const bedrijfNaam = curAcc ? curAcc.name : '';
   onderwerp = onderwerp.replace(/\[naam\]/gi, contactVoornaam || '[naam]').replace(/\[bedrijf\]/gi, bedrijfNaam || '[bedrijf]');
   inhoud = inhoud.replace(/\[naam\]/gi, contactVoornaam || '[naam]');
