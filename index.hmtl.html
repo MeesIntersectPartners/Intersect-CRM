@@ -760,17 +760,22 @@ textarea{resize:vertical;min-height:75px;}
               <span id="bulk-sel-count" style="font-size:12px;color:var(--text3);">0 geselecteerd</span>
             </div>
 
-            <!-- Zoek + lijsten filter -->
-            <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
-              <input type="text" id="bulk-zoek" placeholder="Zoek op naam…" oninput="renderBulkLijst()" style="flex:1;min-width:150px;font-size:13px;padding:6px 10px;">
-              <select id="bulk-lijst-filter" onchange="bulkSelecteerLijst()" style="font-size:13px;padding:6px 10px;">
-                <option value="">Alle accounts</option>
-              </select>
+            <!-- Lijsten sectie -->
+            <div style="margin-bottom:10px;">
+              <div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;">Lijsten</div>
+              <input type="text" id="bulk-lijst-zoek" placeholder="Zoek lijst…" oninput="renderBulkLijstPills()" style="width:100%;font-size:13px;padding:6px 10px;margin-bottom:8px;">
+              <div id="bulk-lijst-pills" style="display:flex;flex-wrap:wrap;gap:6px;max-height:100px;overflow-y:auto;"></div>
+            </div>
+
+            <!-- Accounts sectie -->
+            <div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;">Accounts</div>
+            <div style="display:flex;gap:8px;margin-bottom:8px;">
+              <input type="text" id="bulk-zoek" placeholder="Zoek op naam…" oninput="renderBulkLijst()" style="flex:1;font-size:13px;padding:6px 10px;">
               <button class="btn sm ghost" onclick="bulkDeselectAll()">Deselecteren</button>
             </div>
 
             <!-- Account lijst -->
-            <div id="bulk-list" style="max-height:360px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--r);"></div>
+            <div id="bulk-list" style="max-height:280px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--r);"></div>
           </div>
 
           <!-- Mail samenstellen -->
@@ -3574,39 +3579,74 @@ function renderBulkOpdrachtgevers(){
   });
 }
 
+let _geselecteerdeLijsten = new Set();
+
+function renderBulkLijstPills(){
+  const zoek = (document.getElementById('bulk-lijst-zoek')?.value||'').toLowerCase();
+  const el = document.getElementById('bulk-lijst-pills');
+  if(!el) return;
+  const gefilterd = lijsten.filter(l => !zoek || l.naam.toLowerCase().includes(zoek));
+  if(!gefilterd.length){
+    el.innerHTML = '<span style="font-size:12px;color:var(--text3);">Geen lijsten gevonden</span>';
+    return;
+  }
+  el.innerHTML = gefilterd.map(l => {
+    const actief = _geselecteerdeLijsten.has(l.id);
+    return `<div onclick="bulkToggleLijst(${l.id})" style="display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid ${actief?'var(--navy)':'var(--border)'};background:${actief?'var(--navy)':'var(--surface)'};color:${actief?'#fff':'var(--text2)'};">
+      ${actief?'✓ ':''}${l.naam} <span style="opacity:.6;">${(l.accounts||[]).length}</span>
+    </div>`;
+  }).join('');
+}
+
+function bulkToggleLijst(lijstId){
+  if(_geselecteerdeLijsten.has(lijstId)){
+    _geselecteerdeLijsten.delete(lijstId);
+  } else {
+    _geselecteerdeLijsten.add(lijstId);
+  }
+  renderBulkLijstPills();
+  renderBulkLijst();
+  // Vink alle accounts van geselecteerde lijsten aan
+  const alleIds = new Set();
+  _geselecteerdeLijsten.forEach(id => {
+    const lijst = lijsten.find(l=>l.id===id);
+    (lijst?.accounts||[]).forEach(accId => alleIds.add(accId));
+  });
+  document.querySelectorAll('.bulk-chk').forEach(cb => {
+    if(!cb.disabled && alleIds.has(parseInt(cb.dataset.id))) cb.checked = true;
+  });
+  updateBulkCount();
+}
+
 function renderBulkTemplates(){
   const sel = document.getElementById('bulk-template');
   if(!sel) return;
-  // Vul lijst filter ook
-  const lijstSel = document.getElementById('bulk-lijst-filter');
-  if(lijstSel){
-    lijstSel.innerHTML = '<option value="">Alle accounts</option>';
-    lijsten.forEach(l => {
-      lijstSel.innerHTML += `<option value="${l.id}">${l.naam} (${(l.accounts||[]).length})</option>`;
-    });
-  }
   sel.innerHTML = '<option value="">— geen template —</option>';
   (templates||[]).forEach(t => {
     sel.innerHTML += `<option value="${t.id}">${t.name}</option>`;
   });
+  // Init lijstpills
+  renderBulkLijstPills();
 }
 
 function renderBulkLijst(){
   const bl = document.getElementById('bulk-list');
   if(!bl) return;
   const zoek = (document.getElementById('bulk-zoek')?.value||'').toLowerCase();
-  const lijstId = parseInt(document.getElementById('bulk-lijst-filter')?.value)||null;
 
-  // Filter accounts
+  // Filter op geselecteerde lijsten (als er zijn) + zoekterm
   let gefilterd = accs;
-  if(lijstId){
-    const lijst = lijsten.find(l=>l.id===lijstId);
-    const ids = new Set(lijst?.accounts||[]);
-    gefilterd = accs.filter(a=>ids.has(a.id));
+  if(_geselecteerdeLijsten.size > 0){
+    const alleIds = new Set();
+    _geselecteerdeLijsten.forEach(id => {
+      const lijst = lijsten.find(l=>l.id===id);
+      (lijst?.accounts||[]).forEach(accId => alleIds.add(accId));
+    });
+    gefilterd = accs.filter(a => alleIds.has(a.id));
   }
   if(zoek) gefilterd = gefilterd.filter(a=>a.name.toLowerCase().includes(zoek)||(a.cf||'').toLowerCase().includes(zoek)||(a.cl||'').toLowerCase().includes(zoek));
 
-  // Sorteer: met email eerst, dan zonder
+  // Sorteer: met email eerst
   gefilterd = [...gefilterd].sort((a,b)=>{
     if(a.ce && !b.ce) return -1;
     if(!a.ce && b.ce) return 1;
@@ -3634,32 +3674,20 @@ function renderBulkLijst(){
   updateBulkCount();
 }
 
-function bulkSelecteerLijst(){
-  const lijstId = parseInt(document.getElementById('bulk-lijst-filter')?.value)||null;
+function bulkDeselectAll(){
+  document.querySelectorAll('.bulk-chk').forEach(cb=>cb.checked=false);
+  _geselecteerdeLijsten.clear();
+  renderBulkLijstPills();
   renderBulkLijst();
-  if(lijstId){
-    const lijst = lijsten.find(l=>l.id===lijstId);
-    const ids = new Set(lijst?.accounts||[]);
-    document.querySelectorAll('.bulk-chk').forEach(cb=>{
-      const id = parseInt(cb.dataset.id);
-      if(ids.has(id) && !cb.disabled) cb.checked = true;
-    });
-    updateBulkCount();
-  }
+  updateBulkCount();
 }
 
 function updateBulkCount(){
   const n = document.querySelectorAll('.bulk-chk:checked').length;
   const el = document.getElementById('bulk-sel-count');
   if(el) el.textContent = n + ' geselecteerd';
-  // Update verstuur info
   const info = document.getElementById('bulk-verstuur-info');
   if(info) info.textContent = n ? `${n} mails worden verstuurd` : '';
-}
-
-function bulkDeselectAll(){
-  document.querySelectorAll('.bulk-chk').forEach(cb=>cb.checked=false);
-  updateBulkCount();
 }
 
 function bulkLaadTemplate(){
