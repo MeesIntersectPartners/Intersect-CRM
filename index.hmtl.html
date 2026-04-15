@@ -4489,7 +4489,7 @@ function handleCSV(input){
   reader.readAsText(file);
 }
 async function doImport(){
-  let added=0;
+  let added=0;let fouten=[];
   const nieuweAccs=[];
   const secundaireContacten=[];
   csvRows.forEach(r=>{
@@ -4499,7 +4499,7 @@ async function doImport(){
     const naamDelen=contactNaam.split(' ');
     const cf=naamDelen[0]||'';
     const cl=naamDelen.slice(1).join(' ')||'';
-    const a={id:Date.now()+Math.floor(Math.random()*10000)+added,name,status:r['status']||'lead',sector:r['sector']||r['branche']||'',seg:r['segment']||'',web:r['website']||r['web']||'',li:r['linkedin']||'',phone:r['telefoon']||r['phone']||'',kvk:'',addr:r['adres']||r['address']||'',addrUrl:'',pipe:'Nieuw',val:r['waarde']||r['value']||'',cf,cl,cr:r['functie']||r['role']||'',cp:'',ce:r['email']||r['e-mail']||'',note:'',owner:CU,added:localISO(),color:accs.length%CLRS.length,contacts:[],deals:[],proposals:[],notes:[],docs:[],clientLinks:{}};
+    const a={id:Date.now()+Math.floor(Math.random()*10000)+added,name,status:(r['status']||'lead').toLowerCase(),sector:r['sector']||r['branche']||'',seg:r['segment']||'',web:r['website']||r['web']||'',li:r['linkedin']||'',phone:r['telefoon']||r['phone']||'',kvk:'',addr:r['adres']||r['address']||'',addrUrl:'',pipe:'Nieuw',val:r['waarde']||r['value']||'',cf,cl,cr:r['functie']||r['role']||'',cp:'',ce:r['email']||r['e-mail']||'',note:'',owner:CU,added:localISO(),color:accs.length%CLRS.length,contacts:[],deals:[],proposals:[],notes:[],docs:[],clientLinks:{}};
     const naam2=(r['contactpersoon_2']||'').trim();
     if(naam2){
       const delen2=naam2.split(' ');
@@ -4520,12 +4520,19 @@ async function doImport(){
         a.contacts.push(nieuwContact);
         await _saveContact(a.id,nieuwContact);
       }
-    }catch(e){console.warn('Import save:',e);}
+    }catch(e){
+      fouten.push(`${a.name}: ${e.message}`);
+      console.error('Import fout:',a.name,e);
+    }
   }
   ss('ix_accs',accs);
   addActivity(`<strong>${CU==='MA'?'Mees':'Julian'}</strong> importeerde ${added} accounts via CSV`,'↑','#e8f0fb');
   closeM('m-import');nav('accounts');
-  alert(`✓ ${added} accounts geïmporteerd!`);
+  if(fouten.length){
+    alert(`⚠️ ${added-fouten.length} van ${added} geïmporteerd.\n\nFouten:\n${fouten.slice(0,5).join('\n')}`);
+  } else {
+    alert(`✓ ${added} accounts geïmporteerd!`);
+  }
 }
 
 // ══════════════ HELPERS ══════════════
