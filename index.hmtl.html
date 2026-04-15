@@ -4538,6 +4538,15 @@ function quickMail(id){
 // selectAllBulk en bulkMail vervangen door renderBulkLijst / bulkVerstuur
 
 // ══════════════ CSV IMPORT ══════════════
+function cleanCompanyName(name){
+  if(!name)return name;
+  const suffixes=[/\bB\.?V\.?\b/gi,/\bN\.?V\.?\b/gi,/\bV\.?O\.?F\.?\b/gi,/\bC\.?V\.?\b/gi,/\bLtd\.?\b/gi,/\bLLC\b/gi,/\bGmbH\b/gi,/\bInc\.?\b/gi,/\bS\.?A\.?\b/gi,/\bA\.?G\.?\b/gi];
+  let r=name;
+  suffixes.forEach(s=>r=r.replace(s,''));
+  r=r.replace(/\s*[-–|]+\s*$/,'').replace(/^\s*[-–|]+\s*/,'').replace(/\s{2,}/g,' ').replace(/^[\s.\-,|]+|[\s.\-,|]+$/g,'');
+  return r.trim()||name.trim();
+}
+
 function parseCSVLine(line){
   const vals=[];let cur='';let inQ=false;
   for(let i=0;i<line.length;i++){
@@ -4576,7 +4585,7 @@ async function doImport(){
   const secundaireContacten=[];
   const bestaandeNamen=new Set(accs.map(a=>a.name.toLowerCase().trim()));
   csvRows.forEach(r=>{
-    const name=r['naam']||r['name']||r['bedrijf']||r['company']||Object.values(r)[0];
+    const name=cleanCompanyName(r['naam']||r['name']||r['bedrijf']||r['company']||Object.values(r)[0]);
     if(!name)return;
     if(bestaandeNamen.has(name.toLowerCase().trim())){return;}// sla over als al bestaat
     bestaandeNamen.add(name.toLowerCase().trim());
