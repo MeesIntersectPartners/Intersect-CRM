@@ -6278,25 +6278,26 @@ function agendaReminderCheck() {
   });
 }
 
-function toonAgendaNotificatie(ev, minVoor) {
+function toonAgendaNotificatie(ev, minVoor, sluimerLabel) {
   const container = document.getElementById('agenda-notif-container');
   if (!container) return;
   const acc = ev.acc ? accs.find(a => a.id === ev.acc) : null;
   const [bg, fg] = acc ? CLRS[acc.color % CLRS.length] : ['#eaf1fd', '#1a5fb4'];
-  const label = minVoor === 0 ? 'Nu gestart' : `Over ${minVoor} min`;
   const urgentie = minVoor === 0;
+  const label = sluimerLabel ? sluimerLabel : (minVoor === 0 ? 'Nu gestart' : `Over ${minVoor} min`);
 
   const notif = document.createElement('div');
-  notif.id = `notif-${ev.id}-${minVoor}`;
+  notif.id = `notif-${ev.id}-${minVoor}-${Date.now()}`;
   notif.style.cssText = `
     background:${urgentie ? 'var(--navy)' : 'var(--surface)'};
     border:2px solid ${urgentie ? 'var(--gold)' : 'var(--navy)'};
     border-radius:12px;
     padding:14px 16px;
-    box-shadow:0 4px 20px rgba(13,31,60,.25);
+    box-shadow:0 6px 28px rgba(13,31,60,.3);
     pointer-events:all;
     animation:notifSlideIn .3s ease;
     position:relative;
+    max-width:320px;
   `;
   notif.innerHTML = `
     <div style="display:flex;align-items:flex-start;gap:10px;">
@@ -6309,22 +6310,21 @@ function toonAgendaNotificatie(ev, minVoor) {
       </div>
     </div>
     <div style="display:flex;gap:6px;margin-top:10px;">
-      ${minVoor > 0 ? `<button onclick="toonAgendaNotificatieNu(${ev.id},${minVoor})" style="flex:1;padding:6px;font-size:12px;font-weight:600;border-radius:7px;border:1.5px solid ${urgentie?'rgba(255,255,255,.3)':'var(--navy)'};background:${urgentie?'rgba(255,255,255,.1)':'var(--navy)'};color:${urgentie?'#fff':'#fff'};cursor:pointer;font-family:'DM Sans',sans-serif;">Nu gestart</button>` : ''}
+      ${minVoor > 0 ? `<button onclick="toonAgendaNotificatieNu(${ev.id},${minVoor})" style="flex:1;padding:6px;font-size:12px;font-weight:600;border-radius:7px;border:none;background:var(--navy);color:#fff;cursor:pointer;font-family:'DM Sans',sans-serif;">Nu gestart</button>` : ''}
+      <button onclick="sluimerNotificatie('${notif.id}',${ev.id},${minVoor})" style="flex:1;padding:6px;font-size:12px;font-weight:600;border-radius:7px;border:1.5px solid ${urgentie?'rgba(255,255,255,.3)':'var(--border2)'};background:transparent;color:${urgentie?'rgba(255,255,255,.7)':'var(--text2)'};cursor:pointer;font-family:'DM Sans',sans-serif;">⏰ 10 min</button>
       <button onclick="sluitAgendaNotificatie('${notif.id}')" style="flex:1;padding:6px;font-size:12px;font-weight:600;border-radius:7px;border:1.5px solid ${urgentie?'rgba(255,255,255,.3)':'var(--border2)'};background:transparent;color:${urgentie?'rgba(255,255,255,.7)':'var(--text2)'};cursor:pointer;font-family:'DM Sans',sans-serif;">Sluiten</button>
-      <button onclick="openDetail(${ev.acc||0});sluitAgendaNotificatie('${notif.id}')" style="padding:6px 10px;font-size:12px;font-weight:600;border-radius:7px;border:1.5px solid ${urgentie?'var(--gold)':'var(--border2)'};background:transparent;color:${urgentie?'var(--gold)':'var(--text2)'};cursor:pointer;font-family:'DM Sans',sans-serif;">Account</button>
+      ${ev.acc?`<button onclick="openDetail(${ev.acc});sluitAgendaNotificatie('${notif.id}')" style="padding:6px 10px;font-size:12px;font-weight:600;border-radius:7px;border:1.5px solid ${urgentie?'var(--gold)':'var(--border2)'};background:transparent;color:${urgentie?'var(--gold)':'var(--text2)'};cursor:pointer;font-family:'DM Sans',sans-serif;">Account</button>`:''}
     </div>
   `;
   container.appendChild(notif);
+}
 
-  // Auto verwijder na 60 seconden als het een 5-min reminder is
-  if (minVoor > 0) {
-    setTimeout(() => {
-      if (document.getElementById(notif.id)) {
-        notif.style.opacity = '0.4';
-        notif.style.transition = 'opacity .5s';
-      }
-    }, 30000);
-  }
+function sluimerNotificatie(notifId, evId, minVoor) {
+  sluitAgendaNotificatie(notifId);
+  setTimeout(() => {
+    const ev = calEvents.find(e => e.id === evId);
+    if (ev) toonAgendaNotificatie(ev, minVoor, '10 minuten geleden');
+  }, 10 * 60 * 1000);
 }
 
 function sluitAgendaNotificatie(id) {
