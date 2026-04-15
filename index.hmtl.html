@@ -4456,15 +4456,26 @@ function quickMail(id){
 // selectAllBulk en bulkMail vervangen door renderBulkLijst / bulkVerstuur
 
 // ══════════════ CSV IMPORT ══════════════
+function parseCSVLine(line){
+  const vals=[];let cur='';let inQ=false;
+  for(let i=0;i<line.length;i++){
+    const ch=line[i];
+    if(ch==='"'){if(inQ&&line[i+1]==='"'){cur+='"';i++;}else{inQ=!inQ;}}
+    else if(ch===','&&!inQ){vals.push(cur.trim());cur='';}
+    else{cur+=ch;}
+  }
+  vals.push(cur.trim());
+  return vals;
+}
 function handleCSV(input){
   const file=input.files[0];if(!file)return;
   const reader=new FileReader();
   reader.onload=e=>{
     const lines=e.target.result.split('\n').filter(l=>l.trim());
     if(lines.length<2){alert('Bestand lijkt leeg of heeft geen headers.');return;}
-    const headers=lines[0].split(',').map(h=>h.trim().replace(/"/g,'').toLowerCase());
+    const headers=parseCSVLine(lines[0]).map(h=>h.toLowerCase());
     csvRows=lines.slice(1).map(l=>{
-      const vals=l.split(',').map(v=>v.trim().replace(/"/g,''));
+      const vals=parseCSVLine(l);
       const obj={};headers.forEach((h,i)=>obj[h]=vals[i]||'');
       return obj;
     }).filter(r=>r[headers[0]]);
@@ -4489,7 +4500,6 @@ async function doImport(){
     const cf=naamDelen[0]||'';
     const cl=naamDelen.slice(1).join(' ')||'';
     const a={id:Date.now()+Math.floor(Math.random()*10000)+added,name,status:r['status']||'lead',sector:r['sector']||r['branche']||'',seg:r['segment']||'',web:r['website']||r['web']||'',li:r['linkedin']||'',phone:r['telefoon']||r['phone']||'',kvk:'',addr:r['adres']||r['address']||'',addrUrl:'',pipe:'Nieuw',val:r['waarde']||r['value']||'',cf,cl,cr:r['functie']||r['role']||'',cp:'',ce:r['email']||r['e-mail']||'',note:'',owner:CU,added:localISO(),color:accs.length%CLRS.length,contacts:[],deals:[],proposals:[],notes:[],docs:[],clientLinks:{}};
-    // Secundaire contactpersoon
     const naam2=(r['contactpersoon_2']||'').trim();
     if(naam2){
       const delen2=naam2.split(' ');
@@ -4500,7 +4510,6 @@ async function doImport(){
     added++;
   });
   ss('ix_accs',accs);
-  // Sla op naar Supabase — primaire contacten via _saveAcc, secundaire via _saveContact
   for(const a of nieuweAccs){
     try{
       await _saveAcc(a);
