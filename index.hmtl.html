@@ -8123,17 +8123,12 @@ function apolloTitelVolgorde(cb) {
   } else {
     _apolloTitelVolgorde = _apolloTitelVolgorde.filter(v => v !== cb.value);
   }
-  // Toon volgorde nummers
-  let nr = 1;
+  // Toon nummers op basis van klik-volgorde
   document.querySelectorAll('.ap-title').forEach(box => {
     const prio = box.parentElement.querySelector('.ap-prio');
     if (!prio) return;
-    if (box.checked) {
-      prio.textContent = nr + '.';
-      nr++;
-    } else {
-      prio.textContent = '';
-    }
+    const idx = _apolloTitelVolgorde.indexOf(box.value);
+    prio.textContent = idx >= 0 ? (idx + 1) + '.' : '';
   });
 }
 
