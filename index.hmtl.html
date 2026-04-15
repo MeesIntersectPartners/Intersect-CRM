@@ -7952,7 +7952,8 @@ function apolloModalToonResultaten(results, scraperLeads) {
 
   results.forEach((r, ri) => {
     if (!r.people?.length) {
-      html += `<div style="padding:10px 0;border-bottom:1px solid var(--border);font-size:12px;color:var(--text3);">${r.company} — geen resultaat</div>`;
+      const dbg = r._debug ? ` (status: ${r._debug.status}, error: ${r._debug.error||r._debug.message||'-'})` : '';
+      html += `<div style="padding:10px 0;border-bottom:1px solid var(--border);font-size:12px;color:var(--text3);">${r.company} — geen resultaat<span style="font-size:11px;color:#c0392b;">${dbg}</span></div>`;
       return;
     }
     r.people.forEach((p, pi) => {
