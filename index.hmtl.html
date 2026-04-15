@@ -7090,18 +7090,8 @@ function renderScraper(){
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:18px 20px;margin-bottom:12px;margin-top:12px;">
       <div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:14px;display:flex;align-items:center;gap:6px;"><span style="display:block;width:3px;height:12px;background:#f5a623;border-radius:2px;"></span>Apollo — Contacten opzoeken</div>
       <div style="margin-bottom:10px;">
-        <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px;">Apollo API Key</label>
-        <input type="password" id="apollo-key" placeholder="Plak hier je Apollo API key" value="${localStorage.getItem('ix_apollo_key')||''}" style="width:100%;font-size:13px;padding:7px 10px;" oninput="localStorage.setItem('ix_apollo_key',this.value)">
-      </div>
-      <div style="margin-bottom:10px;">
         <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px;">Bedrijven <span style="font-weight:400;color:var(--text3);">— één per regel (of selecteer accounts in de accountslijst)</span></label>
         <textarea id="apollo-bedrijven" rows="5" placeholder="Looije Properties&#10;The CORE Group&#10;Battolyser Systems" style="width:100%;font-size:13px;padding:9px 12px;resize:vertical;"></textarea>
-      </div>
-      <div style="margin-bottom:12px;">
-        <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:6px;">Functietitels filteren <span style="font-weight:400;color:var(--text3);font-size:11px;">— vink aan wat je wil zoeken</span></label>
-        <div style="display:flex;flex-wrap:wrap;gap:6px;">
-          ${[['CEO',true],['Founder',true],['Co-Founder',true],['Directeur',true],['Managing Director',true],['Managing Partner',true],['Director',false],['Owner',false],['CCO',false],['CMO',false],['CFO',false],['COO',false],['CTO',false],['General Manager',false],['Head of Sales',false],['Head of Business Development',false],['Commercial Director',false],['Sales Director',false],['VP Sales',false],['VP Marketing',false],['Partner',false],['President',false],['Eigenaar',false],['DGA',false],['Bestuurder',false]].map(([t,c])=>`<label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="${t}" ${c?'checked':''} style="accent-color:var(--navy);"> ${t}</label>`).join('')}
-        </div>
       </div>
       <button class="btn pri" style="width:100%;justify-content:center;" onclick="apolloZoeken()">Zoeken in Apollo →</button>
       <div id="apollo-resultaten" style="margin-top:14px;"></div>
@@ -7822,14 +7812,9 @@ function _renderInstellingenUI() {
 const APOLLO_PROXY = 'https://intersect-crm.vercel.app/api/apollo';
 
 async function apolloZoeken() {
-  const apiKey = document.getElementById('apollo-key')?.value.trim() || localStorage.getItem('ix_apollo_key') || '';
-  if (!apiKey) { alert('Vul eerst je Apollo API key in.'); return; }
-
   const bedrijvenRaw = document.getElementById('apollo-bedrijven')?.value || '';
   const companyNames = bedrijvenRaw.split('\n').map(s => s.trim()).filter(Boolean);
   if (!companyNames.length) { alert('Vul minimaal één bedrijfsnaam in.'); return; }
-
-  const titles = [...document.querySelectorAll('.ap-title:checked')].map(el => el.value);
 
   const res = document.getElementById('apollo-resultaten');
   res.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:10px 0;">Bezig met zoeken in Apollo...</div>';
@@ -7838,12 +7823,12 @@ async function apolloZoeken() {
     const r = await fetch(APOLLO_PROXY, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ apiKey, companyNames, titles })
+      body: JSON.stringify({ companyNames })
     });
     const data = await r.json();
     apolloToonResultaten(data.results || []);
   } catch(e) {
-    res.innerHTML = `<div style="color:var(--red);font-size:13px;padding:10px 0;">Fout: ${e.message}</div>`;
+    res.innerHTML = `<div style="color:var(--red);font-size:13px;padding:10px 0;">Fout: \${e.message}</div>`;
   }
 }
 
