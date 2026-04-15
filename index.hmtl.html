@@ -1220,8 +1220,9 @@ textarea{resize:vertical;min-height:75px;}
     <div class="mb">
       <div class="fg"><label class="fl">Naam *</label><input type="text" id="ht-naam" placeholder="bijv. Mees — Intersect"></div>
       <div class="fg">
-        <label class="fl">Handtekening <span style="font-weight:400;color:var(--text3);font-size:11px;">— plak hier je volledige handtekening</span></label>
-        <textarea id="ht-inhoud" style="min-height:160px;font-family:monospace;font-size:12px;" placeholder="Plak hier je handtekening (tekst of HTML)…"></textarea>
+        <label class="fl">Handtekening <span style="font-weight:400;color:var(--text3);font-size:11px;">— plak hier je handtekening uit Outlook/Gmail</span></label>
+        <div id="ht-inhoud" contenteditable="true" style="min-height:160px;border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;font-size:13px;line-height:1.6;overflow-y:auto;max-height:300px;background:var(--surface);" placeholder="Plak hier je handtekening…"></div>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px;">Kopieer je handtekening rechtstreeks uit je e-mailclient en plak hem hierin — afbeeldingen en opmaak blijven bewaard.</div>
       </div>
     </div>
     <div class="mf">
@@ -3786,13 +3787,21 @@ async function bulkVerstuur(){
   for(const a of teVersturen){
     const voornaam = a.cf || a.name;
     const onderwerpV = onderwerp.replace(/\[naam\]/gi, voornaam).replace(/\[bedrijf\]/gi, a.name);
-    const bodyV = body.replace(/\[naam\]/gi, voornaam).replace(/\[bedrijf\]/gi, a.name);
+    const bodyV = body
+      // Strip de placeholder preview van de handtekening als die erin zit
+      .replace(/\n\n-- .+ --\n[\s\S]*?…$/, '')
+      .replace(/\[naam\]/gi, voornaam).replace(/\[bedrijf\]/gi, a.name);
     // Zet enters om naar HTML zodat opmaak bewaard blijft
-    const bodyHtml = '<p>' + bodyV
+    const bodyTekstHtml = '<p>' + bodyV
       .split(/\n\n+/)
       .map(p => p.trim().replace(/\n/g, '<br>'))
       .filter(Boolean)
       .join('</p><p>') + '</p>';
+    // Voeg handtekening HTML toe als die geselecteerd is
+    const handtekeningHtml = document.getElementById('bulk-body')?.dataset.handtekeningHtml || '';
+    const bodyHtml = handtekeningHtml
+      ? bodyTekstHtml + '<br><br>' + handtekeningHtml
+      : bodyTekstHtml;
     btn.textContent = `Versturen ${verstuurd+1}/${teVersturen.length}…`;
 
     try {
@@ -4068,7 +4077,7 @@ function renderHandtekeningen(){
 
 function openAddHandtekening(){
   document.getElementById('ht-naam').value = '';
-  document.getElementById('ht-inhoud').value = '';
+  document.getElementById('ht-inhoud').innerHTML = '';
   document.getElementById('m-handtekening').dataset.editId = '';
   document.getElementById('m-handtekening-titel').textContent = 'Handtekening toevoegen';
   document.getElementById('m-handtekening').classList.add('on');
@@ -4078,7 +4087,7 @@ function openEditHandtekening(id){
   const h = handtekeningen.find(x=>x.id===id);
   if(!h) return;
   document.getElementById('ht-naam').value = h.naam;
-  document.getElementById('ht-inhoud').value = h.inhoud;
+  document.getElementById('ht-inhoud').innerHTML = h.inhoud;
   document.getElementById('m-handtekening').dataset.editId = id;
   document.getElementById('m-handtekening-titel').textContent = 'Handtekening bewerken';
   document.getElementById('m-handtekening').classList.add('on');
@@ -4087,7 +4096,8 @@ function openEditHandtekening(id){
 function saveHandtekening(){
   const naam = document.getElementById('ht-naam').value.trim();
   if(!naam){ alert('Geef de handtekening een naam.'); return; }
-  const inhoud = document.getElementById('ht-inhoud').value.trim();
+  const inhoud = document.getElementById('ht-inhoud').innerHTML.trim();
+  if(!inhoud){ alert('Handtekening is leeg.'); return; }
   const editId = parseInt(document.getElementById('m-handtekening').dataset.editId)||null;
   if(editId){
     const idx = handtekeningen.findIndex(h=>h.id===editId);
@@ -4114,8 +4124,16 @@ function bulkVoegHandtekeningToe(){
   if(!h) return;
   const el = document.getElementById('bulk-body');
   if(!el) return;
-  el.value = el.value.trimEnd() + '\n\n' + h.inhoud;
-  el.focus();
+  // Sla handtekening op als data-attribuut zodat de API hem als HTML kan toevoegen
+  el.dataset.handtekeningHtml = h.inhoud;
+  el.dataset.handtekeningNaam = h.naam;
+  // Toon bevestiging in het veld
+  const huidigeTekst = el.value.trimEnd();
+  const preview = h.inhoud.replace(/<[^>]+>/g,'').substring(0,60);
+  el.value = huidigeTekst + (huidigeTekst ? '\n\n' : '') + '-- ' + h.naam + ' --\n' + preview + '…';
+  // Visuele bevestiging
+  const btn = document.querySelector('[onclick="bulkVoegHandtekeningToe()"]');
+  if(btn){ btn.textContent = '✓ Toegevoegd'; setTimeout(()=>btn.textContent='Toevoegen',2000); }
 }
 
 // ══════════════ OPEN MODALS ══════════════
