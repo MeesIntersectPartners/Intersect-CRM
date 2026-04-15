@@ -653,7 +653,8 @@ textarea{resize:vertical;min-height:75px;}
         <button class="fchip" data-f="klant" onclick="setFilter('klant')"><span class="dot" style="background:var(--green)"></span>Klanten <span id="fc-klant"></span></button>
         <button class="fchip" data-f="opdrachtgever" onclick="setFilter('opdrachtgever')"><span class="dot" style="background:#6b21a8"></span>Opdrachtgevers <span id="fc-opdrachtgever"></span></button>
         <button class="fchip" data-f="inactief" onclick="setFilter('inactief')"><span class="dot" style="background:var(--text3)"></span>Inactief <span id="fc-inactief"></span></button>
-        <div style="margin-left:auto;display:flex;gap:6px;">
+        <div style="margin-left:auto;display:flex;gap:6px;align-items:center;">
+          <button id="apollo-btn" onclick="stuurNaarApollo()" style="display:none;font-size:12px;font-weight:600;padding:5px 12px;border-radius:6px;border:1.5px solid #f5a623;background:#fff8ed;color:#92610a;cursor:pointer;white-space:nowrap;">◈ Zoeken in Apollo (<span id="apollo-sel-count">0</span>)</button>
           <select id="filter-owner" onchange="renderAccList()" style="width:130px;font-size:12px;padding:4px 8px;">
             <option value="all">Alle eigenaren</option>
             <option value="MA">Mees</option>
@@ -663,7 +664,8 @@ textarea{resize:vertical;min-height:75px;}
       </div>
       <div class="tbl-wrap">
         <table><thead><tr>
-          <th style="padding-left:16px;">Organisatie</th>
+          <th style="width:32px;padding-left:12px;"><input type="checkbox" id="acc-check-all" style="width:15px;height:15px;cursor:pointer;" onchange="accToggleAll(this.checked)" title="Alles selecteren"></th>
+          <th style="padding-left:8px;">Organisatie</th>
           <th style="cursor:pointer;user-select:none;" onclick="toggleSort('status')">Status <span id="sort-status"></span></th>
           <th style="cursor:pointer;user-select:none;" onclick="toggleSort('seg')">Segment <span id="sort-seg"></span></th>
           <th>Contactpersoon</th>
@@ -3449,7 +3451,8 @@ function renderAccList(){
     const tr=document.createElement('tr');
     tr.onclick=()=>openDetail(a.id);
     tr.innerHTML=`
-      <td style="padding-left:16px;"><div class="org-cell">
+      <td style="width:32px;padding-left:12px;" onclick="event.stopPropagation()"><input type="checkbox" class="acc-apollo-cb" data-id="${a.id}" data-name="${a.name.replace(/"/g,'')}" style="width:15px;height:15px;cursor:pointer;" onchange="accChkChange()"></td>
+      <td style="padding-left:8px;"><div class="org-cell">
         <div class="org-av" style="background:${bg};color:${fg};">${initials(a.name)}</div>
         <div>
           <div style="font-weight:500;">${a.name}</div>
@@ -3528,7 +3531,8 @@ function renderContacts(){
     const tr=document.createElement('tr');
     tr.onclick=()=>openDetail(a.id);
     tr.innerHTML=`
-      <td style="padding-left:16px;"><div class="org-cell">
+      <td style="width:32px;padding-left:12px;" onclick="event.stopPropagation()"><input type="checkbox" class="acc-apollo-cb" data-id="${a.id}" data-name="${a.name.replace(/"/g,'')}" style="width:15px;height:15px;cursor:pointer;" onchange="accChkChange()"></td>
+      <td style="padding-left:8px;"><div class="org-cell">
         <div class="av" style="background:${CLRS[a.color%CLRS.length][0]};color:${CLRS[a.color%CLRS.length][1]};">${initials(name)}</div>
         <span style="font-weight:500;">${name}</span>
       </div></td>
@@ -7073,23 +7077,16 @@ function renderScraper(){
       <div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:14px;display:flex;align-items:center;gap:6px;"><span style="display:block;width:3px;height:12px;background:#f5a623;border-radius:2px;"></span>Apollo — Contacten opzoeken</div>
       <div style="margin-bottom:10px;">
         <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px;">Apollo API Key</label>
-        <input type="password" id="apollo-key" placeholder="Plak hier je Apollo API key" style="width:100%;font-size:13px;padding:7px 10px;" oninput="localStorage.setItem('ix_apollo_key',this.value)">
+        <input type="password" id="apollo-key" placeholder="Plak hier je Apollo API key" value="${localStorage.getItem('ix_apollo_key')||''}" style="width:100%;font-size:13px;padding:7px 10px;" oninput="localStorage.setItem('ix_apollo_key',this.value)">
       </div>
       <div style="margin-bottom:10px;">
-        <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px;">Bedrijven <span style="font-weight:400;color:var(--text3);">— \u00e9\u00e9n per regel</span></label>
+        <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px;">Bedrijven <span style="font-weight:400;color:var(--text3);">— één per regel (of selecteer accounts in de accountslijst)</span></label>
         <textarea id="apollo-bedrijven" rows="5" placeholder="Looije Properties&#10;The CORE Group&#10;Battolyser Systems" style="width:100%;font-size:13px;padding:9px 12px;resize:vertical;"></textarea>
       </div>
       <div style="margin-bottom:12px;">
-        <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:6px;">Functietitels filteren</label>
+        <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:6px;">Functietitels filteren <span style="font-weight:400;color:var(--text3);font-size:11px;">— vink aan wat je wil zoeken</span></label>
         <div style="display:flex;flex-wrap:wrap;gap:6px;">
-          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="CEO" checked style="accent-color:var(--navy);"> CEO</label>
-          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Founder" checked style="accent-color:var(--navy);"> Founder</label>
-          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Co-Founder" checked style="accent-color:var(--navy);"> Co-Founder</label>
-          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Directeur" checked style="accent-color:var(--navy);"> Directeur</label>
-          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Managing Director" checked style="accent-color:var(--navy);"> Managing Director</label>
-          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Managing Partner" checked style="accent-color:var(--navy);"> Managing Partner</label>
-          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Director"> Director</label>
-          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Owner"> Owner</label>
+          ${[['CEO',true],['Founder',true],['Co-Founder',true],['Directeur',true],['Managing Director',true],['Managing Partner',true],['Director',false],['Owner',false],['CCO',false],['CMO',false],['CFO',false],['COO',false],['CTO',false],['General Manager',false],['Head of Sales',false],['Head of Business Development',false],['Commercial Director',false],['Sales Director',false],['VP Sales',false],['VP Marketing',false],['Partner',false],['President',false],['Eigenaar',false],['DGA',false],['Bestuurder',false]].map(([t,c])=>`<label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="${t}" ${c?'checked':''} style="accent-color:var(--navy);"> ${t}</label>`).join('')}
         </div>
       </div>
       <button class="btn pri" style="width:100%;justify-content:center;" onclick="apolloZoeken()">Zoeken in Apollo →</button>
@@ -7902,6 +7899,36 @@ function apolloImporteren(results) {
   addActivity(`<strong>${CU === 'MA' ? 'Mees' : 'Julian'}</strong> importeerde ${nieuweAccs.length} accounts via Apollo`, '◈', '#e8f0fb');
   alert(`✓ ${nieuweAccs.length} accounts geïmporteerd!`);
   nav('accounts');
+}
+
+
+// ══ ACCOUNTS → APOLLO SELECTIE ══
+function accChkChange() {
+  const checked = [...document.querySelectorAll('.acc-apollo-cb:checked')];
+  const btn = document.getElementById('apollo-btn');
+  const cnt = document.getElementById('apollo-sel-count');
+  if (btn) { btn.style.display = checked.length ? 'inline-flex' : 'none'; }
+  if (cnt) cnt.textContent = checked.length;
+  const allCb = document.getElementById('acc-check-all');
+  const allBoxes = document.querySelectorAll('.acc-apollo-cb');
+  if (allCb) allCb.checked = allBoxes.length > 0 && checked.length === allBoxes.length;
+}
+
+function accToggleAll(checked) {
+  document.querySelectorAll('.acc-apollo-cb').forEach(cb => { cb.checked = checked; });
+  accChkChange();
+}
+
+function stuurNaarApollo() {
+  const namen = [...document.querySelectorAll('.acc-apollo-cb:checked')].map(cb => cb.dataset.name);
+  if (!namen.length) { alert('Selecteer eerst accounts.'); return; }
+  nav('scraper');
+  setTimeout(() => {
+    const ta = document.getElementById('apollo-bedrijven');
+    if (ta) ta.value = namen.join('\n');
+    // Scroll to Apollo section
+    document.querySelector('#apollo-resultaten')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 300);
 }
 
 </script>
