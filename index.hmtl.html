@@ -2124,9 +2124,7 @@ function renderTab(t){
             ${ct.connections?`<div style="margin-bottom:8px;"><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">Connecties</div><div style="font-size:13px;color:var(--text2);">${ct.connections}</div></div>`:''}
             ${ct.note?`<div style="margin-bottom:8px;"><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">Notitie</div><div style="font-size:13px;color:var(--text2);">${ct.note}</div></div>`:''}
             <button class="btn xs ghost" onclick="event.stopPropagation();${ct._primary?'openEditPrimaryContact()':'openEditContact('+ct.id+')'}">Bewerken</button>
-            ${!ct._primary?`
-            <button class="btn xs ghost" style="color:var(--green-t);border-color:var(--green-t);" onclick="event.stopPropagation();maakContactPrimair(${ct.id})">Primair maken</button>
-            <button class="btn xs ghost" style="color:#c0392b;border-color:#c0392b;" onclick="event.stopPropagation();verwijderContact(${ct.id})">Verwijderen</button>`:''}
+            ${!ct._primary?'<button class="btn xs ghost" style="color:#1a7a3a;border-color:#1a7a3a;" onclick="event.stopPropagation();maakContactPrimair('+ct.id+')">Primair maken</button><button class="btn xs ghost" style="color:#c0392b;border-color:#c0392b;" onclick="event.stopPropagation();verwijderContact('+ct.id+')">Verwijderen</button>':''}
           </div>
         </div>`;
       }).join(''):`<div class="empty"><p>Nog geen contacten</p></div>`}`;
@@ -3696,17 +3694,11 @@ function bulkDeselectAll(){
   _geselecteerdeLijsten.clear();
   renderBulkLijstPills();
   renderBulkLijst();
-
-function bulkDeselectAll(){
-  document.querySelectorAll('.bulk-chk').forEach(cb=>cb.checked=false);
-  _geselecteerdeLijsten.clear();
-  renderBulkLijstPills();
-  renderBulkLijst();
   updateBulkCount();
 }
 
 function updateBulkCount(){
-  const n = document.querySelectorAll('.bulk-chk:checked').length;
+  const n = _geselecteerdeAccounts.size;
   const el = document.getElementById('bulk-sel-count');
   if(el) el.textContent = n + ' geselecteerd';
   const info = document.getElementById('bulk-verstuur-info');
