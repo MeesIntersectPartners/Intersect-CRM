@@ -3741,13 +3741,19 @@ async function bulkVerstuur(){
     const voornaam = a.cf || a.name;
     const onderwerpV = onderwerp.replace(/\[naam\]/gi, voornaam).replace(/\[bedrijf\]/gi, a.name);
     const bodyV = body.replace(/\[naam\]/gi, voornaam).replace(/\[bedrijf\]/gi, a.name);
+    // Zet enters om naar HTML zodat opmaak bewaard blijft
+    const bodyHtml = '<p>' + bodyV
+      .split(/\n\n+/)
+      .map(p => p.trim().replace(/\n/g, '<br>'))
+      .filter(Boolean)
+      .join('</p><p>') + '</p>';
     btn.textContent = `Versturen ${verstuurd+1}/${teVersturen.length}…`;
 
     try {
       const res = await fetch('/api/mail', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-user-email': van },
-        body: JSON.stringify({ aan: a.ce, cc: [], onderwerp: onderwerpV, inhoud: bodyV, log_acc_id: a.id, mail_type: mailType, bijlages: [] }),
+        body: JSON.stringify({ aan: a.ce, cc: [], onderwerp: onderwerpV, inhoud: bodyHtml, log_acc_id: a.id, mail_type: mailType, bijlages: [] }),
       });
       if(!res.ok) throw new Error(await res.text());
 
