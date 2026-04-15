@@ -2124,6 +2124,9 @@ function renderTab(t){
             ${ct.connections?`<div style="margin-bottom:8px;"><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">Connecties</div><div style="font-size:13px;color:var(--text2);">${ct.connections}</div></div>`:''}
             ${ct.note?`<div style="margin-bottom:8px;"><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">Notitie</div><div style="font-size:13px;color:var(--text2);">${ct.note}</div></div>`:''}
             <button class="btn xs ghost" onclick="event.stopPropagation();${ct._primary?'openEditPrimaryContact()':'openEditContact('+ct.id+')'}">Bewerken</button>
+            ${!ct._primary?`
+            <button class="btn xs ghost" style="color:var(--green-t);border-color:var(--green-t);" onclick="event.stopPropagation();maakContactPrimair(${ct.id})">Primair maken</button>
+            <button class="btn xs ghost" style="color:#c0392b;border-color:#c0392b;" onclick="event.stopPropagation();verwijderContact(${ct.id})">Verwijderen</button>`:''}
           </div>
         </div>`;
       }).join(''):`<div class="empty"><p>Nog geen contacten</p></div>`}`;
@@ -6348,6 +6351,45 @@ function toggleLijstAccount(lijstId, accId) {
   else lijst.accounts.push(accId);
   _saveLijst(lijst).catch(e => console.warn('Save lijst:', e));
   filterLijstAccounts(document.getElementById('lijst-acc-zoek')?.value || '');
+}
+
+async function verwijderContact(cId) {
+  if (!curAcc || !confirm('Contactpersoon verwijderen?')) return;
+  const ct = curAcc.contacts.find(c => c.id === cId);
+  if (!ct) return;
+  curAcc.contacts = curAcc.contacts.filter(c => c.id !== cId);
+  const idx = accs.findIndex(a => a.id === curAcc.id);
+  if (idx >= 0) accs[idx] = curAcc;
+  ss('ix_accs', accs);
+  if (ct.id && typeof ct.id === 'number' && ct.id < 2000000000) {
+    await fetch(`${SB_URL}/rest/v1/contacts?id=eq.${ct.id}`, { method: 'DELETE', headers: _sbH }).catch(e => console.warn('Delete contact:', e));
+  }
+  renderTab('contacts');
+}
+
+async function maakContactPrimair(cId) {
+  if (!curAcc) return;
+  const ct = curAcc.contacts.find(c => c.id === cId);
+  if (!ct) return;
+  // Huidige primaire opslaan als extra contact
+  const oudPrimair = { id: Date.now(), first: curAcc.cf, last: curAcc.cl, role: curAcc.cr, dept: '', email: curAcc.ce, email2: curAcc.ce2||'', phone: curAcc.cp, phone2: curAcc.cp2||'', li: curAcc.cli||'', connections: '', note: '' };
+  // Nieuwe primaire instellen
+  curAcc.cf = ct.first; curAcc.cl = ct.last; curAcc.cr = ct.role||'';
+  curAcc.cp = ct.phone||''; curAcc.cp2 = ct.phone2||'';
+  curAcc.ce = ct.email||''; curAcc.ce2 = ct.email2||'';
+  curAcc.cli = ct.li||'';
+  // Pas contacts array aan
+  curAcc.contacts = curAcc.contacts.filter(c => c.id !== cId);
+  if (oudPrimair.first || oudPrimair.last) curAcc.contacts.push(oudPrimair);
+  const idx = accs.findIndex(a => a.id === curAcc.id);
+  if (idx >= 0) accs[idx] = curAcc;
+  ss('ix_accs', accs);
+  await _saveAcc(curAcc);
+  if (oudPrimair.first || oudPrimair.last) await _saveContact(curAcc.id, oudPrimair).catch(() => {});
+  if (ct.id && typeof ct.id === 'number' && ct.id < 2000000000) {
+    await fetch(`${SB_URL}/rest/v1/contacts?id=eq.${ct.id}`, { method: 'DELETE', headers: _sbH }).catch(() => {});
+  }
+  renderTab('contacts');
 }
 
 function verwijderUitLijst(lijstId, accId) {
