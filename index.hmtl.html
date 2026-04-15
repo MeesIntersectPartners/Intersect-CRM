@@ -431,6 +431,7 @@ textarea{resize:vertical;min-height:75px;}
       <button class="sb-item" onclick="nav('workflows')">Workflows<span class="sb-badge" id="wf-badge" style="display:none;">0</span></button>
       <button class="sb-item" onclick="nav('outreach')">Outreach</button>
       <button class="sb-item" onclick="openImport()"><span class="ico">↑</span>CSV Import</button>
+      <button class="sb-item" onclick="openDedup()"><span class="ico">⊘</span>Dubbelen opruimen</button>
       <button class="sb-item" onclick="nav('rapport')">Klantrapport</button>
       <button class="sb-item" onclick="nav('activity')">Activiteit</button>
     </div>
@@ -1228,6 +1229,22 @@ textarea{resize:vertical;min-height:75px;}
     <div class="mf">
       <button class="btn ghost" onclick="closeM('m-handtekening')">Annuleren</button>
       <button class="btn pri" onclick="saveHandtekening()">Opslaan</button>
+    </div>
+  </div>
+</div>
+
+<!-- DEDUP MODAL -->
+<div class="modal-bg" id="m-dedup">
+  <div class="modal wide" style="max-width:680px;">
+    <div class="mh"><span class="mt">Dubbele accounts opruimen</span><button class="btn sm ghost" onclick="closeM('m-dedup')">✕</button></div>
+    <div class="mb">
+      <div id="dedup-status" style="font-size:13px;color:var(--text2);margin-bottom:12px;"></div>
+      <div id="dedup-list"></div>
+    </div>
+    <div class="mf">
+      <button class="btn ghost" onclick="closeM('m-dedup')">Annuleren</button>
+      <button class="btn ghost" onclick="dedupSelectAll()">Alles aanvinken</button>
+      <button class="btn danger" id="dedup-del-btn" onclick="dedupVerwijder()" style="display:none;">Verwijder geselecteerde</button>
     </div>
   </div>
 </div>
@@ -4410,6 +4427,71 @@ function openAddDeal(){['d-name','d-val','d-prob','d-close','d-note'].forEach(id
 function openAddProposal(){['p-title','p-val','p-date','p-exp','p-desc'].forEach(id=>document.getElementById(id).value='');document.getElementById('p-stat').value='concept';document.getElementById('m-prop').classList.add('on');}
 function openAddTemplate(){['tpl-name','tpl-subj','tpl-body'].forEach(id=>document.getElementById(id).value='');document.getElementById('m-tpl').classList.add('on');}
 function openImport(){document.getElementById('import-preview').style.display='none';document.getElementById('import-btn').style.display='none';document.getElementById('m-import').classList.add('on');}
+
+function openDedup(){
+  const grps={};
+  accs.forEach(a=>{
+    const k=a.name.toLowerCase().trim();
+    if(!grps[k])grps[k]=[];
+    grps[k].push(a);
+  });
+  const dubbelen=Object.values(grps).filter(g=>g.length>1);
+  const list=document.getElementById('dedup-list');
+  const status=document.getElementById('dedup-status');
+  if(!dubbelen.length){
+    status.textContent='✓ Geen dubbele accounts gevonden!';
+    list.innerHTML='';
+    document.getElementById('dedup-del-btn').style.display='none';
+  } else {
+    status.textContent=`${dubbelen.length} groep(en) met dubbelen gevonden — vink aan welke je wil verwijderen:`;
+    list.innerHTML=dubbelen.map(grp=>`
+      <div style="margin-bottom:16px;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;">
+        <div style="background:var(--surface2);padding:8px 12px;font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;">${grp[0].name}</div>
+        ${grp.map((a,i)=>`
+          <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer;${i===0?'background:rgba(201,168,76,.08);':''}" onmouseenter="this.style.background='var(--surface2)'" onmouseleave="this.style.background='${i===0?'rgba(201,168,76,.08)':'transparent'}'">
+            <input type="checkbox" class="dedup-cb" data-id="${a.id}" ${i===0?'disabled title="Primaire — kan niet worden verwijderd"':''} style="width:16px;height:16px;accent-color:var(--red);">
+            <div style="flex:1;">
+              <div style="font-size:13px;font-weight:500;">${a.name} ${i===0?'<span style="font-size:11px;color:var(--gold);font-weight:600;">★ primair</span>':''}</div>
+              <div style="font-size:11px;color:var(--text3);">ID: ${a.id} · ${a.ce||'geen e-mail'} · toegevoegd: ${a.added||'?'}</div>
+            </div>
+          </label>`).join('')}
+      </div>`).join('');
+    document.getElementById('dedup-del-btn').style.display='inline-flex';
+  }
+  document.getElementById('m-dedup').classList.add('on');
+  updateDedupBtn();
+  list.querySelectorAll('.dedup-cb').forEach(cb=>cb.addEventListener('change',updateDedupBtn));
+}
+
+function updateDedupBtn(){
+  const n=document.querySelectorAll('.dedup-cb:checked').length;
+  const btn=document.getElementById('dedup-del-btn');
+  btn.textContent=n?`Verwijder ${n} geselecteerde`:'Verwijder geselecteerde';
+  btn.style.display=n?'inline-flex':'none';
+}
+
+function dedupSelectAll(){
+  document.querySelectorAll('.dedup-cb:not(:disabled)').forEach(cb=>{cb.checked=true;});
+  updateDedupBtn();
+}
+
+async function dedupVerwijder(){
+  const ids=[...document.querySelectorAll('.dedup-cb:checked')].map(cb=>parseInt(cb.dataset.id));
+  if(!ids.length)return;
+  if(!confirm(`Weet je zeker dat je ${ids.length} account(s) wil verwijderen? Dit kan niet ongedaan worden.`))return;
+  let ok=0;
+  for(const id of ids){
+    try{
+      await fetch(`${SB_URL}/rest/v1/accounts?id=eq.${id}`,{method:'DELETE',headers:_sbH});
+      accs=accs.filter(a=>a.id!==id);
+      ok++;
+    }catch(e){console.warn('Delete fout:',id,e);}
+  }
+  ss('ix_accs',accs);
+  alert(`✓ ${ok} account(s) verwijderd.`);
+  closeM('m-dedup');
+  nav('accounts');
+}
 function closeM(id){
   document.getElementById(id)?.classList.remove('on');
   // Reset event modal knoppen na sluiten
@@ -4492,9 +4574,12 @@ async function doImport(){
   let added=0;let fouten=[];
   const nieuweAccs=[];
   const secundaireContacten=[];
+  const bestaandeNamen=new Set(accs.map(a=>a.name.toLowerCase().trim()));
   csvRows.forEach(r=>{
     const name=r['naam']||r['name']||r['bedrijf']||r['company']||Object.values(r)[0];
     if(!name)return;
+    if(bestaandeNamen.has(name.toLowerCase().trim())){return;}// sla over als al bestaat
+    bestaandeNamen.add(name.toLowerCase().trim());
     const contactNaam=(r['contactpersoon']||r['contact']||'').trim();
     const naamDelen=contactNaam.split(' ');
     const cf=naamDelen[0]||'';
