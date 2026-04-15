@@ -15,7 +15,6 @@ async function getTokens(supabase, userEmail) {
 
   if (error || !data) throw new Error('Geen tokens gevonden voor ' + userEmail);
 
-  // Check of token verlopen is
   const verlooptBinnenkort = new Date(data.expires_at) < new Date(Date.now() + 5 * 60 * 1000);
   if (verlooptBinnenkort) {
     const nieuw = await refreshToken(data.refresh_token);
@@ -34,12 +33,11 @@ async function getTokens(supabase, userEmail) {
   return data;
 }
 
-// Vat een email samen via Claude
 async function vatSamen(onderwerp, inhoud) {
   try {
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
     const res = await client.messages.create({
-      model: 'claude-opus-4-20250514',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 150,
       messages: [{
         role: 'user',
@@ -50,6 +48,20 @@ async function vatSamen(onderwerp, inhoud) {
   } catch {
     return null;
   }
+}
+
+// Zet platte tekst om naar HTML — behoudt alinea's en regelafbrekingen
+function tekstNaarHtml(inhoud) {
+  if (!inhoud) return '';
+  // Als er al HTML in zit, niet dubbel converteren
+  if (inhoud.includes('<p>') || inhoud.includes('<br') || inhoud.includes('<div')) return inhoud;
+  return '<p>' +
+    inhoud
+      .split(/\n\n+/)
+      .map(p => p.trim().replace(/\n/g, '<br>'))
+      .filter(Boolean)
+      .join('</p><p>') +
+    '</p>';
 }
 
 module.exports = async function handler(req, res) {
@@ -65,7 +77,6 @@ module.exports = async function handler(req, res) {
       const { dagen = 7 } = req.query;
       const mails = await getMails(tokens.access_token, parseInt(dagen));
 
-      // Voeg samenvatting toe aan elke mail
       const metSamenvatting = await Promise.all(mails.map(async mail => {
         const samenvatting = await vatSamen(mail.subject, mail.body?.content || mail.bodyPreview);
         return {
@@ -90,8 +101,10 @@ module.exports = async function handler(req, res) {
         return res.status(400).json({ error: 'aan, onderwerp en inhoud zijn verplicht' });
       }
 
-      // Splits bijlages in klein (<3MB, direct) en groot (>3MB, via draft + upload session)
-      const MAX_DIRECT = 3 * 1024 * 1024; // 3MB in bytes
+      // Converteer platte tekst naar HTML
+      const inhoudHtml = tekstNaarHtml(inhoud);
+
+      const MAX_DIRECT = 3 * 1024 * 1024;
       const kleineBijlages = [];
       const groteBijlages = [];
 
@@ -110,17 +123,15 @@ module.exports = async function handler(req, res) {
       }
 
       if (groteBijlages.length === 0) {
-        // Geen grote bijlages — gewoon direct versturen
-        await sendMail(tokens.access_token, { aan, onderwerp, inhoud, cc, attachments: kleineBijlages });
+        await sendMail(tokens.access_token, { aan, onderwerp, inhoud: inhoudHtml, cc, attachments: kleineBijlages });
       } else {
-        // Maak eerst een draft aan
         const axios = require('axios');
         const GRAPH = 'https://graph.microsoft.com/v1.0';
         const headers = { Authorization: `Bearer ${tokens.access_token}`, 'Content-Type': 'application/json' };
 
         const draftRes = await axios.post(`${GRAPH}/me/messages`, {
           subject: onderwerp,
-          body: { contentType: 'HTML', content: inhoud },
+          body: { contentType: 'HTML', content: inhoudHtml },
           toRecipients: [{ emailAddress: { address: aan } }],
           ccRecipients: (cc || []).map(e => ({ emailAddress: { address: e } })),
           attachments: kleineBijlages,
@@ -128,7 +139,6 @@ module.exports = async function handler(req, res) {
 
         const messageId = draftRes.data.id;
 
-        // Upload grote bijlages via upload session
         for (const b of groteBijlages) {
           const fileBytes = Buffer.from(b.base64, 'base64');
           const sessionRes = await axios.post(`${GRAPH}/me/messages/${messageId}/attachments/createUploadSession`, {
@@ -141,7 +151,7 @@ module.exports = async function handler(req, res) {
           }, { headers });
 
           const uploadUrl = sessionRes.data.uploadUrl;
-          const chunkSize = 4 * 1024 * 1024; // 4MB chunks
+          const chunkSize = 4 * 1024 * 1024;
 
           for (let offset = 0; offset < fileBytes.length; offset += chunkSize) {
             const chunk = fileBytes.slice(offset, Math.min(offset + chunkSize, fileBytes.length));
@@ -155,11 +165,9 @@ module.exports = async function handler(req, res) {
           }
         }
 
-        // Verstuur de draft
         await axios.post(`${GRAPH}/me/messages/${messageId}/send`, {}, { headers });
       }
 
-      // Log als activiteit in Supabase als acc_id meegegeven
       if (log_acc_id) {
         const samenvatting = await vatSamen(onderwerp, inhoud);
         const typeLabels = { mailshot: 'Mailshot', opvolg_mailshot: 'Opvolg Mailshot', directe_mail: 'Directe mail' };
