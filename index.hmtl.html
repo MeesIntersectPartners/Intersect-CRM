@@ -4477,9 +4477,10 @@ function handleCSV(input){
   };
   reader.readAsText(file);
 }
-function doImport(){
+async function doImport(){
   let added=0;
   const nieuweAccs=[];
+  const secundaireContacten=[];
   csvRows.forEach(r=>{
     const name=r['naam']||r['name']||r['bedrijf']||r['company']||Object.values(r)[0];
     if(!name)return;
@@ -4488,13 +4489,31 @@ function doImport(){
     const cf=naamDelen[0]||'';
     const cl=naamDelen.slice(1).join(' ')||'';
     const a={id:Date.now()+Math.floor(Math.random()*10000)+added,name,status:r['status']||'lead',sector:r['sector']||r['branche']||'',seg:r['segment']||'',web:r['website']||r['web']||'',li:r['linkedin']||'',phone:r['telefoon']||r['phone']||'',kvk:'',addr:r['adres']||r['address']||'',addrUrl:'',pipe:'Nieuw',val:r['waarde']||r['value']||'',cf,cl,cr:r['functie']||r['role']||'',cp:'',ce:r['email']||r['e-mail']||'',note:'',owner:CU,added:localISO(),color:accs.length%CLRS.length,contacts:[],deals:[],proposals:[],notes:[],docs:[],clientLinks:{}};
+    // Secundaire contactpersoon
+    const naam2=(r['contactpersoon_2']||'').trim();
+    if(naam2){
+      const delen2=naam2.split(' ');
+      secundaireContacten.push({accRef:a,first:delen2[0]||'',last:delen2.slice(1).join(' ')||'',role:r['functie_2']||'',email:r['email_2']||'',phone:'',dept:'',email2:'',phone2:'',li:'',note:''});
+    }
     accs.push(a);
     nieuweAccs.push(a);
     added++;
   });
   ss('ix_accs',accs);
-  // Sla ook op naar Supabase
-  nieuweAccs.forEach(a=>_saveAcc(a).catch(e=>console.warn('Import save:',e)));
+  // Sla op naar Supabase — primaire contacten via _saveAcc, secundaire via _saveContact
+  for(const a of nieuweAccs){
+    try{
+      await _saveAcc(a);
+      const sc=secundaireContacten.filter(c=>c.accRef===a);
+      for(const c of sc){
+        const nieuwContact={...c,id:Date.now()+Math.floor(Math.random()*9999)};
+        delete nieuwContact.accRef;
+        a.contacts.push(nieuwContact);
+        await _saveContact(a.id,nieuwContact);
+      }
+    }catch(e){console.warn('Import save:',e);}
+  }
+  ss('ix_accs',accs);
   addActivity(`<strong>${CU==='MA'?'Mees':'Julian'}</strong> importeerde ${added} accounts via CSV`,'↑','#e8f0fb');
   closeM('m-import');nav('accounts');
   alert(`✓ ${added} accounts geïmporteerd!`);
