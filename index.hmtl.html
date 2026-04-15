@@ -822,6 +822,13 @@ textarea{resize:vertical;min-height:75px;}
               <div class="mail-body">
                 <textarea id="bulk-body" style="min-height:180px;" placeholder="Schrijf hier je bulk mail…&#10;&#10;Gebruik [naam] voor voornaam contactpersoon.&#10;Gebruik [bedrijf] voor bedrijfsnaam."></textarea>
               </div>
+              <div style="display:flex;gap:6px;margin-top:6px;align-items:center;">
+                <span style="font-size:11px;color:var(--text3);">Handtekening:</span>
+                <select id="bulk-handtekening" style="font-size:12px;padding:4px 8px;flex:1;">
+                  <option value="">— geen —</option>
+                </select>
+                <button class="btn xs ghost" onclick="bulkVoegHandtekeningToe()">Toevoegen</button>
+              </div>
             </div>
 
             <!-- Ontbrekende emails waarschuwing -->
@@ -837,6 +844,10 @@ textarea{resize:vertical;min-height:75px;}
           <div class="card">
             <div class="card-hd"><span class="card-title">Templates</span><button class="btn sm ghost" onclick="openAddTemplate()">+ Nieuw</button></div>
             <div id="templates-list"></div>
+          </div>
+          <div class="card" style="margin-top:14px;">
+            <div class="card-hd"><span class="card-title">Handtekeningen</span><button class="btn sm ghost" onclick="openAddHandtekening()">+ Nieuw</button></div>
+            <div id="handtekeningen-list"></div>
           </div>
         </div>
       </div>
@@ -1199,6 +1210,24 @@ textarea{resize:vertical;min-height:75px;}
       <div class="fg"><label class="fl">Inhoud</label><textarea id="tpl-body" style="min-height:140px;" placeholder="Gebruik [naam] en [bedrijf] als variabelen…"></textarea></div>
     </div>
     <div class="mf"><button class="btn ghost" onclick="closeM('m-tpl')">Annuleren</button><button class="btn pri" onclick="saveTemplate()">Opslaan</button></div>
+  </div>
+</div>
+
+<!-- HANDTEKENING MODAL -->
+<div class="modal-bg" id="m-handtekening">
+  <div class="modal" style="max-width:560px;">
+    <div class="mh"><span class="mt" id="m-handtekening-titel">Handtekening toevoegen</span><button class="btn sm ghost" onclick="closeM('m-handtekening')">✕</button></div>
+    <div class="mb">
+      <div class="fg"><label class="fl">Naam *</label><input type="text" id="ht-naam" placeholder="bijv. Mees — Intersect"></div>
+      <div class="fg">
+        <label class="fl">Handtekening <span style="font-weight:400;color:var(--text3);font-size:11px;">— plak hier je volledige handtekening</span></label>
+        <textarea id="ht-inhoud" style="min-height:160px;font-family:monospace;font-size:12px;" placeholder="Plak hier je handtekening (tekst of HTML)…"></textarea>
+      </div>
+    </div>
+    <div class="mf">
+      <button class="btn ghost" onclick="closeM('m-handtekening')">Annuleren</button>
+      <button class="btn pri" onclick="saveHandtekening()">Opslaan</button>
+    </div>
   </div>
 </div>
 
@@ -3547,6 +3576,7 @@ function renderOutreach(){
   renderBulkVerzendaccounts();
   renderBulkOpdrachtgevers();
   renderBulkTemplates();
+  renderHandtekeningen();
   // templates lijst rechts
   const tl=document.getElementById('templates-list');
   if(tl) tl.innerHTML=templates.length?templates.map(t=>`
@@ -4007,6 +4037,85 @@ function saveTemplate(){
   const _nt={id:Date.now(),name,subj:document.getElementById('tpl-subj').value.trim(),body:document.getElementById('tpl-body').value.trim()};templates.push(_nt);
   ss('ix_tpl',templates);
   _saveTemplate(_nt).catch(e=>console.warn('tpl:',e));closeM('m-tpl');renderOutreach();
+}
+
+// ══ HANDTEKENINGEN ══
+let handtekeningen = JSON.parse(localStorage.getItem('ix_handtekeningen')||'[]');
+
+function renderHandtekeningen(){
+  const el = document.getElementById('handtekeningen-list');
+  if(!el) return;
+  if(!handtekeningen.length){
+    el.innerHTML = '<div class="empty"><p>Nog geen handtekeningen</p></div>';
+    return;
+  }
+  el.innerHTML = handtekeningen.map(h => `
+    <div class="template-card" style="display:flex;align-items:center;justify-content:space-between;">
+      <div onclick="openEditHandtekening(${h.id})" style="cursor:pointer;flex:1;">
+        <div class="template-name">${h.naam}</div>
+        <div class="template-preview" style="white-space:pre-wrap;font-size:11px;">${(h.inhoud||'').substring(0,80)}…</div>
+      </div>
+      <button class="btn xs ghost" style="color:#c0392b;border-color:#c0392b;margin-left:8px;flex-shrink:0;" onclick="verwijderHandtekening(${h.id})">✕</button>
+    </div>`).join('');
+  const sel = document.getElementById('bulk-handtekening');
+  if(sel){
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">— geen —</option>';
+    handtekeningen.forEach(h => sel.innerHTML += `<option value="${h.id}">${h.naam}</option>`);
+    sel.value = cur;
+  }
+}
+
+function openAddHandtekening(){
+  document.getElementById('ht-naam').value = '';
+  document.getElementById('ht-inhoud').value = '';
+  document.getElementById('m-handtekening').dataset.editId = '';
+  document.getElementById('m-handtekening-titel').textContent = 'Handtekening toevoegen';
+  document.getElementById('m-handtekening').classList.add('on');
+}
+
+function openEditHandtekening(id){
+  const h = handtekeningen.find(x=>x.id===id);
+  if(!h) return;
+  document.getElementById('ht-naam').value = h.naam;
+  document.getElementById('ht-inhoud').value = h.inhoud;
+  document.getElementById('m-handtekening').dataset.editId = id;
+  document.getElementById('m-handtekening-titel').textContent = 'Handtekening bewerken';
+  document.getElementById('m-handtekening').classList.add('on');
+}
+
+function saveHandtekening(){
+  const naam = document.getElementById('ht-naam').value.trim();
+  if(!naam){ alert('Geef de handtekening een naam.'); return; }
+  const inhoud = document.getElementById('ht-inhoud').value.trim();
+  const editId = parseInt(document.getElementById('m-handtekening').dataset.editId)||null;
+  if(editId){
+    const idx = handtekeningen.findIndex(h=>h.id===editId);
+    if(idx>=0) handtekeningen[idx] = { id: editId, naam, inhoud };
+  } else {
+    handtekeningen.push({ id: Date.now(), naam, inhoud });
+  }
+  localStorage.setItem('ix_handtekeningen', JSON.stringify(handtekeningen));
+  closeM('m-handtekening');
+  renderHandtekeningen();
+}
+
+function verwijderHandtekening(id){
+  if(!confirm('Handtekening verwijderen?')) return;
+  handtekeningen = handtekeningen.filter(h=>h.id!==id);
+  localStorage.setItem('ix_handtekeningen', JSON.stringify(handtekeningen));
+  renderHandtekeningen();
+}
+
+function bulkVoegHandtekeningToe(){
+  const id = parseInt(document.getElementById('bulk-handtekening')?.value)||null;
+  if(!id) return;
+  const h = handtekeningen.find(x=>x.id===id);
+  if(!h) return;
+  const el = document.getElementById('bulk-body');
+  if(!el) return;
+  el.value = el.value.trimEnd() + '\n\n' + h.inhoud;
+  el.focus();
 }
 
 // ══════════════ OPEN MODALS ══════════════
