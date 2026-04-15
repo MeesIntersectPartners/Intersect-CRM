@@ -1253,13 +1253,43 @@ textarea{resize:vertical;min-height:75px;}
 
 <!-- APOLLO MODAL -->
 <div class="modal-bg" id="m-apollo">
-  <div class="modal wide" style="max-width:620px;">
-    <div class="mh"><span class="mt">Apollo — Contacten gevonden</span><button class="btn sm ghost" onclick="closeM('m-apollo')">✕</button></div>
+  <div class="modal wide" style="max-width:600px;">
+    <div class="mh"><span class="mt">Apollo — Contacten zoeken</span><button class="btn sm ghost" onclick="closeM('m-apollo')">✕</button></div>
     <div class="mb" style="max-height:65vh;overflow-y:auto;">
-      <div id="apollo-modal-resultaten"></div>
+      <div id="apollo-filter-stap">
+        <div style="font-size:13px;color:var(--text2);margin-bottom:14px;">Welke functietitels wil je zoeken?</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;">
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="CEO" checked style="accent-color:var(--navy);"> CEO</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Founder" checked style="accent-color:var(--navy);"> Founder</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Co-Founder" checked style="accent-color:var(--navy);"> Co-Founder</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Directeur" checked style="accent-color:var(--navy);"> Directeur</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Managing Director" checked style="accent-color:var(--navy);"> Managing Director</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Managing Partner" checked style="accent-color:var(--navy);"> Managing Partner</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Director" style="accent-color:var(--navy);"> Director</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Owner" style="accent-color:var(--navy);"> Owner</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Eigenaar" style="accent-color:var(--navy);"> Eigenaar</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="DGA" style="accent-color:var(--navy);"> DGA</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="CCO" style="accent-color:var(--navy);"> CCO</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="CMO" style="accent-color:var(--navy);"> CMO</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="CFO" style="accent-color:var(--navy);"> CFO</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="COO" style="accent-color:var(--navy);"> COO</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="CTO" style="accent-color:var(--navy);"> CTO</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="General Manager" style="accent-color:var(--navy);"> General Manager</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Commercial Director" style="accent-color:var(--navy);"> Commercial Director</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="VP Sales" style="accent-color:var(--navy);"> VP Sales</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Partner" style="accent-color:var(--navy);"> Partner</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="President" style="accent-color:var(--navy);"> President</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Bestuurder" style="accent-color:var(--navy);"> Bestuurder</label>
+        </div>
+      </div>
+      <div id="apollo-resultaat-stap" style="display:none;">
+        <div id="apollo-modal-resultaten"></div>
+      </div>
     </div>
     <div class="mf">
       <button class="btn ghost" onclick="closeM('m-apollo')">Sluiten</button>
+      <button class="btn ghost" id="apollo-terug-btn" onclick="document.getElementById('apollo-filter-stap').style.display='block';document.getElementById('apollo-resultaat-stap').style.display='none';document.getElementById('apollo-terug-btn').style.display='none';document.getElementById('apollo-zoek-btn').style.display='inline-flex';document.getElementById('apollo-modal-import-btn').style.display='none';" style="display:none;">← Terug</button>
+      <button class="btn pri" id="apollo-zoek-btn" onclick="apolloZoekenVanuitModal()">Zoeken in Apollo →</button>
       <button class="btn pri" id="apollo-modal-import-btn" onclick="apolloModalImporteren()" style="display:none;">Importeren →</button>
     </div>
   </div>
@@ -7185,8 +7215,9 @@ function renderScraperReview(leads, container){
         </div>
       </div>`).join('')}
 
-      <div style="margin-top:12px;display:flex;gap:8px;align-items:center;">
+      <div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
         <button class="btn pri" style="padding:10px 20px;" onclick="scraperBevestigen()">Doorsturen naar CRM →</button>
+        <button class="btn" style="padding:10px 20px;background:#fff8ed;border:1.5px solid #f5a623;color:#92610a;font-weight:600;" onclick="scraperNaarApollo()">Doorsturen naar Apollo →</button>
         <span style="font-size:12px;color:var(--text3);" id="sc-sel-count">${leads.length} geselecteerd</span>
       </div>
     </div>`;
@@ -7225,29 +7256,25 @@ async function scraperBevestigen(){
   });
 
   if(!doorsturen.length){ alert('Selecteer minimaal 1 lead.'); return; }
-  if(!confirm(`${doorsturen.length} leads doorsturen naar Apollo?`)) return;
+  if(!confirm(`${doorsturen.length} leads doorsturen naar CRM?`)) return;
 
-  // Markeer afwijzingen in de scraper backend
-  if(afwijzen.length) scraperDoorsturen([], afwijzen).catch(e=>console.warn(e));
-
-  // Haal bedrijfsnamen op en stuur naar Apollo
-  const namen = doorsturen.map(l => cleanCompanyName(l.name || l.bedrijf || l.company || ''));
-  window._scraperDoorsturen = doorsturen; // bewaar voor later opslaan
-
-  document.getElementById('m-apollo').classList.add('on');
-  document.getElementById('apollo-modal-resultaten').innerHTML = `<div style="text-align:center;padding:30px;color:var(--text3);">Bezig met zoeken in Apollo voor ${namen.length} bedrijven...</div>`;
-  document.getElementById('apollo-modal-import-btn').style.display = 'none';
+  const btn = document.querySelector('#sc-review-sectie .btn.pri');
+  if(btn){ btn.disabled=true; btn.textContent='Bezig...'; }
 
   try{
-    const r = await fetch(APOLLO_PROXY, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ companyNames: namen })
-    });
-    const data = await r.json();
-    apolloModalToonResultaten(data.results || [], doorsturen);
+    const r = await scraperDoorsturen(doorsturen, afwijzen);
+    if(r.success){
+      await _loadFromSupabase();
+      alert(`✓ ${r.opgeslagen} leads toegevoegd aan CRM!`);
+      window._scraperReviewLeads = [];
+      renderScraper();
+      const badge = document.getElementById('scraper-badge');
+      const status = await fetch(`${SCRAPER_BASE}/index?action=status&secret=${SCRAPER_SECRET}`).then(x=>x.json()).catch(()=>({wachtend:0}));
+      if(badge){ if(status.wachtend > 0){ badge.style.display=''; badge.textContent=status.wachtend; } else badge.style.display='none'; }
+    }
   }catch(e){
-    document.getElementById('apollo-modal-resultaten').innerHTML = `<div style="color:var(--red);font-size:13px;padding:10px;">Fout: ${e.message}</div>`;
+    alert('Fout: ' + e.message);
+    if(btn){ btn.disabled=false; btn.textContent='Doorsturen naar CRM →'; }
   }
 }
 
@@ -8028,6 +8055,47 @@ function apolloModalImporteren() {
   renderScraper();
   nav('accounts');
   alert(`✓ ${added} accounts geïmporteerd!`);
+}
+
+
+function scraperNaarApollo() {
+  const checkboxes = document.querySelectorAll('#sc-review-sectie input[type=checkbox]');
+  const allLeads = window._scraperReviewLeads || [];
+  const doorsturen = [];
+  checkboxes.forEach((cb, i) => { if(cb.checked && allLeads[i]) doorsturen.push(allLeads[i]); });
+  if(!doorsturen.length){ alert('Selecteer minimaal 1 lead.'); return; }
+  window._scraperDoorsturen = doorsturen;
+  // Open Apollo modal in filter-stap
+  document.getElementById('apollo-filter-stap').style.display = 'block';
+  document.getElementById('apollo-resultaat-stap').style.display = 'none';
+  document.getElementById('apollo-modal-import-btn').style.display = 'none';
+  document.getElementById('m-apollo').classList.add('on');
+}
+
+async function apolloZoekenVanuitModal() {
+  const doorsturen = window._scraperDoorsturen || [];
+  const namen = doorsturen.map(l => cleanCompanyName(l.name || l.bedrijf || l.company || ''));
+  const titles = [...document.querySelectorAll('.ap-title:checked')].map(el => el.value);
+  if(!titles.length){ alert('Selecteer minimaal één functietitel.'); return; }
+
+  document.getElementById('apollo-filter-stap').style.display = 'none';
+  document.getElementById('apollo-resultaat-stap').style.display = 'block';
+  document.getElementById('apollo-zoek-btn').style.display = 'none';
+  document.getElementById('apollo-terug-btn').style.display = 'inline-flex';
+  document.getElementById('apollo-modal-resultaten').innerHTML = `<div style="text-align:center;padding:30px;color:var(--text3);">Bezig met zoeken in Apollo voor ${namen.length} bedrijven...</div>`;
+  document.getElementById('apollo-modal-import-btn').style.display = 'none';
+
+  try {
+    const r = await fetch(APOLLO_PROXY, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ companyNames: namen, titles })
+    });
+    const data = await r.json();
+    apolloModalToonResultaten(data.results || [], doorsturen);
+  } catch(e) {
+    document.getElementById('apollo-modal-resultaten').innerHTML = `<div style="color:var(--red);font-size:13px;padding:10px;">Fout: ${e.message}</div>`;
+  }
 }
 
 </script>
