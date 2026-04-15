@@ -14,25 +14,24 @@ export default async function handler(req, res) {
 
   for (const company of companyNames) {
     try {
-      const body = {
-        q_organization_name: company,
-        page: 1,
-        per_page: 5
-      };
-
-      const r = await fetch('https://api.apollo.io/v1/people/search', {
+      const r = await fetch('https://api.apollo.io/api/v1/mixed_people/api_search', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Cache-Control': 'no-cache',
           'x-api-key': APOLLO_KEY
         },
-        body: JSON.stringify(body)
+        body: JSON.stringify({
+          organization_names: [company],
+          person_seniorities: ['owner', 'founder', 'c_suite', 'partner', 'vp', 'director'],
+          per_page: 5,
+          page: 1
+        })
       });
 
       const rawText = await r.text();
       let data;
-      try { data = JSON.parse(rawText); } catch(e) { data = { parseError: rawText.slice(0, 200) }; }
+      try { data = JSON.parse(rawText); } catch(e) { data = { parseError: rawText.slice(0, 300) }; }
 
       const people = (data.people || []).map(p => ({
         name: [p.first_name, p.last_name].filter(Boolean).join(' '),
@@ -48,13 +47,7 @@ export default async function handler(req, res) {
       results.push({
         company,
         people,
-        _debug: {
-          status: r.status,
-          total: data.pagination?.total_entries,
-          error: data.error,
-          message: data.message,
-          raw: rawText.slice(0, 300)
-        }
+        _debug: { status: r.status, total: data.pagination?.total_entries, error: data.error, message: data.message }
       });
     } catch (e) {
       results.push({ company, people: [], _debug: { error: e.message } });
