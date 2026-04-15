@@ -7976,6 +7976,8 @@ function apolloModalToonResultaten(results, scraperLeads) {
   const el = document.getElementById('apollo-modal-resultaten');
   let gevonden = 0;
   let html = '';
+  const gezieneEmails = new Set();
+  const gezieneNamen = new Set();
 
   results.forEach((r, ri) => {
     if (!r.people?.length) {
@@ -7984,6 +7986,11 @@ function apolloModalToonResultaten(results, scraperLeads) {
       return;
     }
     r.people.forEach((p, pi) => {
+      // Dedupliceer op email of naam
+      const dedupKey = p.email || p.name;
+      if(dedupKey && (gezieneEmails.has(p.email) || gezieneNamen.has(p.name))) return;
+      if(p.email) gezieneEmails.add(p.email);
+      if(p.name) gezieneNamen.add(p.name);
       gevonden++;
       const bestaatAl = accs.some(a => a.name.toLowerCase().trim() === cleanCompanyName(r.company).toLowerCase().trim() && a.ce === p.email);
       html += `
