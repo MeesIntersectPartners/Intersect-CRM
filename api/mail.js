@@ -50,18 +50,16 @@ async function vatSamen(onderwerp, inhoud) {
   }
 }
 
-// Zet platte tekst om naar HTML — behoudt alinea's en regelafbrekingen
+// Zet platte tekst om naar nette HTML zonder lege tags
 function tekstNaarHtml(inhoud) {
   if (!inhoud) return '';
   // Als er al HTML in zit, niet dubbel converteren
   if (inhoud.includes('<p>') || inhoud.includes('<br') || inhoud.includes('<div')) return inhoud;
-  return '<p>' +
-    inhoud
-      .split(/\n\n+/)
-      .map(p => p.trim().replace(/\n/g, '<br>'))
-      .filter(Boolean)
-      .join('</p><p>') +
-    '</p>';
+  const alineas = inhoud
+    .split(/\n\n+/)
+    .map(p => p.trim().replace(/\n/g, '<br>'))
+    .filter(p => p.length > 0);
+  return alineas.map(p => `<p style="margin:0 0 1em 0;">${p}</p>`).join('');
 }
 
 module.exports = async function handler(req, res) {
@@ -101,7 +99,6 @@ module.exports = async function handler(req, res) {
         return res.status(400).json({ error: 'aan, onderwerp en inhoud zijn verplicht' });
       }
 
-      // Converteer platte tekst naar HTML
       const inhoudHtml = tekstNaarHtml(inhoud);
 
       const MAX_DIRECT = 3 * 1024 * 1024;
