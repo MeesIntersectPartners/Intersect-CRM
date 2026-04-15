@@ -6,7 +6,7 @@ const ALLE_TITELS = [
   'CCO', 'CMO', 'CFO', 'COO', 'CTO', 'President', 'Partner',
   'General Manager', 'Commercial Director', 'Sales Director',
   'VP Sales', 'VP Marketing', 'Head of Sales', 'Head of Business Development',
-  'Bestuurder', 'Gedelegeerd Bestuurder', 'Zaakvoerder'
+  'Bestuurder', 'Zaakvoerder'
 ];
 
 export default async function handler(req, res) {
@@ -23,18 +23,28 @@ export default async function handler(req, res) {
 
   for (const company of companyNames) {
     try {
+      // Zoek zonder email filter en zonder titel filter eerst — breedste net
       const r = await fetch('https://api.apollo.io/api/v1/mixed_people/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': APOLLO_KEY },
         body: JSON.stringify({
-          person_titles: ALLE_TITELS,
           organization_names: [company],
-          contact_email_status: ['verified'],
-          per_page: 5
+          person_seniorities: ['owner', 'founder', 'c_suite', 'partner', 'vp', 'director', 'manager'],
+          per_page: 5,
+          page: 1
         })
       });
 
       const data = await r.json();
+
+      // Log voor debugging
+      console.log(`Apollo [${company}]:`, JSON.stringify({ 
+        status: r.status,
+        total: data.pagination?.total_entries,
+        people: data.people?.length,
+        error: data.error
+      }));
+
       const people = (data.people || []).map(p => ({
         name: [p.first_name, p.last_name].filter(Boolean).join(' '),
         title: p.title || '',
@@ -46,7 +56,7 @@ export default async function handler(req, res) {
         sector: p.organization?.industry || ''
       }));
 
-      results.push({ company, people });
+      results.push({ company, people, debug: { total: data.pagination?.total_entries, error: data.error } });
     } catch (e) {
       results.push({ company, people: [], error: e.message });
     }
