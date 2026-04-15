@@ -7068,6 +7068,34 @@ function renderScraper(){
       ${_scraperBezig ? '⟳ Bezig...' : 'Scraper starten →'}
     </button>
 
+    <!-- Apollo Verrijking -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:18px 20px;margin-bottom:12px;margin-top:12px;">
+      <div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:14px;display:flex;align-items:center;gap:6px;"><span style="display:block;width:3px;height:12px;background:#f5a623;border-radius:2px;"></span>Apollo — Contacten opzoeken</div>
+      <div style="margin-bottom:10px;">
+        <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px;">Apollo API Key</label>
+        <input type="password" id="apollo-key" placeholder="Plak hier je Apollo API key" style="width:100%;font-size:13px;padding:7px 10px;" oninput="localStorage.setItem('ix_apollo_key',this.value)">
+      </div>
+      <div style="margin-bottom:10px;">
+        <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px;">Bedrijven <span style="font-weight:400;color:var(--text3);">— \u00e9\u00e9n per regel</span></label>
+        <textarea id="apollo-bedrijven" rows="5" placeholder="Looije Properties&#10;The CORE Group&#10;Battolyser Systems" style="width:100%;font-size:13px;padding:9px 12px;resize:vertical;"></textarea>
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:6px;">Functietitels filteren</label>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;">
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="CEO" checked style="accent-color:var(--navy);"> CEO</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Founder" checked style="accent-color:var(--navy);"> Founder</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Co-Founder" checked style="accent-color:var(--navy);"> Co-Founder</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Directeur" checked style="accent-color:var(--navy);"> Directeur</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Managing Director" checked style="accent-color:var(--navy);"> Managing Director</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Managing Partner" checked style="accent-color:var(--navy);"> Managing Partner</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Director"> Director</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Owner"> Owner</label>
+        </div>
+      </div>
+      <button class="btn pri" style="width:100%;justify-content:center;" onclick="apolloZoeken()">Zoeken in Apollo →</button>
+      <div id="apollo-resultaten" style="margin-top:14px;"></div>
+    </div>
+
     <div id="sc-review-sectie"></div>
   </div>`;
 
@@ -7778,6 +7806,104 @@ function _renderInstellingenUI() {
   setTimeout(()=>{runWorkflowEngine(false);updateWfBadge();renderWatNu();setTimeout(updateActieBadge,200);setTimeout(startReminderEngine,500);},600);
   setTimeout(applyHash, 150);
 })();
+
+// ══════════════ APOLLO INTEGRATIE ══════════════
+const APOLLO_PROXY = 'https://intersect-crm.vercel.app/api/apollo';
+
+async function apolloZoeken() {
+  const apiKey = document.getElementById('apollo-key')?.value.trim() || localStorage.getItem('ix_apollo_key') || '';
+  if (!apiKey) { alert('Vul eerst je Apollo API key in.'); return; }
+
+  const bedrijvenRaw = document.getElementById('apollo-bedrijven')?.value || '';
+  const companyNames = bedrijvenRaw.split('\n').map(s => s.trim()).filter(Boolean);
+  if (!companyNames.length) { alert('Vul minimaal één bedrijfsnaam in.'); return; }
+
+  const titles = [...document.querySelectorAll('.ap-title:checked')].map(el => el.value);
+
+  const res = document.getElementById('apollo-resultaten');
+  res.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:10px 0;">Bezig met zoeken in Apollo...</div>';
+
+  try {
+    const r = await fetch(APOLLO_PROXY, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apiKey, companyNames, titles })
+    });
+    const data = await r.json();
+    apolloToonResultaten(data.results || []);
+  } catch(e) {
+    res.innerHTML = `<div style="color:var(--red);font-size:13px;padding:10px 0;">Fout: ${e.message}</div>`;
+  }
+}
+
+function apolloToonResultaten(results) {
+  const res = document.getElementById('apollo-resultaten');
+  if (!results.length) { res.innerHTML = '<div style="color:var(--text3);font-size:13px;">Geen resultaten.</div>'; return; }
+
+  let gevonden = 0;
+  let html = '';
+  results.forEach((r, ri) => {
+    if (!r.people?.length) {
+      html += `<div style="padding:10px 0;border-bottom:1px solid var(--border);font-size:13px;color:var(--text3);">${r.company} — geen resultaat gevonden</div>`;
+      return;
+    }
+    r.people.forEach((p, pi) => {
+      gevonden++;
+      html += `
+        <div style="display:flex;align-items:flex-start;gap:10px;padding:12px 0;border-bottom:1px solid var(--border);">
+          <input type="checkbox" class="ap-select" data-ri="${ri}" data-pi="${pi}" checked style="margin-top:3px;width:16px;height:16px;accent-color:var(--navy);flex-shrink:0;">
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:13px;font-weight:600;color:var(--text);">${p.name} <span style="font-weight:400;color:var(--text3);font-size:12px;">— ${p.title}</span></div>
+            <div style="font-size:12px;color:var(--navy);margin-top:2px;">${r.company}</div>
+            <div style="font-size:12px;color:var(--text3);margin-top:2px;">${p.email || '—'}</div>
+          </div>
+        </div>`;
+    });
+  });
+
+  res.innerHTML = `
+    <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px;">${gevonden} contacten gevonden</div>
+    <div>${html}</div>
+    <button class="btn pri" style="width:100%;justify-content:center;margin-top:14px;" onclick="apolloImporteren(${JSON.stringify(results).replace(/"/g,'&quot;')})">Geselecteerde importeren →</button>`;
+}
+
+function apolloImporteren(results) {
+  const geselecteerd = [...document.querySelectorAll('.ap-select:checked')].map(el => ({
+    ri: parseInt(el.dataset.ri), pi: parseInt(el.dataset.pi)
+  }));
+
+  if (!geselecteerd.length) { alert('Vink eerst contacten aan.'); return; }
+
+  const nieuweAccs = [];
+  geselecteerd.forEach(({ ri, pi }) => {
+    const r = results[ri];
+    const p = r.people[pi];
+    if (!p) return;
+    const naamDelen = (p.name || '').split(' ');
+    const naam = cleanCompanyName(r.company);
+    if (accs.find(a => a.name.toLowerCase().trim() === naam.toLowerCase().trim())) return; // dedup
+    const a = {
+      id: Date.now() + Math.floor(Math.random() * 9999),
+      name: naam, status: 'lead', sector: p.sector || '', seg: '', web: p.website || '',
+      li: '', phone: p.phone || '', kvk: '', addr: '', addrUrl: '', pipe: 'Nieuw',
+      val: '', cf: naamDelen[0] || '', cl: naamDelen.slice(1).join(' ') || '',
+      cr: p.title || '', cp: '', ce: p.email || '', cli: p.linkedin || '',
+      ce2: '', cp2: '', note: '', owner: CU, added: localISO(),
+      color: accs.length % CLRS.length, contacts: [], deals: [], proposals: [], notes: [], docs: [], clientLinks: {}
+    };
+    accs.push(a);
+    nieuweAccs.push(a);
+  });
+
+  if (!nieuweAccs.length) { alert('Alle geselecteerde bedrijven bestaan al in het CRM.'); return; }
+
+  localStorage.setItem('ix_accs', JSON.stringify(accs));
+  nieuweAccs.forEach(a => _saveAcc(a).catch(e => console.warn('Apollo import:', e)));
+  addActivity(`<strong>${CU === 'MA' ? 'Mees' : 'Julian'}</strong> importeerde ${nieuweAccs.length} accounts via Apollo`, '◈', '#e8f0fb');
+  alert(`✓ ${nieuweAccs.length} accounts geïmporteerd!`);
+  nav('accounts');
+}
+
 </script>
 
 <!-- ══ OMZET INSTELLINGEN MODAL ══ -->
