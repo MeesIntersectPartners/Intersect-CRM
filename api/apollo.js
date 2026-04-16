@@ -1,24 +1,18 @@
 const APOLLO_KEY = 'Nvr6epqnYBswDYPlNx4CrQ';
 
-async function zoekOrganisatieId(company) {
-  const r = await fetch('https://api.apollo.io/api/v1/accounts/search', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache', 'x-api-key': APOLLO_KEY },
-    body: JSON.stringify({ q_organization_name: company, per_page: 1, page: 1 })
-  });
-  const data = await r.json().catch(() => ({}));
-  return data.accounts?.[0]?.id || null;
-}
+async function zoekPersonen(company, titles) {
+  const body = {
+    q_organization_name: company,
+    per_page: 10,
+    page: 1
+  };
+  // Stuur titels als OR filter naar Apollo
+  if (titles?.length) body.person_titles = titles;
 
-async function zoekPersonenInOrganisatie(orgId) {
   const r = await fetch('https://api.apollo.io/api/v1/mixed_people/api_search', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache', 'x-api-key': APOLLO_KEY },
-    body: JSON.stringify({
-      organization_ids: [orgId],
-      per_page: 10,
-      page: 1
-    })
+    body: JSON.stringify(body)
   });
   const data = await r.json().catch(() => ({}));
   return data.people || [];
@@ -30,7 +24,7 @@ function priorityScore(person, titles) {
   for (let i = 0; i < titles.length; i++) {
     if (t.includes(titles[i].toLowerCase())) return titles.length - i;
   }
-  return -1;
+  return 0;
 }
 
 export default async function handler(req, res) {
@@ -47,26 +41,17 @@ export default async function handler(req, res) {
 
   for (const company of companyNames) {
     try {
-      // Stap 1: vind de exacte organisatie
-      const orgId = await zoekOrganisatieId(company);
-      if (!orgId) {
-        results.push({ company, people: [], geenMatch: true });
-        continue;
-      }
+      const people = await zoekPersonen(company, titles);
 
-      // Stap 2: haal mensen op binnen die organisatie
-      const people = await zoekPersonenInOrganisatie(orgId);
       if (!people.length) {
         results.push({ company, people: [], geenMatch: true });
         continue;
       }
 
-      // Stap 3: sorteer op jouw prioriteit
-      const gesorteerd = [...people].sort((a, b) => priorityScore(b, titles) - priorityScore(a, titles));
-      const metPrio = gesorteerd.filter(p => priorityScore(p, titles) >= 0);
-      const beste = titles?.length && metPrio.length ? metPrio[0] : gesorteerd[0];
+      // Sorteer op prioriteit en pak de beste
+      people.sort((a, b) => priorityScore(b, titles) - priorityScore(a, titles));
+      const p = people[0];
 
-      const p = beste;
       results.push({
         company,
         people: [{
@@ -80,7 +65,6 @@ export default async function handler(req, res) {
           sector: p.organization?.industry || ''
         }]
       });
-
     } catch (e) {
       results.push({ company, people: [], error: e.message });
     }
