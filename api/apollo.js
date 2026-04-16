@@ -1,23 +1,5 @@
 const APOLLO_KEY = 'Nvr6epqnYBswDYPlNx4CrQ';
 
-async function zoekPersonen(company, titles) {
-  const body = {
-    q_organization_name: company,
-    organization_locations: ['Netherlands', 'Belgium'],
-    per_page: 10,
-    page: 1
-  };
-  if (titles?.length) body.person_titles = titles;
-
-  const r = await fetch('https://api.apollo.io/api/v1/mixed_people/api_search', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache', 'x-api-key': APOLLO_KEY },
-    body: JSON.stringify(body)
-  });
-  const data = await r.json().catch(() => ({}));
-  return data.people || [];
-}
-
 function priorityScore(person, titles) {
   if (!titles?.length) return 0;
   const t = (person.title || '').toLowerCase();
@@ -41,13 +23,21 @@ export default async function handler(req, res) {
 
   for (const company of companyNames) {
     try {
-      const people = await zoekPersonen(company, titles);
+      // Zo simpel mogelijk: alleen bedrijfsnaam, geen filters
+      const r = await fetch('https://api.apollo.io/api/v1/mixed_people/api_search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache', 'x-api-key': APOLLO_KEY },
+        body: JSON.stringify({ q_organization_name: company, per_page: 10, page: 1 })
+      });
+      const data = await r.json().catch(() => ({}));
+      const people = data.people || [];
 
       if (!people.length) {
         results.push({ company, people: [], geenMatch: true });
         continue;
       }
 
+      // Sorteer op prioriteit, pak beste
       people.sort((a, b) => priorityScore(b, titles) - priorityScore(a, titles));
       const p = people[0];
 
