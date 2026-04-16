@@ -8037,7 +8037,7 @@ function apolloModalImporteren() {
       return;
     }
     // Haal extra info op uit scraper leads als beschikbaar
-    const scraperLead = (window._scraperDoorsturen || []).find(l => cleanCompanyName(l.name||l.bedrijf||l.company||'').toLowerCase() === naam.toLowerCase());
+    const scraperLead = (window._scraperDoorsturen || []).find(l => cleanCompanyName(l.organisatie||l.name||l.bedrijf||l.company||'').toLowerCase() === naam.toLowerCase());
     const naamDelen = (p.name || '').split(' ');
     const a = {
       id: Date.now() + Math.floor(Math.random() * 9999) + added,
@@ -8087,7 +8087,7 @@ function scraperNaarApollo() {
 
 async function apolloZoekenVanuitModal() {
   const doorsturen = window._scraperDoorsturen || [];
-  const namen = doorsturen.map(l => cleanCompanyName(l.name || l.bedrijf || l.company || ''));
+  const namen = doorsturen.map(l => cleanCompanyName(l.organisatie || l.name || l.bedrijf || l.company || ''));
   const titles = apolloGetTitelsInVolgorde();
   if(!titles.length){ alert('Selecteer minimaal één functietitel.'); return; }
 
