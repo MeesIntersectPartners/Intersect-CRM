@@ -25,7 +25,7 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { companyNames, titles } = req.body;
+  const { companyNames, titles, strictTitles } = req.body;
   if (!companyNames?.length) return res.status(400).json({ error: 'companyNames is verplicht' });
 
   const results = [];
@@ -35,15 +35,18 @@ export default async function handler(req, res) {
       let gevonden = null;
 
       if (titles?.length) {
-        // Zoek per titel in prioriteitsvolgorde — stop bij eerste match
+        // Zoek per titel in prioriteitsvolgorde
         for (const title of titles) {
           const people = await zoekPersoon(company, title);
           if (people.length) { gevonden = people[0]; break; }
         }
-      }
-
-      // Geen match op titel — zoek breed binnen dit bedrijf
-      if (!gevonden) {
+        // Alleen fallback naar brede zoekopdracht als strictTitles NIET gezet is
+        if (!gevonden && !strictTitles) {
+          const people = await zoekPersoon(company, null);
+          if (people.length) gevonden = people[0];
+        }
+      } else {
+        // Geen titels — zoek breed
         const people = await zoekPersoon(company, null);
         if (people.length) gevonden = people[0];
       }
