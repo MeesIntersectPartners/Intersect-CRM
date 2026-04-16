@@ -1,30 +1,30 @@
 const APOLLO_KEY = 'Nvr6epqnYBswDYPlNx4CrQ';
 
-async function zoekPersoon(company, titles) {
-  // Gebruik q_organization_name voor fuzzy match (zoals Apollo UI ook doet)
+async function zoekBedrijfId(company) {
+  const r = await fetch('https://api.apollo.io/api/v1/mixed_companies/api_search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache', 'x-api-key': APOLLO_KEY },
+    body: JSON.stringify({ q_organization_name: company, per_page: 1, page: 1 })
+  });
+  const data = await r.json().catch(() => ({}));
+  return data.organizations?.[0]?.id || null;
+}
+
+async function zoekPersoonInBedrijf(organizationId, titles) {
   const body = {
-    q_organization_name: company,
-    person_locations: ['Netherlands', 'Belgium'],
-    per_page: 5,
+    organization_ids: [organizationId],
+    per_page: 1,
     page: 1
   };
-
-  if (titles?.length) {
-    body.person_titles = titles;
-  }
+  if (titles?.length) body.person_titles = titles;
 
   const r = await fetch('https://api.apollo.io/api/v1/mixed_people/api_search', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Cache-Control': 'no-cache',
-      'x-api-key': APOLLO_KEY
-    },
+    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache', 'x-api-key': APOLLO_KEY },
     body: JSON.stringify(body)
   });
-
   const data = await r.json().catch(() => ({}));
-  return { people: data.people || [], error: data.error };
+  return data.people || [];
 }
 
 export default async function handler(req, res) {
@@ -41,25 +41,34 @@ export default async function handler(req, res) {
 
   for (const company of companyNames) {
     try {
-      let gevondenPersoon = null;
+      // Stap 1: vind het Apollo bedrijf ID
+      const orgId = await zoekBedrijfId(company);
 
-      if (titles?.length) {
-        // Zoek per titel in volgorde van prioriteit — stop bij eerste match
-        for (const title of titles) {
-          const { people } = await zoekPersoon(company, [title]);
-          if (people.length) {
-            gevondenPersoon = people[0];
-            break;
-          }
-        }
-      } else {
-        // Geen titels opgegeven — zoek breed
-        const { people } = await zoekPersoon(company, null);
-        if (people.length) gevondenPersoon = people[0];
+      if (!orgId) {
+        results.push({ company, people: [], geenMatch: true });
+        continue;
       }
 
-      if (gevondenPersoon) {
-        const p = gevondenPersoon;
+      // Stap 2: zoek persoon binnen dat specifieke bedrijf, in volgorde van titels
+      let gevonden = null;
+
+      if (titles?.length) {
+        for (const title of titles) {
+          const people = await zoekPersoonInBedrijf(orgId, [title]);
+          if (people.length) { gevonden = people[0]; break; }
+        }
+        // Geen match op titel — pak de eerste persoon sowieso
+        if (!gevonden) {
+          const people = await zoekPersoonInBedrijf(orgId, null);
+          if (people.length) gevonden = people[0];
+        }
+      } else {
+        const people = await zoekPersoonInBedrijf(orgId, null);
+        if (people.length) gevonden = people[0];
+      }
+
+      if (gevonden) {
+        const p = gevonden;
         results.push({
           company,
           people: [{
