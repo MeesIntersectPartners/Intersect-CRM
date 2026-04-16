@@ -655,6 +655,7 @@ textarea{resize:vertical;min-height:75px;}
         <button class="fchip" data-f="inactief" onclick="setFilter('inactief')"><span class="dot" style="background:var(--text3)"></span>Inactief <span id="fc-inactief"></span></button>
         <div style="margin-left:auto;display:flex;gap:6px;align-items:center;">
           <button id="apollo-btn" onclick="stuurNaarApollo()" style="display:none;font-size:12px;font-weight:600;padding:5px 12px;border-radius:6px;border:1.5px solid #f5a623;background:#fff8ed;color:#92610a;cursor:pointer;white-space:nowrap;">◈ Zoeken in Apollo (<span id="apollo-sel-count">0</span>)</button>
+          <button id="delete-sel-btn" onclick="verwijderGeselecteerde()" style="display:none;font-size:12px;font-weight:600;padding:5px 12px;border-radius:6px;border:1.5px solid var(--red);background:#fff0f0;color:var(--red);cursor:pointer;white-space:nowrap;">🗑 Verwijder geselecteerde (<span id="delete-sel-count">0</span>)</button>
           <select id="filter-owner" onchange="renderAccList()" style="width:130px;font-size:12px;padding:4px 8px;">
             <option value="all">Alle eigenaren</option>
             <option value="MA">Mees</option>
@@ -8062,8 +8063,12 @@ function accChkChange() {
   const checked = [...document.querySelectorAll('.acc-apollo-cb:checked')];
   const btn = document.getElementById('apollo-btn');
   const cnt = document.getElementById('apollo-sel-count');
-  if (btn) { btn.style.display = checked.length ? 'inline-flex' : 'none'; }
+  const delBtn = document.getElementById('delete-sel-btn');
+  const delCnt = document.getElementById('delete-sel-count');
+  if (btn) btn.style.display = checked.length ? 'inline-flex' : 'none';
   if (cnt) cnt.textContent = checked.length;
+  if (delBtn) delBtn.style.display = checked.length ? 'inline-flex' : 'none';
+  if (delCnt) delCnt.textContent = checked.length;
   const allCb = document.getElementById('acc-check-all');
   const allBoxes = document.querySelectorAll('.acc-apollo-cb');
   if (allCb) allCb.checked = allBoxes.length > 0 && checked.length === allBoxes.length;
@@ -8333,6 +8338,25 @@ function apolloImporterenEnBewaar() {
     const filterStap = document.getElementById('apollo-filter-stap');
     filterStap.insertBefore(info, filterStap.firstChild);
   }
+}
+
+
+async function verwijderGeselecteerde() {
+  const ids = [...document.querySelectorAll('.acc-apollo-cb:checked')].map(cb => parseInt(cb.dataset.id));
+  if (!ids.length) return;
+  if (!confirm(`Weet je zeker dat je ${ids.length} account(s) wil verwijderen? Dit kan niet ongedaan worden.`)) return;
+  let ok = 0;
+  for (const id of ids) {
+    try {
+      await fetch(`${SB_URL}/rest/v1/accounts?id=eq.${id}`, { method: 'DELETE', headers: _sbH });
+      accs = accs.filter(a => a.id !== id);
+      ok++;
+    } catch(e) { console.warn('Delete fout:', id, e); }
+  }
+  ss('ix_accs', accs);
+  addActivity(`<strong>${CU === 'MA' ? 'Mees' : 'Julian'}</strong> verwijderde ${ok} accounts`, '🗑', '#ffe0e0');
+  renderAccList();
+  alert(`✓ ${ok} account(s) verwijderd.`);
 }
 
 </script>
