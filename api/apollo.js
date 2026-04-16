@@ -3,10 +3,10 @@ const APOLLO_KEY = 'Nvr6epqnYBswDYPlNx4CrQ';
 async function zoekPersonen(company, titles) {
   const body = {
     q_organization_name: company,
+    organization_locations: ['Netherlands', 'Belgium'],
     per_page: 10,
     page: 1
   };
-  // Stuur titels als OR filter naar Apollo
   if (titles?.length) body.person_titles = titles;
 
   const r = await fetch('https://api.apollo.io/api/v1/mixed_people/api_search', {
@@ -48,14 +48,13 @@ export default async function handler(req, res) {
         continue;
       }
 
-      // Sorteer op prioriteit en pak de beste
       people.sort((a, b) => priorityScore(b, titles) - priorityScore(a, titles));
       const p = people[0];
 
       results.push({
         company,
         people: [{
-          name: [p.first_name, p.last_name].filter(Boolean).join(' '),
+          name: [p.first_name, p.last_name].filter(Boolean).join(' ') || p.first_name || '—',
           title: p.title || '',
           email: p.email || '',
           phone: p.sanitized_phone || '',
