@@ -1,18 +1,14 @@
 const APOLLO_KEY = 'Nvr6epqnYBswDYPlNx4CrQ';
 
-async function zoekBedrijfId(company) {
-  const r = await fetch('https://api.apollo.io/api/v1/accounts/search', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache', 'x-api-key': APOLLO_KEY },
-    body: JSON.stringify({ q_organization_name: company, per_page: 1, page: 1 })
-  });
-  const data = await r.json().catch(() => ({}));
-  return data.accounts?.[0]?.id || null;
-}
-
-async function zoekPersoonInBedrijf(organizationId, title) {
-  const body = { organization_ids: [organizationId], per_page: 1, page: 1 };
+async function zoekPersoon(company, title) {
+  const body = {
+    q_organization_name: company,
+    person_locations: ['Netherlands', 'Belgium'],
+    per_page: 1,
+    page: 1
+  };
   if (title) body.person_titles = [title];
+
   const r = await fetch('https://api.apollo.io/api/v1/mixed_people/api_search', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache', 'x-api-key': APOLLO_KEY },
@@ -36,21 +32,19 @@ export default async function handler(req, res) {
 
   for (const company of companyNames) {
     try {
-      const orgId = await zoekBedrijfId(company);
-      if (!orgId) { results.push({ company, people: [], geenMatch: true }); continue; }
-
       let gevonden = null;
 
       if (titles?.length) {
-        // Zoek per titel in prioriteitsvolgorde
+        // Zoek per titel in prioriteitsvolgorde — stop bij eerste match
         for (const title of titles) {
-          const people = await zoekPersoonInBedrijf(orgId, title);
+          const people = await zoekPersoon(company, title);
           if (people.length) { gevonden = people[0]; break; }
         }
       }
-      // Geen match op titel — pak de eerste persoon sowieso
+
+      // Geen match op titel — zoek breed binnen dit bedrijf
       if (!gevonden) {
-        const people = await zoekPersoonInBedrijf(orgId, null);
+        const people = await zoekPersoon(company, null);
         if (people.length) gevonden = people[0];
       }
 
