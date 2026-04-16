@@ -8148,42 +8148,67 @@ function apolloModalToonResultaten(results, scraperLeads) {
   document.getElementById('apollo-modal-import-btn').style.display = gevonden ? 'inline-flex' : 'none';
 }
 
-function apolloModalImporteren(keepOpen) {
+async function apolloModalImporteren(keepOpen) {
   const results = window._apolloResults || [];
   const geselecteerd = [...document.querySelectorAll('.ap-modal-cb:checked')].map(el => ({
     ri: parseInt(el.dataset.ri), pi: parseInt(el.dataset.pi)
   }));
   if (!geselecteerd.length) { alert('Vink eerst contacten aan.'); return; }
 
-  let added = 0;
+  // Verzamel Apollo IDs voor enrichment
+  const teEnrichen = geselecteerd.map(({ ri, pi }) => ({
+    ri, pi, apolloId: results[ri]?.people?.[pi]?.apolloId
+  })).filter(x => x.apolloId);
+
+  // Enrich bij Apollo (kost credits) om e-mail + achternaam te krijgen
+  let enrichMap = {};
+  if (teEnrichen.length) {
+    try {
+      const r = await fetch(APOLLO_PROXY, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enrich: true, personIds: teEnrichen.map(x => x.apolloId) })
+      });
+      const data = await r.json();
+      (data.enriched || []).forEach(e => { enrichMap[e.id] = e; });
+    } catch(e) { console.warn('Enrich fout:', e); }
+  }
+
+  let added = 0; let overgeslagen = [];
   geselecteerd.forEach(({ ri, pi }) => {
     const r = results[ri];
     const p = r?.people?.[pi];
     if (!p) return;
     const naam = cleanCompanyName(r.company);
+    const enriched = enrichMap[p.apolloId] || {};
+    const volledigeNaam = enriched.name || p.name || '';
+    const email = enriched.email || p.email || '';
+    const naamDelen = volledigeNaam.split(' ');
+
     const bestaand = accs.find(a => a.name.toLowerCase().trim() === naam.toLowerCase().trim());
     if (bestaand) {
-      if (!bestaand.ce && p.email) {
-        bestaand.cf = p.name.split(' ')[0] || '';
-        bestaand.cl = p.name.split(' ').slice(1).join(' ') || '';
+      if (!bestaand.ce && email) {
+        bestaand.cf = naamDelen[0] || '';
+        bestaand.cl = naamDelen.slice(1).join(' ') || '';
         bestaand.cr = p.title || '';
-        bestaand.ce = p.email || '';
+        bestaand.ce = email;
         _saveAcc(bestaand).catch(e => console.warn(e));
+        added++;
+      } else {
+        overgeslagen.push(naam);
       }
       return;
     }
-    // Haal extra info op uit scraper leads als beschikbaar
     const scraperLead = (window._scraperDoorsturen || []).find(l => cleanCompanyName(l.organisatie||l.name||l.bedrijf||l.company||'').toLowerCase() === naam.toLowerCase());
-    const naamDelen = (p.name || '').split(' ');
     const a = {
       id: Date.now() + Math.floor(Math.random() * 9999) + added,
       name: naam, status: 'lead',
       sector: p.sector || scraperLead?.sector || '',
       seg: '', web: p.website || scraperLead?.website || '',
-      li: '', phone: p.phone || scraperLead?.phone || '',
+      li: enriched.linkedin || p.linkedin || '', phone: enriched.phone || p.phone || scraperLead?.phone || '',
       kvk: scraperLead?.kvk || '', addr: scraperLead?.address || '', addrUrl: '', pipe: 'Nieuw',
       val: '', cf: naamDelen[0] || '', cl: naamDelen.slice(1).join(' ') || '',
-      cr: p.title || '', cp: '', ce: p.email || '', cli: p.linkedin || '',
+      cr: p.title || '', cp: '', ce: email, cli: enriched.linkedin || p.linkedin || '',
       ce2: '', cp2: '', note: scraperLead?.haakje || '', owner: CU, added: localISO(),
       color: accs.length % CLRS.length, contacts: [], deals: [], proposals: [], notes: [], docs: [], clientLinks: {}
     };
@@ -8193,12 +8218,13 @@ function apolloModalImporteren(keepOpen) {
   });
 
   ss('ix_accs', accs);
-  // Reset scraper
   window._scraperDoorsturen = [];
   window._scraperReviewLeads = [];
   addActivity(`<strong>${CU === 'MA' ? 'Mees' : 'Julian'}</strong> importeerde ${added} accounts via Apollo`, '◈', '#e8f0fb');
   if (!keepOpen) { closeM('m-apollo'); renderScraper(); nav('accounts'); }
-  if (added) alert(`✓ ${added} accounts geïmporteerd!`);
+  let msg = `✓ ${added} account(s) geïmporteerd!`;
+  if (overgeslagen.length) msg += `\n\nAl aanwezig in CRM (overgeslagen):\n${overgeslagen.join(', ')}`;
+  alert(msg);
 }
 
 
