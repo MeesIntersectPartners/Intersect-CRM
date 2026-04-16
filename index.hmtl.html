@@ -656,6 +656,7 @@ textarea{resize:vertical;min-height:75px;}
         <div style="margin-left:auto;display:flex;gap:6px;align-items:center;">
           <button id="apollo-btn" onclick="stuurNaarApollo()" style="display:none;font-size:12px;font-weight:600;padding:5px 12px;border-radius:6px;border:1.5px solid #f5a623;background:#fff8ed;color:#92610a;cursor:pointer;white-space:nowrap;">◈ Zoeken in Apollo (<span id="apollo-sel-count">0</span>)</button>
           <button id="delete-sel-btn" onclick="verwijderGeselecteerde()" style="display:none;font-size:12px;font-weight:600;padding:5px 12px;border-radius:6px;border:1.5px solid var(--red);background:#fff0f0;color:var(--red);cursor:pointer;white-space:nowrap;">🗑 Verwijder geselecteerde (<span id="delete-sel-count">0</span>)</button>
+          <button id="lijst-sel-btn" onclick="voegToeAanLijst()" style="display:none;font-size:12px;font-weight:600;padding:5px 12px;border-radius:6px;border:1.5px solid var(--navy);background:var(--navy-fade);color:var(--navy);cursor:pointer;white-space:nowrap;">+ Toevoegen aan lijst</button>
           <select id="filter-owner" onchange="renderAccList()" style="width:130px;font-size:12px;padding:4px 8px;">
             <option value="all">Alle eigenaren</option>
             <option value="MA">Mees</option>
@@ -1232,6 +1233,29 @@ textarea{resize:vertical;min-height:75px;}
     <div class="mf">
       <button class="btn ghost" onclick="closeM('m-handtekening')">Annuleren</button>
       <button class="btn pri" onclick="saveHandtekening()">Opslaan</button>
+    </div>
+  </div>
+</div>
+
+<!-- LIJST MODAL -->
+<div class="modal-bg" id="m-lijst-sel">
+  <div class="modal" style="max-width:480px;">
+    <div class="mh"><span class="mt">Toevoegen aan lijst</span><button class="btn sm ghost" onclick="closeM('m-lijst-sel')">✕</button></div>
+    <div class="mb">
+      <div style="margin-bottom:12px;">
+        <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:6px;">Kies bestaande lijst</label>
+        <div id="lijst-sel-opties" style="display:flex;flex-direction:column;gap:6px;max-height:200px;overflow-y:auto;"></div>
+      </div>
+      <div style="border-top:1px solid var(--border);padding-top:12px;">
+        <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:6px;">Of maak nieuwe lijst aan</label>
+        <div style="display:flex;gap:8px;">
+          <input type="text" id="nieuwe-lijst-naam" placeholder="Naam nieuwe lijst..." style="flex:1;font-size:13px;padding:7px 10px;">
+          <button class="btn pri" onclick="maakNieuweLijstEnVoegToe()">Aanmaken</button>
+        </div>
+      </div>
+    </div>
+    <div class="mf">
+      <button class="btn ghost" onclick="closeM('m-lijst-sel')">Annuleren</button>
     </div>
   </div>
 </div>
@@ -8072,6 +8096,8 @@ function accChkChange() {
   const allCb = document.getElementById('acc-check-all');
   const allBoxes = document.querySelectorAll('.acc-apollo-cb');
   if (allCb) allCb.checked = allBoxes.length > 0 && checked.length === allBoxes.length;
+  const lijstBtn = document.getElementById('lijst-sel-btn');
+  if (lijstBtn) lijstBtn.style.display = checked.length ? 'inline-flex' : 'none';
 }
 
 function accToggleAll(checked) {
@@ -8357,6 +8383,49 @@ async function verwijderGeselecteerde() {
   addActivity(`<strong>${CU === 'MA' ? 'Mees' : 'Julian'}</strong> verwijderde ${ok} accounts`, '🗑', '#ffe0e0');
   renderAccList();
   alert(`✓ ${ok} account(s) verwijderd.`);
+}
+
+
+function voegToeAanLijst() {
+  const ids = [...document.querySelectorAll('.acc-apollo-cb:checked')].map(cb => parseInt(cb.dataset.id));
+  if (!ids.length) return;
+  window._lijstSelIds = ids;
+
+  // Toon bestaande lijsten
+  const el = document.getElementById('lijst-sel-opties');
+  if (!lijsten.length) {
+    el.innerHTML = '<div style="font-size:12px;color:var(--text3);">Nog geen lijsten aangemaakt.</div>';
+  } else {
+    el.innerHTML = lijsten.map(l => `
+      <button onclick="voegToeAanBestaandeLijst(${l.id})" style="text-align:left;padding:8px 12px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif;" onmouseover="this.style.borderColor='var(--navy)'" onmouseout="this.style.borderColor='var(--border)'">
+        <strong>${l.naam}</strong> <span style="font-size:11px;color:var(--text3);">${l.accounts?.length || 0} accounts</span>
+      </button>`).join('');
+  }
+  document.getElementById('nieuwe-lijst-naam').value = '';
+  document.getElementById('m-lijst-sel').classList.add('on');
+}
+
+async function voegToeAanBestaandeLijst(lijstId) {
+  const ids = window._lijstSelIds || [];
+  const lijst = lijsten.find(l => l.id === lijstId);
+  if (!lijst) return;
+  const bestaand = new Set(lijst.accounts || []);
+  ids.forEach(id => bestaand.add(id));
+  lijst.accounts = [...bestaand];
+  await _saveLijst(lijst).catch(e => console.warn(e));
+  closeM('m-lijst-sel');
+  alert(`✓ ${ids.length} account(s) toegevoegd aan "${lijst.naam}"`);
+}
+
+async function maakNieuweLijstEnVoegToe() {
+  const naam = document.getElementById('nieuwe-lijst-naam')?.value.trim();
+  if (!naam) { alert('Vul een naam in.'); return; }
+  const ids = window._lijstSelIds || [];
+  const nieuw = { id: Date.now(), naam, beschrijving: '', accounts: ids };
+  lijsten.push(nieuw);
+  await _saveLijst(nieuw).catch(e => console.warn(e));
+  closeM('m-lijst-sel');
+  alert(`✓ Lijst "${naam}" aangemaakt met ${ids.length} account(s)`);
 }
 
 </script>
