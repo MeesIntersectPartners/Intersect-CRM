@@ -1413,9 +1413,10 @@ textarea{resize:vertical;min-height:75px;}
     </div>
     <div class="mf">
       <button class="btn ghost" onclick="closeM('m-apollo')">Sluiten</button>
-      <button class="btn ghost" id="apollo-terug-btn" onclick="document.getElementById('apollo-filter-stap').style.display='block';document.getElementById('apollo-resultaat-stap').style.display='none';document.getElementById('apollo-terug-btn').style.display='none';document.getElementById('apollo-zoek-btn').style.display='inline-flex';document.getElementById('apollo-modal-import-btn').style.display='none';" style="display:none;">← Terug</button>
+      <button class="btn ghost" id="apollo-terug-btn" onclick="document.getElementById('apollo-filter-stap').style.display='block';document.getElementById('apollo-resultaat-stap').style.display='none';document.getElementById('apollo-terug-btn').style.display='none';document.getElementById('apollo-zoek-btn').style.display='inline-flex';document.getElementById('apollo-modal-import-btn').style.display='none';document.getElementById('apollo-partial-btn').style.display='none';" style="display:none;">← Terug & andere titels</button>
       <button class="btn pri" id="apollo-zoek-btn" onclick="apolloZoekenVanuitModal()">Zoeken in Apollo →</button>
-      <button class="btn pri" id="apollo-modal-import-btn" onclick="apolloModalImporteren()" style="display:none;">Importeren →</button>
+      <button class="btn ghost" id="apollo-partial-btn" onclick="apolloImporterenEnBewaar()" style="display:none;">Importeer gevonden →</button>
+      <button class="btn pri" id="apollo-modal-import-btn" onclick="apolloModalImporteren()" style="display:none;">Alles importeren →</button>
     </div>
   </div>
 </div>
@@ -8131,12 +8132,23 @@ function apolloModalToonResultaten(results, scraperLeads) {
   });
 
   const geenMatch = results.filter(r => !r.people?.length).map(r => r.company);
-  const geenMatchHtml = geenMatch.length ? `<div style="margin-top:14px;padding:12px;background:#fff8ed;border:1px solid #f5a623;border-radius:8px;font-size:12px;color:#92610a;"><strong>Geen contactpersoon gevonden voor:</strong> ${geenMatch.join(', ')}<br><span style="opacity:.8;">Je kunt deze zelf opzoeken of via Apollo andere titels proberen.</span></div>` : '';
-  el.innerHTML = `<div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px;">${gevonden} contacten gevonden voor ${results.filter(r=>r.people?.length).length} van ${results.length} bedrijven</div>${html}${geenMatchHtml}`;
+  const heeftResultaten = results.filter(r => r.people?.length).length;
+  const geenMatchHtml = geenMatch.length ? `<div style="margin-top:14px;padding:12px;background:#fff8ed;border:1px solid #f5a623;border-radius:8px;font-size:12px;color:#92610a;"><strong>Geen contactpersoon gevonden voor:</strong> ${geenMatch.join(', ')}<br><span style="opacity:.8;">Klik "← Terug & andere titels" om opnieuw te proberen.</span></div>` : '';
+  el.innerHTML = `<div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px;">${gevonden} contacten gevonden voor ${heeftResultaten} van ${results.length} bedrijven</div>${html}${geenMatchHtml}`;
+  // Toon juiste knoppen
+  const partialBtn = document.getElementById('apollo-partial-btn');
+  const importBtn = document.getElementById('apollo-modal-import-btn');
+  if (geenMatch.length && heeftResultaten) {
+    if(partialBtn) partialBtn.style.display = 'inline-flex';
+    if(importBtn) importBtn.style.display = 'none';
+  } else if (heeftResultaten) {
+    if(partialBtn) partialBtn.style.display = 'none';
+    if(importBtn) importBtn.style.display = 'inline-flex';
+  }
   document.getElementById('apollo-modal-import-btn').style.display = gevonden ? 'inline-flex' : 'none';
 }
 
-function apolloModalImporteren() {
+function apolloModalImporteren(keepOpen) {
   const results = window._apolloResults || [];
   const geselecteerd = [...document.querySelectorAll('.ap-modal-cb:checked')].map(el => ({
     ri: parseInt(el.dataset.ri), pi: parseInt(el.dataset.pi)
@@ -8185,10 +8197,8 @@ function apolloModalImporteren() {
   window._scraperDoorsturen = [];
   window._scraperReviewLeads = [];
   addActivity(`<strong>${CU === 'MA' ? 'Mees' : 'Julian'}</strong> importeerde ${added} accounts via Apollo`, '◈', '#e8f0fb');
-  closeM('m-apollo');
-  renderScraper();
-  nav('accounts');
-  alert(`✓ ${added} accounts geïmporteerd!`);
+  if (!keepOpen) { closeM('m-apollo'); renderScraper(); nav('accounts'); }
+  if (added) alert(`✓ ${added} accounts geïmporteerd!`);
 }
 
 
@@ -8270,6 +8280,33 @@ function apolloGetTitelsInVolgorde() {
   const inVolgorde = _apolloTitelVolgorde.filter(v => checked.includes(v));
   const rest = checked.filter(v => !inVolgorde.includes(v));
   return [...inVolgorde, ...rest];
+}
+
+
+function apolloImporterenEnBewaar() {
+  // Importeer alleen de aangevinkte resultaten
+  apolloModalImporteren(true);
+  // Bewaar de bedrijven zonder match voor een nieuwe zoekopdracht
+  const results = window._apolloResults || [];
+  const geenMatch = results.filter(r => !r.people?.length).map(r => r.company);
+  if (geenMatch.length) {
+    // Zet terug naar filterstap met de niet-gevonden bedrijven
+    window._scraperDoorsturen = (window._scraperDoorsturen || []).filter(l =>
+      geenMatch.some(naam => cleanCompanyName(l.organisatie||l.name||'').toLowerCase() === naam.toLowerCase())
+    );
+    document.getElementById('apollo-filter-stap').style.display = 'block';
+    document.getElementById('apollo-resultaat-stap').style.display = 'none';
+    document.getElementById('apollo-terug-btn').style.display = 'none';
+    document.getElementById('apollo-zoek-btn').style.display = 'inline-flex';
+    document.getElementById('apollo-partial-btn').style.display = 'none';
+    document.getElementById('apollo-modal-import-btn').style.display = 'none';
+    // Toon melding
+    const info = document.createElement('div');
+    info.style.cssText = 'margin-bottom:10px;padding:8px 12px;background:#eaf7ef;border:1px solid #2d8a4e;border-radius:6px;font-size:12px;color:#1a5c34;';
+    info.textContent = `✓ Gevonden contacten geïmporteerd. Pas de filters aan om voor ${geenMatch.length} bedrijven opnieuw te zoeken: ${geenMatch.join(', ')}`;
+    const filterStap = document.getElementById('apollo-filter-stap');
+    filterStap.insertBefore(info, filterStap.firstChild);
+  }
 }
 
 </script>
