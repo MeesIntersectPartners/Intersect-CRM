@@ -1,15 +1,5 @@
 const APOLLO_KEY = 'Nvr6epqnYBswDYPlNx4CrQ';
 
-const ALLE_FALLBACK_TITELS = [
-  'CEO', 'Founder', 'Co-Founder', 'Owner', 'Eigenaar', 'DGA',
-  'Directeur', 'Managing Director', 'Managing Partner', 'Director',
-  'General Manager', 'President', 'Chairman', 'CFO', 'COO', 'CTO', 'CMO',
-  'Partnership Manager', 'Head of Partnerships', 'Business Development Manager',
-  'Head of Business Development', 'Commercial Director', 'Sales Director',
-  'Head of Sales', 'Marketing Director', 'Head of Marketing',
-  'Relatiemanager', 'Account Manager', 'Key Account Manager', 'Partner'
-];
-
 async function zoekPersoon(company, titles) {
   const body = {
     q_organization_name: company,
@@ -29,14 +19,13 @@ async function zoekPersoon(company, titles) {
 }
 
 function scorePersonForPriority(person, prioriteit) {
-  // Geef hogere score aan mensen waarvan de titel matcht met hogere prioriteit
   const title = (person.title || '').toLowerCase();
   for (let i = 0; i < prioriteit.length; i++) {
     if (title.includes(prioriteit[i].toLowerCase())) {
-      return prioriteit.length - i; // hogere index = lagere prioriteit
+      return prioriteit.length - i;
     }
   }
-  return 0;
+  return -1; // Geen match op prioriteitslijst
 }
 
 export default async function handler(req, res) {
@@ -49,27 +38,24 @@ export default async function handler(req, res) {
   const { companyNames, titles } = req.body;
   if (!companyNames?.length) return res.status(400).json({ error: 'companyNames is verplicht' });
 
-  const prioriteit = titles?.length ? titles : [];
-  const volleLijst = [...new Set([...prioriteit, ...ALLE_FALLBACK_TITELS])];
-
   const results = [];
 
   for (const company of companyNames) {
     try {
-      // Één call met alle titels als OR filter
-      let people = await zoekPersoon(company, volleLijst);
+      // Zoek alleen op de aangevinkte titels — geen fallback
+      const people = titles?.length
+        ? await zoekPersoon(company, titles)
+        : await zoekPersoon(company, null);
 
-      // Als niets — probeer zonder titelfilter
-      if (!people.length) {
-        people = await zoekPersoon(company, null);
-      }
+      // Filter alleen mensen waarvan de titel echt matcht met een aangevinkte titel
+      const matches = titles?.length
+        ? people.filter(p => scorePersonForPriority(p, titles) >= 0)
+        : people;
 
-      if (people.length) {
+      if (matches.length) {
         // Sorteer op prioriteit en pak de beste
-        const gesorteerd = people.sort((a, b) =>
-          scorePersonForPriority(b, prioriteit) - scorePersonForPriority(a, prioriteit)
-        );
-        const p = gesorteerd[0];
+        matches.sort((a, b) => scorePersonForPriority(b, titles || []) - scorePersonForPriority(a, titles || []));
+        const p = matches[0];
         results.push({
           company,
           people: [{
