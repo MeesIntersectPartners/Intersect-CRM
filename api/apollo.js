@@ -1,19 +1,30 @@
 const APOLLO_KEY = 'Nvr6epqnYBswDYPlNx4CrQ';
 
-async function zoekPerTitel(company, title) {
+async function zoekPersoon(company, titles) {
+  // Gebruik q_organization_name voor fuzzy match (zoals Apollo UI ook doet)
+  const body = {
+    q_organization_name: company,
+    person_locations: ['Netherlands', 'Belgium'],
+    per_page: 5,
+    page: 1
+  };
+
+  if (titles?.length) {
+    body.person_titles = titles;
+  }
+
   const r = await fetch('https://api.apollo.io/api/v1/mixed_people/api_search', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache', 'x-api-key': APOLLO_KEY },
-    body: JSON.stringify({
-      organization_names: [company],
-      person_titles: [title],
-      person_locations: ['Netherlands', 'Belgium'],
-      per_page: 1,
-      page: 1
-    })
+    headers: {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-cache',
+      'x-api-key': APOLLO_KEY
+    },
+    body: JSON.stringify(body)
   });
+
   const data = await r.json().catch(() => ({}));
-  return data.people?.[0] || null;
+  return { people: data.people || [], error: data.error };
 }
 
 export default async function handler(req, res) {
@@ -26,41 +37,48 @@ export default async function handler(req, res) {
   const { companyNames, titles } = req.body;
   if (!companyNames?.length) return res.status(400).json({ error: 'companyNames is verplicht' });
 
-  const titelsInVolgorde = titles?.length ? titles : ['CEO', 'Founder', 'Directeur', 'Managing Director'];
   const results = [];
 
   for (const company of companyNames) {
-    let gevonden = null;
+    try {
+      let gevondenPersoon = null;
 
-    // Zoek in volgorde van prioriteit — stop bij eerste match
-    for (const title of titelsInVolgorde) {
-      try {
-        const persoon = await zoekPerTitel(company, title);
-        if (persoon) {
-          gevonden = persoon;
-          break;
+      if (titles?.length) {
+        // Zoek per titel in volgorde van prioriteit — stop bij eerste match
+        for (const title of titles) {
+          const { people } = await zoekPersoon(company, [title]);
+          if (people.length) {
+            gevondenPersoon = people[0];
+            break;
+          }
         }
-      } catch(e) {
-        continue;
+      } else {
+        // Geen titels opgegeven — zoek breed
+        const { people } = await zoekPersoon(company, null);
+        if (people.length) gevondenPersoon = people[0];
       }
-    }
 
-    if (gevonden) {
-      results.push({
-        company,
-        people: [{
-          name: [gevonden.first_name, gevonden.last_name].filter(Boolean).join(' '),
-          title: gevonden.title || '',
-          email: gevonden.email || '',
-          phone: gevonden.sanitized_phone || '',
-          linkedin: gevonden.linkedin_url || '',
-          company: gevonden.organization?.name || company,
-          website: gevonden.organization?.website_url || '',
-          sector: gevonden.organization?.industry || ''
-        }]
-      });
-    } else {
-      results.push({ company, people: [], geenMatch: true });
+      if (gevondenPersoon) {
+        const p = gevondenPersoon;
+        results.push({
+          company,
+          people: [{
+            name: [p.first_name, p.last_name].filter(Boolean).join(' '),
+            title: p.title || '',
+            email: p.email || '',
+            phone: p.sanitized_phone || '',
+            linkedin: p.linkedin_url || '',
+            company: p.organization?.name || company,
+            website: p.organization?.website_url || '',
+            sector: p.organization?.industry || ''
+          }]
+        });
+      } else {
+        results.push({ company, people: [], geenMatch: true });
+      }
+
+    } catch (e) {
+      results.push({ company, people: [], error: e.message });
     }
   }
 
