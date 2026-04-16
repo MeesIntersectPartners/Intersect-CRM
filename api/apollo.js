@@ -18,14 +18,13 @@ async function zoekPersoon(company, titles) {
   return data.people || [];
 }
 
-function scorePersonForPriority(person, prioriteit) {
-  const title = (person.title || '').toLowerCase();
-  for (let i = 0; i < prioriteit.length; i++) {
-    if (title.includes(prioriteit[i].toLowerCase())) {
-      return prioriteit.length - i;
-    }
+function priorityScore(person, titles) {
+  if (!titles?.length) return 0;
+  const t = (person.title || '').toLowerCase();
+  for (let i = 0; i < titles.length; i++) {
+    if (t.includes(titles[i].toLowerCase())) return titles.length - i;
   }
-  return -1; // Geen match op prioriteitslijst
+  return 0;
 }
 
 export default async function handler(req, res) {
@@ -42,20 +41,13 @@ export default async function handler(req, res) {
 
   for (const company of companyNames) {
     try {
-      // Zoek alleen op de aangevinkte titels — geen fallback
-      const people = titles?.length
-        ? await zoekPersoon(company, titles)
-        : await zoekPersoon(company, null);
+      // Apollo filtert zelf op de titels — wij vertrouwen dat en sorteren alleen op prioriteit
+      const people = await zoekPersoon(company, titles?.length ? titles : null);
 
-      // Filter alleen mensen waarvan de titel echt matcht met een aangevinkte titel
-      const matches = titles?.length
-        ? people.filter(p => scorePersonForPriority(p, titles) >= 0)
-        : people;
-
-      if (matches.length) {
-        // Sorteer op prioriteit en pak de beste
-        matches.sort((a, b) => scorePersonForPriority(b, titles || []) - scorePersonForPriority(a, titles || []));
-        const p = matches[0];
+      if (people.length) {
+        // Sorteer op jouw prioriteitsvolgorde, pak de beste
+        people.sort((a, b) => priorityScore(b, titles) - priorityScore(a, titles));
+        const p = people[0];
         results.push({
           company,
           people: [{
