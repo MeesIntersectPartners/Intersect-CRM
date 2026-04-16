@@ -7329,53 +7329,58 @@ function renderScraperReview(leads, container){
   const scoreKleur = s => s >= 9 ? '#1a7a3a' : s >= 7 ? '#1a5fb4' : '#8a6200';
   const scoreBg = s => s >= 9 ? '#eaf7ef' : s >= 7 ? '#eaf1fd' : '#fff8e6';
 
-  container.innerHTML = `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:18px 20px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
-        <div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;display:flex;align-items:center;gap:6px;">
-          <span style="display:block;width:3px;height:12px;background:var(--gold);border-radius:2px;"></span>
-          ${leads.length} leads wachten op beoordeling
-        </div>
-        <div style="display:flex;gap:6px;">
-          <button class="btn xs ghost" onclick="scraperAllesSelecteren(true)">Alles selecteren</button>
-          <button class="btn xs ghost" onclick="scraperAllesSelecteren(false)">Deselecteren</button>
-        </div>
-      </div>
+  let leadsHtml = '';
+  leads.forEach(function(l, i) {
+    const alInCRM = accs.some(function(a){ return a.name.toLowerCase().trim() === cleanCompanyName(l.organisatie||'').toLowerCase().trim(); });
+    const border = alInCRM ? '#2d8a4e' : 'var(--border)';
+    const crmBadge = alInCRM ? '<span style="font-size:11px;padding:2px 8px;border-radius:10px;background:#eaf7ef;color:#1a7a3a;font-weight:600;">&#10003; al in CRM</span>' : '';
+    const segBadge = l.segment ? '<span style="font-size:11px;padding:2px 7px;border-radius:10px;background:var(--surface2);color:var(--text2);">' + l.segment + '</span>' : '';
+    const regio = l.regio ? '<span>&#128205; ' + l.regio + '</span>' : '';
+    const adres = l.adres ? '<span>&#127968; ' + l.adres + '</span>' : '';
+    const sector = l.sector ? '<span>&#127970; ' + l.sector + '</span>' : '';
+    const tel = l.telefoon ? '<span>&#128222; ' + l.telefoon + '</span>' : '';
+    const webHref = l.website ? (l.website.startsWith('http') ? l.website : 'https://' + l.website) : '';
+    const web = webHref ? '<a href="' + webHref + '" target="_blank" style="color:var(--blue-t);text-decoration:none;">&#127760; Website &#8599;</a>' : '';
+    const liHref = l.linkedin ? (l.linkedin.startsWith('http') ? l.linkedin : 'https://' + l.linkedin) : '';
+    const li = liHref ? '<a href="' + liHref + '" target="_blank" style="color:var(--blue-t);text-decoration:none;">&#128188; LinkedIn &#8599;</a>' : '';
+    const haakje = l.haakje ? '<div style="font-size:12.5px;color:var(--navy);background:var(--navy-fade);border-left:3px solid var(--navy);padding:6px 10px;border-radius:0 var(--r) var(--r) 0;margin-top:4px;">"' + l.haakje + '"</div>' : '';
 
-      ${leads.map((l,i) => `
-      <div style="border:1px solid var(--border);border-radius:var(--r);margin-bottom:8px;padding:12px 14px;background:var(--surface);">
-        <div style="display:flex;align-items:flex-start;gap:10px;">
-          <input type="checkbox" id="sc-lead-${i}" data-id="${l.id}" checked style="margin-top:3px;width:16px;height:16px;cursor:pointer;flex-shrink:0;">
-          <div style="flex:1;min-width:0;">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap;">
-              <span style="font-size:14px;font-weight:600;color:var(--text);">${l.organisatie}</span>
-              <span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;background:${scoreBg(l.score)};color:${scoreKleur(l.score)};">Score ${l.score}/10</span>
-              ${l.segment ? `<span style="font-size:11px;padding:2px 7px;border-radius:10px;background:var(--surface2);color:var(--text2);">${l.segment}</span>` : ''}
-            </div>
-            <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--text3);margin-bottom:4px;">
-              ${l.regio ? `<span>📍 ${l.regio}</span>` : ''}
-              ${l.adres ? `<span>🏠 ${l.adres}</span>` : ''}
-              ${l.sector ? `<span>🏢 ${l.sector}</span>` : ''}
-              ${l.telefoon ? `<span>📞 ${l.telefoon}</span>` : ''}
-              ${l.website ? `<a href="${l.website.startsWith('http') ? l.website : 'https://' + l.website}" target="_blank" style="color:var(--blue-t);text-decoration:none;">🌐 Website ↗</a>` : ''}
-              ${l.linkedin ? `<a href="${l.linkedin.startsWith('http') ? l.linkedin : 'https://' + l.linkedin}" target="_blank" style="color:var(--blue-t);text-decoration:none;">💼 LinkedIn ↗</a>` : ''}
-            </div>
-            ${l.haakje ? `<div style="font-size:12.5px;color:var(--navy);background:var(--navy-fade);border-left:3px solid var(--navy);padding:6px 10px;border-radius:0 var(--r) var(--r) 0;margin-top:4px;">"${l.haakje}"</div>` : ''}
-            <div style="font-size:11.5px;color:var(--text3);margin-top:4px;">${l.reden}</div>
-          </div>
-        </div>
-      </div>`).join('')}
+    leadsHtml += '<div style="border:1px solid ' + border + ';border-radius:var(--r);margin-bottom:8px;padding:12px 14px;background:var(--surface);">'
+      + '<div style="display:flex;align-items:flex-start;gap:10px;">'
+      + '<input type="checkbox" id="sc-lead-' + i + '" data-id="' + l.id + '" ' + (alInCRM ? '' : 'checked') + ' style="margin-top:3px;width:16px;height:16px;cursor:pointer;flex-shrink:0;">'
+      + '<div style="flex:1;min-width:0;">'
+      + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap;">'
+      + '<span style="font-size:14px;font-weight:600;color:var(--text);">' + (l.organisatie||'') + '</span>'
+      + '<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;background:' + scoreBg(l.score) + ';color:' + scoreKleur(l.score) + ';">Score ' + l.score + '/10</span>'
+      + crmBadge + segBadge
+      + '</div>'
+      + '<div style="display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--text3);margin-bottom:4px;">' + regio + adres + sector + tel + web + li + '</div>'
+      + haakje
+      + '<div style="font-size:11.5px;color:var(--text3);margin-top:4px;">' + (l.reden||'') + '</div>'
+      + '</div>'
+      + '<button onclick="scraperVerwijderLead(' + i + ')" style="flex-shrink:0;background:none;border:none;cursor:pointer;color:var(--text3);font-size:18px;padding:2px 6px;line-height:1;" title="Verwijder">&#x2715;</button>'
+      + '</div></div>';
+  });
 
-      <div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-        <button class="btn pri" style="padding:10px 20px;" onclick="scraperBevestigen()">Doorsturen naar CRM →</button>
-        <button class="btn" style="padding:10px 20px;background:#fff8ed;border:1.5px solid #f5a623;color:#92610a;font-weight:600;" onclick="scraperNaarApollo()">Doorsturen naar Apollo →</button>
-        <span style="font-size:12px;color:var(--text3);" id="sc-sel-count">${leads.length} geselecteerd</span>
-      </div>
-    </div>`;
+  container.innerHTML = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:18px 20px;">'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">'
+    + '<div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;display:flex;align-items:center;gap:6px;">'
+    + '<span style="display:block;width:3px;height:12px;background:var(--gold);border-radius:2px;"></span>'
+    + leads.length + ' leads wachten op beoordeling</div>'
+    + '<div style="display:flex;gap:6px;">'
+    + '<button class="btn xs ghost" onclick="scraperAllesSelecteren(true)">Alles selecteren</button>'
+    + '<button class="btn xs ghost" onclick="scraperAllesSelecteren(false)">Deselecteren</button>'
+    + '</div></div>'
+    + leadsHtml
+    + '<div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">'
+    + '<button class="btn pri" style="padding:10px 20px;" onclick="scraperBevestigen()">Doorsturen naar CRM &#8594;</button>'
+    + '<button class="btn" style="padding:10px 20px;background:#fff8ed;border:1.5px solid #f5a623;color:#92610a;font-weight:600;" onclick="scraperNaarApollo()">Doorsturen naar Apollo &#8594;</button>'
+    + '<span style="font-size:12px;color:var(--text3);" id="sc-sel-count">' + leads.length + ' geselecteerd</span>'
+    + '</div></div>';
 
   // Teller bijhouden
-  container.querySelectorAll('input[type=checkbox]').forEach(cb => {
-    cb.addEventListener('change', () => {
+  container.querySelectorAll('input[type=checkbox]').forEach(function(cb) {
+    cb.addEventListener('change', function() {
       const n = container.querySelectorAll('input[type=checkbox]:checked').length;
       const el = document.getElementById('sc-sel-count');
       if(el) el.textContent = n + ' geselecteerd';
@@ -7384,6 +7389,14 @@ function renderScraperReview(leads, container){
 
   // Sla leads op voor gebruik bij doorsturen
   window._scraperReviewLeads = leads;
+}
+
+function scraperVerwijderLead(index) {
+  const leads = window._scraperReviewLeads || [];
+  leads.splice(index, 1);
+  window._scraperReviewLeads = leads;
+  const sec = document.getElementById('sc-review-sectie');
+  if(sec) renderScraperReview(leads, sec);
 }
 
 function scraperAllesSelecteren(select){
