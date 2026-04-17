@@ -3854,21 +3854,22 @@ function bulkToggleLijst(lijstId){
     _geselecteerdeLijsten.delete(lijstId);
     const lijst = lijsten.find(l=>l.id===lijstId);
     (lijst?.accounts||[]).forEach(accId => {
-      // Alleen verwijderen als niet in een andere geselecteerde lijst
+      const a = accs.find(x=>String(x.id)===String(accId));
+      if(!a) return;
       let inAndere = false;
       for(const id of _geselecteerdeLijsten){
         const andere = lijsten.find(l=>l.id===id);
-        if((andere?.accounts||[]).includes(accId)){ inAndere=true; break; }
+        if((andere?.accounts||[]).some(aid=>String(aid)===String(a.id))){ inAndere=true; break; }
       }
-      if(!inAndere) _geselecteerdeAccounts.delete(accId);
+      if(!inAndere) _geselecteerdeAccounts.delete(a.id);
     });
   } else {
     _geselecteerdeLijsten.add(lijstId);
     // Voeg accounts van deze lijst toe aan de Set
     const lijst = lijsten.find(l=>l.id===lijstId);
     (lijst?.accounts||[]).forEach(accId => {
-      const a = accs.find(x=>x.id===accId);
-      if(a && a.ce) _geselecteerdeAccounts.add(accId);
+      const a = accs.find(x=>String(x.id)===String(accId));
+      if(a && a.ce) _geselecteerdeAccounts.add(a.id);
     });
   }
   renderBulkLijstPills();
