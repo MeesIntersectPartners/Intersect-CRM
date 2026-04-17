@@ -1,353 +1,8650 @@
-// Lead scraper — Claude + web search, job-systeem voor grote targets
-// POST /api/scraper?action=start|results|save_opdrachtgever  GET ?action=status
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Intersect CRM</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+@keyframes notifSlideIn{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}}@keyframes spin{to{transform:rotate(360deg)}}
+:root{
+  /* ── Intersect brand: navy + goud ── */
+  --navy:#0d1f3c;--navy-mid:#1a3358;--navy-light:#243f6a;--navy-fade:rgba(13,31,60,.06);
+  --gold:#c9a84c;--gold-light:#e8c97a;--gold-pale:#fdf6e3;--gold-fade:rgba(201,168,76,.15);
+  /* ── Pagina ── */
+  --bg:#f0f2f5;--surface:#ffffff;--surface2:#f7f8fa;--surface3:#eef0f4;
+  --border:#e3e6ec;--border2:#cdd1db;
+  /* ── Tekst ── */
+  --text:#0d1f3c;--text2:#4a5568;--text3:#8a94a6;
+  /* ── Semantisch ── */
+  --green:#1a7a3a;--green-bg:#eaf7ef;--green-t:#145e2c;
+  --amber:#8a6200;--amber-bg:#fff8e6;--amber-t:#6b4c00;
+  --red:#c0392b;--red-bg:#fdf0ee;--red-t:#922b21;
+  --blue:#1a5fb4;--blue-bg:#eaf1fd;--blue-t:#13428a;
+  --teal:#0a7060;--teal-bg:#e6f5f3;--teal-t:#075548;
+  --r:8px;--r-lg:12px;--r-xl:16px;
+}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5;display:flex;height:100vh;overflow:hidden;}
 
-let voegAccountToe, bestaatAl, createClient, Anthropic;
-try {
-  ({ voegAccountToe, bestaatAl } = require('../../lib/supabase'));
-  ({ createClient } = require('@supabase/supabase-js'));
-  Anthropic = require('@anthropic-ai/sdk');
-  console.log('[Init] Modules geladen');
-} catch(e) {
-  console.error('[Init] Fout:', e.message);
+/* ══ SIDEBAR — navy donker ══ */
+.sb{width:220px;min-width:220px;background:var(--navy);display:flex;flex-direction:column;overflow:hidden;}
+.sb-logo{padding:20px 18px 16px;border-bottom:1px solid rgba(255,255,255,.08);display:flex;align-items:center;gap:10px;}
+.sb-icon{width:32px;height:32px;background:var(--gold);border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.sb-icon span{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--navy);}
+.sb-logomark{font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:#fff;letter-spacing:-.3px;}
+.sb-logomark em{font-style:normal;color:rgba(255,255,255,.4);font-weight:400;}
+.sb-nav{flex:1;padding:10px 8px;overflow-y:auto;}
+.sb-sec{margin-bottom:22px;}
+.sb-lbl{font-size:9.5px;font-weight:700;color:rgba(255,255,255,.3);text-transform:uppercase;letter-spacing:1px;padding:0 10px;margin-bottom:4px;}
+.sb-item{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:var(--r);cursor:pointer;color:rgba(255,255,255,.55);font-size:13px;font-weight:400;transition:all .12s;border:none;background:none;width:100%;text-align:left;font-family:'DM Sans',sans-serif;}
+.sb-item:hover{background:rgba(255,255,255,.07);color:rgba(255,255,255,.9);}
+.sb-item.on{background:var(--gold-fade);color:var(--gold-light);font-weight:500;}
+.sb-item.on .ico{color:var(--gold);}
+.sb-item .ico{font-size:14px;width:16px;text-align:center;flex-shrink:0;color:rgba(255,255,255,.3);}
+.sb-badge{margin-left:auto;background:var(--red-bg);color:var(--red-t);font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;}
+.sb-item.on .sb-badge{background:rgba(201,168,76,.3);color:var(--gold-light);}
+.sb-foot{padding:12px 8px;border-top:1px solid rgba(255,255,255,.08);}
+.user-sw{display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:var(--r);cursor:pointer;transition:background .1s;}
+.user-sw:hover{background:rgba(255,255,255,.07);}
+.user-name-sb{font-size:12.5px;font-weight:500;color:#fff;}
+.user-role-sb{font-size:10.5px;color:rgba(255,255,255,.35);}
+
+/* ── AVATARS ── */
+.av{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;font-family:'Syne',sans-serif;}
+.av.ma{background:rgba(201,168,76,.25);color:var(--gold-light);}
+.av.jk{background:rgba(26,122,58,.25);color:#6fcf8e;}
+.av.lg{width:20px;height:20px;font-size:8px;}
+.av.xl{width:44px;height:44px;font-size:15px;border-radius:10px;}
+
+/* ══ TOPBAR ══ */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.topbar{height:52px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 22px;gap:12px;flex-shrink:0;}
+.pt{font-family:'Syne',sans-serif;font-size:14px;font-weight:600;flex:1;display:flex;align-items:center;gap:8px;color:var(--text);}
+.pt .bc{color:var(--text3);font-weight:400;}
+.pt .bc-sep{color:var(--border2);}
+.search{display:flex;align-items:center;gap:7px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:5px 12px;}
+.search input{border:none;background:none;font-size:13px;color:var(--text);font-family:'DM Sans',sans-serif;outline:none;width:180px;}
+.search input::placeholder{color:var(--text3);}
+
+/* ══ BUTTONS ══ */
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:var(--r);font-size:12.5px;font-weight:500;cursor:pointer;border:1px solid var(--border2);background:var(--surface);color:var(--text);transition:all .1s;font-family:'DM Sans',sans-serif;white-space:nowrap;}
+.btn:hover{background:var(--surface2);}
+.btn.pri{background:var(--navy);color:#fff;border-color:var(--navy);}
+.btn.pri:hover{background:var(--navy-mid);}
+.btn.gold{background:var(--gold);color:var(--navy);border-color:var(--gold);font-weight:600;}
+.btn.gold:hover{background:var(--gold-light);}
+.btn.sm{padding:4px 10px;font-size:12px;}
+.btn.xs{padding:3px 7px;font-size:11px;}
+.btn.ghost{border-color:transparent;background:transparent;}
+.btn.ghost:hover{background:var(--surface2);border-color:var(--border);}
+
+/* ══ CONTENT ══ */
+.content{flex:1;overflow-y:auto;padding:22px;}
+.page{display:none;}.page.on{display:block;}
+
+/* ══ KPI CARDS ══ */
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:18px 20px;position:relative;overflow:hidden;}
+.kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;}
+.kpi.navy::before{background:var(--navy);}
+.kpi.gold::before{background:var(--gold);}
+.kpi.green::before{background:var(--green);}
+.kpi.amber::before{background:var(--amber);}
+.kpi-lbl{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:7px;}
+.kpi-val{font-family:'Syne',sans-serif;font-size:26px;font-weight:700;letter-spacing:-1px;color:var(--text);margin-bottom:4px;}
+.kpi-sub{font-size:12px;color:var(--text3);}
+.kpi-sub strong{font-weight:600;}
+
+/* ══ SECTION HEADER ══ */
+.sec-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+.sec-title{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:7px;}
+.sec-title::before{content:'';display:block;width:3px;height:14px;background:var(--gold);border-radius:2px;}
+
+/* ══ CARDS ══ */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:18px 20px;}
+.card-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.card-title{font-family:'Syne',sans-serif;font-size:12.5px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:6px;}
+.card-title::before{content:'';display:block;width:3px;height:13px;background:var(--gold);border-radius:2px;flex-shrink:0;}
+.g2{display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-bottom:16px;}
+.g22{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px;}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:16px;}
+
+/* ══ TABLE ══ */
+.tbl-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;}
+table{width:100%;border-collapse:collapse;}
+thead th{font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;padding:10px 14px;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap;background:var(--surface2);}
+tbody tr{border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s;}
+tbody tr:hover{background:var(--navy-fade);}
+tbody td{padding:11px 14px;font-size:13px;}
+tbody tr:last-child{border-bottom:none;}
+
+/* ══ BADGES ══ */
+.badge{display:inline-flex;align-items:center;gap:3px;padding:3px 9px;border-radius:10px;font-size:11px;font-weight:600;}
+.badge.lead{background:var(--amber-bg);color:var(--amber-t);}
+.badge.prospect{background:var(--blue-bg);color:var(--blue-t);}
+.badge.klant{background:var(--green-bg);color:var(--green-t);}
+.badge.inactief{background:var(--surface2);color:var(--text3);border:1px solid var(--border);}
+.badge.opdrachtgever{background:#f3e8ff;color:#6b21a8;}
+.badge.qualified{background:var(--navy-fade);color:var(--navy);}
+.tag{display:inline-flex;align-items:center;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:500;background:var(--surface2);color:var(--text2);border:1px solid var(--border);}
+
+/* ══ FILTER BAR ══ */
+.fbar{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;align-items:center;}
+.fchip{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:20px;font-size:12px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--text2);transition:all .1s;}
+.fchip:hover{border-color:var(--navy);color:var(--navy);}
+.fchip.on{background:var(--navy);color:#fff;border-color:var(--navy);}
+.dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+
+/* ══ ORG CELL ══ */
+.org-cell{display:flex;align-items:center;gap:10px;}
+.org-av{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;font-family:'Syne',sans-serif;}
+
+/* ══ PIPELINE ══ */
+.pipe-board{display:flex;gap:12px;overflow-x:auto;padding-bottom:8px;}
+.pipe-col{min-width:215px;flex-shrink:0;display:flex;flex-direction:column;}
+.pipe-hd{padding:8px 12px;border-radius:var(--r) var(--r) 0 0;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:space-between;font-family:'Syne',sans-serif;}
+.pipe-body{background:var(--surface2);border:1px solid var(--border);border-top:none;border-radius:0 0 var(--r) var(--r);min-height:80px;padding:8px;display:flex;flex-direction:column;gap:7px;flex:1;}
+.pipe-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;cursor:pointer;transition:all .1s;}
+.pipe-card:hover{border-color:var(--navy);box-shadow:0 2px 12px rgba(13,31,60,.1);}
+.pipe-org{font-size:12.5px;font-weight:600;margin-bottom:2px;}
+.pipe-contact{font-size:11px;color:var(--text2);margin-bottom:6px;}
+.pipe-meta{display:flex;align-items:center;justify-content:space-between;}
+.pipe-val{font-size:11.5px;font-weight:700;color:var(--green-t);}
+.pipe-cnt{background:rgba(0,0,0,.12);border-radius:10px;padding:1px 7px;font-size:11px;font-weight:700;}
+
+/* ══ TODO ══ */
+.todo-item{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);margin-bottom:6px;transition:border .1s;}
+.todo-item:hover{border-color:var(--border2);}
+.chk{width:16px;height:16px;border:1.5px solid var(--border2);border-radius:4px;flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;margin-top:1px;transition:all .1s;font-size:9px;}
+.chk.done{background:var(--green);border-color:var(--green);color:#fff;}
+.todo-t{font-size:13px;font-weight:500;}
+.todo-t.done{text-decoration:line-through;color:var(--text3);}
+.todo-m{font-size:11px;color:var(--text3);margin-top:2px;display:flex;gap:7px;align-items:center;flex-wrap:wrap;}
+.prio{font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px;}
+.ph{background:var(--red-bg);color:var(--red-t);}
+.pm{background:var(--amber-bg);color:var(--amber-t);}
+.pl{background:var(--green-bg);color:var(--green-t);}
+
+/* ══ ACTIVITY ══ */
+.act-item{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);align-items:flex-start;}
+.act-item:last-child{border-bottom:none;}
+.act-ico{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;}
+.act-txt{flex:1;font-size:12.5px;color:var(--text2);line-height:1.5;}
+.act-txt strong{color:var(--text);font-weight:500;}
+.act-time{font-size:11px;color:var(--text3);white-space:nowrap;}
+
+/* ══ ACCOUNT DETAIL ══ */
+.acc-detail{display:none;}
+.acc-detail.on{display:flex;flex-direction:column;}
+.acc-hero{background:var(--navy);border-radius:var(--r-xl);padding:24px 26px;margin-bottom:14px;}
+.acc-hero-top{display:flex;align-items:flex-start;gap:16px;margin-bottom:18px;}
+.acc-hero-info{flex:1;}
+.acc-org-name{font-family:'Syne',sans-serif;font-size:22px;font-weight:700;letter-spacing:-.5px;margin-bottom:5px;color:#fff;}
+.acc-meta-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px;}
+.acc-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+.acc-stat{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);border-radius:var(--r);padding:10px 14px;}
+.acc-stat-lbl{font-size:10px;font-weight:700;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.6px;margin-bottom:3px;}
+.acc-stat-val{font-family:'Syne',sans-serif;font-size:20px;font-weight:700;color:#fff;}
+
+/* ══ TABS ══ */
+.tabs{display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:18px;background:var(--surface);border-radius:var(--r-lg) var(--r-lg) 0 0;overflow:hidden;}
+.tab{padding:12px 16px;font-size:13px;font-weight:500;cursor:pointer;color:var(--text3);border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .1s;border-top:none;border-left:none;border-right:none;background:none;font-family:'DM Sans',sans-serif;display:flex;align-items:center;gap:6px;white-space:nowrap;}
+.tab:hover{color:var(--navy);background:var(--navy-fade);}
+.tab.on{color:var(--navy);border-bottom-color:var(--navy);font-weight:600;}
+.tab-cnt{font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;background:var(--surface2);color:var(--text3);}
+.tab.on .tab-cnt{background:var(--navy);color:#fff;}
+
+/* ══ DETAIL SECTIONS ══ */
+.ds{margin-bottom:16px;}
+.ds-title{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:10px;}
+.df{display:flex;justify-content:space-between;margin-bottom:8px;align-items:flex-start;gap:12px;}
+.df-lbl{font-size:12.5px;color:var(--text2);flex-shrink:0;}
+.df-val{font-size:12.5px;font-weight:500;color:var(--text);text-align:right;}
+.df-val a{color:var(--blue);text-decoration:none;}
+
+/* ══ CONTACT CARD ══ */
+.cc{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px;display:flex;gap:12px;margin-bottom:8px;}
+.cc-body{flex:1;}
+.cc-name{font-size:13.5px;font-weight:600;margin-bottom:2px;}
+.cc-role{font-size:12px;color:var(--text2);margin-bottom:7px;}
+.cc-links{display:flex;flex-wrap:wrap;gap:7px;}
+.cc-link{font-size:11.5px;color:var(--blue);text-decoration:none;}
+
+/* ══ KANSEN ══ */
+.deal-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;margin-bottom:8px;}
+.deal-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px;}
+.deal-name{font-size:14px;font-weight:600;}
+.deal-val{font-family:'Syne',sans-serif;font-size:18px;font-weight:700;color:var(--green-t);}
+.deal-prog{height:4px;background:var(--surface2);border-radius:2px;overflow:hidden;margin:8px 0;}
+.deal-fill{height:100%;border-radius:2px;background:var(--navy);transition:width .3s;}
+.deal-meta{display:flex;gap:10px;font-size:11.5px;color:var(--text2);}
+
+/* ══ NOTITIES ══ */
+.note-box{background:var(--surface2);border:1px solid var(--border);border-left:3px solid var(--gold);border-radius:var(--r);padding:12px 14px;margin-bottom:8px;}
+.note-text{font-size:13px;color:var(--text);line-height:1.65;margin-bottom:5px;}
+.note-meta{font-size:11px;color:var(--text3);display:flex;gap:8px;}
+
+/* ══ DOCS ══ */
+.doc-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);}
+.doc-item:last-child{border-bottom:none;}
+.doc-icon{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;background:var(--surface2);}
+.doc-name{font-size:13px;font-weight:500;flex:1;}
+.doc-meta{font-size:11.5px;color:var(--text3);}
+
+/* ══ OUTREACH ══ */
+.template-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;margin-bottom:8px;cursor:pointer;transition:all .1s;border-left:3px solid var(--border);}
+.template-card:hover{border-left-color:var(--gold);background:var(--gold-pale);}
+.template-name{font-size:13.5px;font-weight:600;margin-bottom:4px;}
+.template-preview{font-size:12px;color:var(--text2);line-height:1.5;}
+.mail-compose{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;}
+.mail-field{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);}
+.mail-field-lbl{font-size:12px;font-weight:600;color:var(--text3);width:55px;flex-shrink:0;}
+.mail-field input{flex:1;border:none;background:none;font-size:13px;color:var(--text);font-family:'DM Sans',sans-serif;outline:none;}
+.mail-body{padding:14px;min-height:160px;}
+.mail-body textarea{width:100%;border:none;background:none;font-size:13px;color:var(--text);font-family:'DM Sans',sans-serif;outline:none;resize:none;min-height:140px;line-height:1.7;}
+.mail-foot{padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;}
+
+/* ══ PROPOSALS ══ */
+.prop-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;margin-bottom:8px;display:flex;align-items:center;gap:12px;}
+.prop-status{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.prop-info{flex:1;}
+.prop-name{font-size:13.5px;font-weight:600;margin-bottom:2px;}
+.prop-meta{font-size:11.5px;color:var(--text2);}
+
+/* ══ MODALS ══ */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(13,31,60,.35);z-index:200;align-items:center;justify-content:center;}
+.modal-bg.on{display:flex;}
+.modal{background:var(--surface);border-radius:var(--r-xl);width:560px;max-height:88vh;overflow-y:auto;box-shadow:0 16px 64px rgba(13,31,60,.22);}
+.modal.wide{width:680px;}
+.mh{padding:20px 24px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.mt{font-family:'Syne',sans-serif;font-size:15px;font-weight:700;color:var(--navy);}
+.mb{padding:20px 24px;display:flex;flex-direction:column;gap:13px;}
+.mf{padding:14px 24px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;background:var(--surface2);}
+.fg{display:flex;flex-direction:column;gap:5px;}
+.fl{font-size:12px;font-weight:600;color:var(--text2);}
+.fr{display:grid;grid-template-columns:1fr 1fr;gap:11px;}
+.fdiv{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--gold);padding:6px 0 3px;border-top:1px solid var(--border);margin-top:4px;}
+input[type=text],input[type=email],input[type=tel],input[type=date],select,textarea{font-family:'DM Sans',sans-serif;font-size:13px;padding:8px 11px;border:1px solid var(--border2);border-radius:var(--r);background:var(--surface);color:var(--text);outline:none;transition:border .1s;width:100%;}
+input:focus,select:focus,textarea:focus{border-color:var(--navy);}
+textarea{resize:vertical;min-height:75px;}
+.asgn{display:flex;gap:6px;}
+.asgn-opt{display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:20px;border:1px solid var(--border);cursor:pointer;font-size:12.5px;font-weight:500;color:var(--text2);transition:all .1s;}
+.asgn-opt.on{border-color:var(--navy);background:var(--navy);color:#fff;}
+
+/* ══ IMPORT ══ */
+.drop-zone{border:2px dashed var(--border2);border-radius:var(--r-lg);padding:32px;text-align:center;cursor:pointer;transition:all .1s;background:var(--surface2);}
+.drop-zone:hover{border-color:var(--navy);background:var(--navy-fade);}
+.import-preview{background:var(--surface2);border-radius:var(--r);overflow:hidden;max-height:200px;overflow-y:auto;}
+.import-row{display:flex;gap:10px;padding:7px 10px;border-bottom:1px solid var(--border);font-size:12px;}
+.import-row:last-child{border-bottom:none;}
+.import-row.hd{font-weight:600;color:var(--text2);font-size:11px;text-transform:uppercase;letter-spacing:.5px;}
+
+/* ══ SCROLLBAR ══ */
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
+
+/* ══ CLIENT CONTEXT SWITCHER ══ */
+.client-bar{background:var(--navy-mid);border-bottom:1px solid rgba(255,255,255,.06);padding:0 22px;display:flex;flex-direction:row;align-items:center;gap:0;height:38px;flex-shrink:0;overflow-x:auto;white-space:nowrap;}
+.client-tab{display:flex;align-items:center;gap:7px;padding:0 14px;height:100%;cursor:pointer;color:rgba(255,255,255,.45);font-size:12px;font-weight:500;border-bottom:2px solid transparent;white-space:nowrap;transition:all .12s;border-top:none;border-left:none;border-right:none;background:none;font-family:'DM Sans',sans-serif;}
+.client-tab:hover{color:rgba(255,255,255,.75);}
+.client-tab.on{color:#fff;border-bottom-color:var(--gold);}
+.client-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.client-all{font-weight:600;color:rgba(255,255,255,.6);}
+.client-all.on{color:var(--gold-light);}
+.client-tab-add{padding:0 10px;color:rgba(255,255,255,.3);font-size:16px;cursor:pointer;background:none;border:none;font-family:inherit;height:100%;}
+.client-tab-add:hover{color:var(--gold);}
+
+/* ══ CLIENT BADGE on account ══ */
+.cbadge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:10.5px;font-weight:600;border:1px solid;}
+
+/* ══ RAPPORT PAGE ══ */
+.rapport-header{background:var(--navy);border-radius:var(--r-xl);padding:22px 26px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;}
+
+/* ══ AGENDA PAGE ══ */
+.cal-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
+.cal-view-toggle{display:flex;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;}
+.cal-view-btn{padding:6px 14px;font-size:12.5px;font-weight:500;cursor:pointer;border:none;background:var(--surface);color:var(--text2);font-family:'DM Sans',sans-serif;transition:all .1s;}
+.cal-view-btn.on{background:var(--navy);color:#fff;}
+.cal-nav{display:flex;align-items:center;gap:6px;}
+.cal-period{font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:var(--text);min-width:200px;text-align:center;}
+
+/* Week view — compact */
+.week-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;}
+.week-header-row{display:grid;grid-template-columns:56px repeat(7,1fr);border-bottom:2px solid var(--border);background:var(--surface2);position:sticky;top:0;z-index:5;}
+.week-th-time{border-right:1px solid var(--border);}
+.week-th-day{padding:8px 4px;text-align:center;border-right:1px solid var(--border);}
+.week-th-day:last-child{border-right:none;}
+.week-th-label{font-size:9.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;}
+.week-th-num{font-family:'Syne',sans-serif;font-size:15px;font-weight:700;color:var(--text);margin-top:1px;}
+.week-th-num.today-n{background:var(--navy);color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:2px auto 0;font-size:13px;}
+.week-th-day.today-hd{background:rgba(13,31,60,.08);border-bottom:2px solid var(--navy);}
+.week-body{overflow-y:auto;max-height:calc(100vh - 200px);}
+.week-grid{position:relative;}
+.week-row{display:grid;grid-template-columns:56px repeat(7,1fr);height:24px;}
+.week-row-hour{border-top:1px solid var(--border);}
+.week-row-quarter{border-top:1px dashed rgba(0,0,0,.07);}
+.week-time-cell{font-size:10px;color:var(--text3);text-align:right;border-right:1px solid var(--border);height:24px;display:flex;align-items:center;justify-content:flex-end;padding-right:6px;background:var(--surface2);box-sizing:border-box;}
+.week-ev-cell{border-right:1px solid var(--border);height:24px;position:relative;cursor:pointer;transition:background .08s;box-sizing:border-box;}
+.week-ev-cell:last-child{border-right:none;}
+.week-ev-cell:hover{background:rgba(13,31,60,.03);}
+.week-ev-cell.today-c{background:rgba(13,31,60,.025);}
+.w-ev{position:absolute;left:1px;right:1px;top:1px;border-radius:4px;padding:2px 5px;font-size:10.5px;font-weight:600;cursor:pointer;overflow:hidden;z-index:2;line-height:1.3;}
+.w-ev:hover{filter:brightness(.94);}
+.cal-now-line{position:absolute;right:0;height:2px;background:#c0392b;z-index:10;pointer-events:none;}
+.cal-now-dot{position:absolute;width:8px;height:8px;border-radius:50%;background:#c0392b;z-index:11;pointer-events:none;margin-top:-3px;}
+
+/* Day view */
+.day-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;}
+.day-hd{background:var(--navy);padding:14px 18px;display:flex;align-items:center;justify-content:space-between;}
+.day-body{overflow-y:auto;max-height:calc(100vh - 200px);}
+.day-grid{position:relative;}
+.day-row{display:flex;height:24px;box-sizing:border-box;}
+.day-row-hour{border-top:1px solid var(--border);}
+.day-row-quarter{border-top:1px dashed rgba(0,0,0,.07);}
+.day-tc{width:60px;flex-shrink:0;font-size:10px;color:var(--text3);text-align:right;border-right:1px solid var(--border);background:var(--surface2);height:24px;box-sizing:border-box;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;}
+.day-ec{flex:1;height:24px;box-sizing:border-box;position:relative;cursor:pointer;transition:background .08s;}
+.day-ec:hover{background:rgba(13,31,60,.03);}
+.d-ev{position:absolute;left:4px;right:4px;top:1px;border-left:3px solid var(--navy);background:var(--navy-fade);border-radius:0 5px 5px 0;padding:4px 8px;cursor:pointer;overflow:hidden;z-index:2;}
+.d-ev:hover{filter:brightness(.96);}
+.d-ev-title{font-size:12px;font-weight:600;color:var(--text);}
+.d-ev-meta{font-size:11px;color:var(--text2);margin-top:1px;}
+.cal-day-now-line{position:absolute;right:0;height:2px;background:#c0392b;z-index:10;pointer-events:none;}
+.cal-day-now-dot{position:absolute;width:8px;height:8px;border-radius:50%;background:#c0392b;z-index:11;pointer-events:none;margin-top:-3px;}
+
+/* Month view */
+.month-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;}
+.month-head-row{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:2px solid var(--border);position:sticky;top:0;z-index:5;}
+.month-head-cell{padding:8px;text-align:center;font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;background:var(--surface2);}
+.month-body{display:grid;grid-template-columns:repeat(7,1fr);}
+.month-cell{min-height:88px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);padding:6px 7px;cursor:pointer;transition:background .1s;}
+.month-cell:hover{background:var(--navy-fade);}
+.month-cell:nth-child(7n){border-right:none;}
+.month-cell.other-month{opacity:.4;}
+.month-day-num{font-size:12px;font-weight:600;color:var(--text);margin-bottom:4px;width:22px;height:22px;display:flex;align-items:center;justify-content:center;border-radius:50%;}
+.month-cell.today-cell .month-day-num{background:var(--navy);color:#fff;}
+.m-ev-pill{font-size:10.5px;font-weight:600;padding:2px 5px;border-radius:3px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;}
+
+/* Event popup */
+.ev-popup{position:fixed;z-index:300;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:0 8px 32px rgba(13,31,60,.18);padding:18px 20px;width:280px;}
+
+/* ══ WORKFLOWS ══ */
+.wf-rule{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;margin-bottom:8px;display:flex;align-items:flex-start;gap:14px;transition:border .1s;}
+.wf-rule:hover{border-color:var(--border2);}
+.wf-rule.inactive{opacity:.55;}
+.wf-toggle{width:36px;height:20px;border-radius:10px;background:var(--border2);position:relative;cursor:pointer;flex-shrink:0;margin-top:2px;transition:background .15s;}
+.wf-toggle.on{background:var(--navy);}
+.wf-toggle::after{content:'';position:absolute;width:14px;height:14px;border-radius:50%;background:#fff;top:3px;left:3px;transition:transform .15s;}
+.wf-toggle.on::after{transform:translateX(16px);}
+.wf-body{flex:1;}
+.wf-name{font-size:13.5px;font-weight:600;color:var(--text);margin-bottom:3px;}
+.wf-desc{font-size:12px;color:var(--text2);line-height:1.5;}
+.wf-meta{display:flex;gap:8px;margin-top:7px;flex-wrap:wrap;}
+.wf-chip{font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:10px;}
+.wf-chip.trigger{background:var(--navy-fade);color:var(--navy);}
+.wf-chip.action{background:var(--green-bg);color:var(--green-t);}
+.wf-chip.timing{background:var(--amber-bg);color:var(--amber-t);}
+.wf-learn{background:var(--gold-pale);border:1px solid rgba(201,168,76,.3);border-radius:var(--r-lg);padding:14px 16px;margin-bottom:8px;}
+.signal-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:12px 14px;margin-bottom:8px;display:flex;gap:12px;align-items:flex-start;cursor:pointer;transition:all .1s;}
+.signal-card:hover{border-color:var(--navy);box-shadow:0 2px 8px rgba(13,31,60,.08);}
+.signal-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:3px;}
+.signal-urgent{background:var(--red);}
+.signal-warn{background:var(--amber);}
+.signal-info{background:var(--blue);}
+.signal-ok{background:var(--green);}
+.urgency-bar{height:3px;border-radius:2px;margin-top:6px;}
+
+.empty{text-align:center;padding:40px 20px;color:var(--text3);}
+.empty .eico{font-size:28px;margin-bottom:8px;}
+.sep{height:1px;background:var(--border);margin:14px 0;}
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside class="sb">
+  <div class="sb-logo">
+    <div class="sb-icon"><span>IX</span></div>
+    <div class="sb-logomark">Intersect <em>CRM</em></div>
+  </div>
+  <nav class="sb-nav">
+    <div class="sb-sec">
+      <div class="sb-lbl">Overzicht</div>
+      <button class="sb-item on" onclick="nav('dashboard')">Dashboard</button>
+      <button class="sb-item" onclick="nav('actiecenter')">Actie Center<span class="sb-badge" id="actie-badge" style="display:none;">0</span></button>
+      <button class="sb-item" onclick="nav('agenda')">Agenda</button>
+      <button class="sb-item" onclick="nav('pipeline')">Pipeline</button>
+      <button class="sb-item" onclick="nav('todos')" style="display:none;">To-do's</button>
+    </div>
+    <div class="sb-sec">
+      <div class="sb-lbl">Accounts</div>
+      <button class="sb-item" onclick="nav('accounts');setFilter('all')">Alle accounts</button>
+      <button class="sb-item" onclick="nav('accounts');setFilter('lead')">Leads</button>
+      <button class="sb-item" onclick="nav('accounts');setFilter('prospect')">Prospects</button>
+      <button class="sb-item" onclick="nav('accounts');setFilter('klant')">Klanten</button>
+      <button class="sb-item" onclick="nav('lijsten')">Lijsten</button>
+    </div>
+    <div class="sb-sec">
+      <div class="sb-lbl">Tools</div>
+      <button class="sb-item" onclick="nav('contacts')">Contacten</button>
+      <button class="sb-item" onclick="nav('workflows')">Workflows<span class="sb-badge" id="wf-badge" style="display:none;">0</span></button>
+      <button class="sb-item" onclick="nav('outreach')">Outreach</button>
+      <button class="sb-item" onclick="openImport()"><span class="ico">↑</span>CSV Import</button>
+      <button class="sb-item" onclick="openDedup()"><span class="ico">⊘</span>Dubbelen opruimen</button>
+      <button class="sb-item" onclick="nav('rapport')">Klantrapport</button>
+      <button class="sb-item" onclick="nav('activity')">Activiteit</button>
+    </div>
+    <div class="sb-sec">
+      <div class="sb-lbl">Automatisering</div>
+      <button class="sb-item" onclick="nav('scraper')">Lead Scraper<span class="sb-badge" id="scraper-badge" style="display:none;">●</span></button>
+    </div>
+  </nav>
+  <div class="sb-foot">
+    <button class="sb-item" onclick="nav('instellingen')" style="width:100%;margin-bottom:6px;">Instellingen</button>
+    <div style="font-size:9.5px;color:rgba(255,255,255,.3);padding:0 10px 6px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">Ingelogd als</div>
+    <div class="user-sw" onclick="toggleUser()">
+      <div class="av ma" id="cur-av">MA</div>
+      <div>
+        <div class="user-name-sb" id="cur-name">Mees Arentsen</div>
+        <div class="user-role-sb">Uitloggen →</div>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main class="main">
+  <div class="topbar">
+    <div class="pt" id="topbar-title">Dashboard</div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <div class="search">
+        <span style="color:var(--text3);font-size:13px;">⌕</span>
+        <input type="text" placeholder="Zoek…" id="search-inp" oninput="handleSearch(this.value)" onkeydown="if(event.key==='Enter')globalSearch(this.value)">
+      </div>
+      <button class="btn pri" onclick="openAddAcc()">+ Account</button>
+
+    </div>
+  </div>
+
+  <!-- CLIENT CONTEXT BAR -->
+  <div class="client-bar" id="client-bar">
+    <button class="client-tab client-all on" data-cid="all" onclick="setClient('all')">Alle opdrachtgevers</button>
+    <div id="client-tabs-inner" style="display:inline-flex;flex-direction:row;align-items:center;height:100%;"></div>
+    <button class="client-tab-add" onclick="openAddClient()" title="Koppel een klant-account als opdrachtgever">+</button>
+  </div>
+
+  <div class="content">
+
+    <!-- DASHBOARD -->
+    <div class="page on" id="p-dashboard">
+      <!-- Persoonlijk dashboard (curClient === 'all') -->
+      <div id="dash-personal">
+
+        <!-- Welkom header -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+          <div>
+            <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:700;color:var(--navy);" id="dash-greeting">Goedemiddag</div>
+            <div style="font-size:13px;color:var(--text3);margin-top:2px;" id="dash-date-sub"></div>
+          </div>
+          <button class="btn gold" onclick="openAddEvent()">+ Afspraak plannen</button>
+        </div>
+
+        <!-- 3-koloms layout: Vandaag / Agenda / Urgentie -->
+        <div style="display:grid;grid-template-columns:1fr 1fr 300px;gap:14px;margin-bottom:16px;">
+
+          <!-- Vandaag taken -->
+          <div style="background:var(--navy);border-radius:var(--r-xl);overflow:hidden;">
+            <div style="padding:14px 18px 10px;border-bottom:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:space-between;">
+              <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:#fff;">Vandaag</div>
+              <button class="btn xs" style="background:var(--gold);border-color:var(--gold);color:var(--navy);font-weight:600;" onclick="openAddTodo()">+ Taak</button>
+            </div>
+            <div style="padding:12px 18px;" id="today-todos"></div>
+            <div style="padding:10px 18px;border-top:1px solid rgba(255,255,255,.08);">
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:rgba(255,255,255,.3);margin-bottom:8px;">Aandacht nodig</div>
+              <div id="stale-accounts"></div>
+            </div>
+          </div>
+
+          <!-- Lange termijn / week -->
+          <div class="card">
+            <div class="card-hd">
+              <span class="card-title">Komende week</span>
+              <button class="btn sm ghost" onclick="nav('todos')">Alle taken →</button>
+            </div>
+            <div id="dash-week-todos"></div>
+            <div class="sep"></div>
+            <div class="card-hd" style="margin-bottom:10px;"><span class="card-title">Hete deals</span></div>
+            <div id="hot-deals"></div>
+          </div>
+
+          <!-- Agenda snippet -->
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);overflow:hidden;display:flex;flex-direction:column;">
+            <div style="padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+              <div class="card-title">Agenda</div>
+              <button class="btn xs ghost" onclick="nav('agenda')">Volledig →</button>
+            </div>
+            <div id="cal-week" style="padding:8px 10px;border-bottom:1px solid var(--border);display:flex;gap:3px;"></div>
+            <div id="cal-events" style="padding:8px 12px;flex:1;overflow-y:auto;max-height:220px;"></div>
+            <div style="padding:8px 12px;border-top:1px solid var(--border);">
+              <button class="btn xs ghost" style="width:100%;justify-content:center;" onclick="exportICS()">Exporteer .ics ↗</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- KPI rij -->
+        <div class="kpi-row" style="margin-bottom:16px;">
+          <div class="kpi navy">
+            <div class="kpi-lbl">Omzet — klanten</div>
+            <div class="kpi-val" id="s-rev">€ 0</div>
+            <div class="kpi-sub" id="s-rev-sub">0 actieve klanten</div>
+          </div>
+          <div class="kpi gold">
+            <div class="kpi-lbl">Pipeline waarde</div>
+            <div class="kpi-val" id="s-pipe-val">€ 0</div>
+            <div class="kpi-sub" id="s-pipe-sub">actieve kansen</div>
+          </div>
+          <div class="kpi green">
+            <div class="kpi-lbl">Gewogen forecast</div>
+            <div class="kpi-val" id="s-weighted">€ 0</div>
+            <div class="kpi-sub">Op basis van kans%</div>
+          </div>
+          <div class="kpi amber">
+            <div class="kpi-lbl">Open taken</div>
+            <div class="kpi-val" id="s-open-todos">0</div>
+            <div class="kpi-sub" id="s-todos-sub">Vandaag urgent: 0</div>
+          </div>
+        </div>
+
+        <!-- Pipeline + Activiteit + Per eigenaar -->
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px;">
+          <div class="card">
+            <div class="card-hd"><span class="card-title">Pipeline</span><button class="btn sm ghost" onclick="nav('pipeline')">→</button></div>
+            <div id="dash-funnel"></div>
+          </div>
+          <div class="card">
+            <div class="card-hd"><span class="card-title">Te sluiten</span></div>
+            <div id="dash-closeable"></div>
+          </div>
+          <div class="card">
+            <div class="card-hd"><span class="card-title">Activiteit</span></div>
+            <div id="dash-activity"></div>
+          </div>
+        </div>
+
+        <!-- Wat nu widget -->
+        <div class="card" style="margin-bottom:14px;padding:0;overflow:hidden;">
+          <div style="background:var(--navy);padding:12px 18px;display:flex;align-items:center;justify-content:space-between;">
+            <div>
+              <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:#fff;display:flex;align-items:center;gap:8px;">
+                Wat nu?
+                <span id="dash-wf-count" style="background:var(--gold);color:var(--navy);font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;"></span>
+              </div>
+              <div style="font-size:11px;color:rgba(255,255,255,.4);margin-top:1px;">Accounts die actie nodig hebben — automatisch bepaald</div>
+            </div>
+            <button class="btn sm ghost" style="color:rgba(255,255,255,.5);border-color:rgba(255,255,255,.15);" onclick="nav('workflows')">Alle workflows →</button>
+          </div>
+          <div id="dash-wat-nu" style="padding:0;"></div>
+        </div>
+      </div>
+
+      <!-- Intersect Omzet Overzicht -->
+      <div id="dash-omzet-wrap" style="margin-top:14px;"></div>
+
+      <!-- Opdrachtgever dashboard (curClient !== 'all') -->
+      <div id="dash-client" style="display:none;">
+        <div id="dash-client-content"></div>
+      </div>
+    </div>
+
+    <!-- AGENDA PAGE -->
+    <div class="page" id="p-agenda">
+      <div class="cal-toolbar">
+        <div class="cal-nav">
+          <button class="btn sm ghost" onclick="calNav(-1)">‹</button>
+          <span class="cal-period" id="cal-period-label"></span>
+          <button class="btn sm ghost" onclick="calNav(1)">›</button>
+          <button class="btn sm ghost" onclick="calGoToday()">Vandaag</button>
+        </div>
+        <div class="cal-view-toggle">
+          <button class="cal-view-btn on" id="cal-view-agenda" onclick="setAgendaMode('agenda')">Agenda</button>
+          <button class="cal-view-btn" id="cal-view-taken" onclick="setAgendaMode('taken')">Taken</button>
+        </div>
+        <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+          <!-- Persoon switcher (primaire filter) -->
+          <div style="display:flex;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;">
+            <button id="cal-person-MA" onclick="setCalPerson('MA')" style="padding:6px 14px;font-size:12.5px;font-weight:600;cursor:pointer;border:none;background:var(--navy);color:#fff;font-family:'DM Sans',sans-serif;display:flex;align-items:center;gap:6px;">
+              <div class="av ma lg">MA</div>Mees
+            </button>
+            <button id="cal-person-JK" onclick="setCalPerson('JK')" style="padding:6px 14px;font-size:12.5px;font-weight:500;cursor:pointer;border:none;background:var(--surface);color:var(--text2);font-family:'DM Sans',sans-serif;display:flex;align-items:center;gap:6px;">
+              <div class="av jk lg">JK</div>Julian
+            </button>
+            <button id="cal-person-BOTH" onclick="setCalPerson('BOTH')" style="padding:6px 12px;font-size:12px;cursor:pointer;border:none;background:var(--surface);color:var(--text2);font-family:'DM Sans',sans-serif;border-left:1px solid var(--border);">
+              Beiden
+            </button>
+          </div>
+          <!-- Opdrachtgever filter -->
+          <select id="cal-client-filter" onchange="renderAgenda()" style="font-size:12px;padding:5px 8px;width:160px;">
+            <option value="all">Alle opdrachtgevers</option>
+          </select>
+          <button class="btn pri" onclick="openAddEvent()">+ Afspraak</button>
+        </div>
+      </div>
+      <div id="agenda-calendar-wrap">
+        <div style="display:flex;gap:6px;margin-bottom:10px;">
+          <button class="cal-view-btn on" id="cal-sub-week" onclick="setCalView('week')">Week</button>
+          <button class="cal-view-btn" id="cal-sub-day" onclick="setCalView('day')">Dag</button>
+          <button class="cal-view-btn" id="cal-sub-month" onclick="setCalView('month')">Maand</button>
+        </div>
+        <div id="agenda-view"></div>
+      </div>
+      <div id="agenda-taken-wrap" style="display:none;">
+        <div id="agenda-taken-view"></div>
+      </div>
+    </div>
+
+    <!-- ACCOUNTS LIST -->
+    <div class="page" id="p-accounts">
+      <div class="fbar" id="fbar">
+        <button class="fchip on" data-f="all" onclick="setFilter('all')">Alle <span id="fc-all"></span></button>
+        <button class="fchip" data-f="lead" onclick="setFilter('lead')"><span class="dot" style="background:var(--amber)"></span>Leads <span id="fc-lead"></span></button>
+        <button class="fchip" data-f="qualified" onclick="setFilter('qualified')"><span class="dot" style="background:var(--purple)"></span>Qualified <span id="fc-qualified"></span></button>
+        <button class="fchip" data-f="prospect" onclick="setFilter('prospect')"><span class="dot" style="background:var(--blue)"></span>Prospects <span id="fc-prospect"></span></button>
+        <button class="fchip" data-f="klant" onclick="setFilter('klant')"><span class="dot" style="background:var(--green)"></span>Klanten <span id="fc-klant"></span></button>
+        <button class="fchip" data-f="opdrachtgever" onclick="setFilter('opdrachtgever')"><span class="dot" style="background:#6b21a8"></span>Opdrachtgevers <span id="fc-opdrachtgever"></span></button>
+        <button class="fchip" data-f="inactief" onclick="setFilter('inactief')"><span class="dot" style="background:var(--text3)"></span>Inactief <span id="fc-inactief"></span></button>
+        <div style="margin-left:auto;display:flex;gap:6px;align-items:center;">
+          <button id="apollo-btn" onclick="stuurNaarApollo()" style="display:none;font-size:12px;font-weight:600;padding:5px 12px;border-radius:6px;border:1.5px solid #f5a623;background:#fff8ed;color:#92610a;cursor:pointer;white-space:nowrap;">◈ Zoeken in Apollo (<span id="apollo-sel-count">0</span>)</button>
+          <button id="delete-sel-btn" onclick="verwijderGeselecteerde()" style="display:none;font-size:12px;font-weight:600;padding:5px 12px;border-radius:6px;border:1.5px solid var(--red);background:#fff0f0;color:var(--red);cursor:pointer;white-space:nowrap;">🗑 Verwijder geselecteerde (<span id="delete-sel-count">0</span>)</button>
+          <button id="lijst-sel-btn" onclick="voegToeAanLijst()" style="display:none;font-size:12px;font-weight:600;padding:5px 12px;border-radius:6px;border:1.5px solid var(--navy);background:var(--navy-fade);color:var(--navy);cursor:pointer;white-space:nowrap;">+ Toevoegen aan lijst</button>
+          <select id="filter-owner" onchange="renderAccList()" style="width:130px;font-size:12px;padding:4px 8px;">
+            <option value="all">Alle eigenaren</option>
+            <option value="MA">Mees</option>
+            <option value="JK">Julian</option>
+          </select>
+        </div>
+      </div>
+      <div class="tbl-wrap">
+        <table><thead><tr>
+          <th style="width:32px;padding-left:12px;"><input type="checkbox" id="acc-check-all" style="width:15px;height:15px;cursor:pointer;" onchange="accToggleAll(this.checked)" title="Alles selecteren"></th>
+          <th style="padding-left:8px;">Organisatie</th>
+          <th style="cursor:pointer;user-select:none;" onclick="toggleSort('status')">Status <span id="sort-status"></span></th>
+          <th style="cursor:pointer;user-select:none;" onclick="toggleSort('seg')">Segment <span id="sort-seg"></span></th>
+          <th>Contactpersoon</th>
+          <th>Locatie</th>
+          <th>Eigenaar</th>
+          <th style="cursor:pointer;user-select:none;" onclick="toggleSort('pipe')">Pipeline <span id="sort-pipe"></span></th>
+          <th style="cursor:pointer;user-select:none;" onclick="toggleSort('val')">Waarde <span id="sort-val"></span></th>
+          <th>Opdrachtgevers</th>
+        </tr></thead>
+        <tbody id="acc-tbody"></tbody></table>
+        <div id="dup-banner" style="display:none;gap:8px;align-items:center;padding:10px 14px;background:var(--gold-fade,#fff8e6);border:1px solid var(--gold,#d4a017);border-radius:var(--r);margin-bottom:8px;flex-wrap:wrap;"></div>
+        <div class="empty" id="acc-empty" style="display:none;"><p>Geen accounts gevonden</p><button class="btn pri" style="margin-top:10px;" onclick="openAddAcc()">+ Toevoegen</button></div>
+      </div>
+    </div>
+
+    <!-- ACCOUNT DETAIL -->
+    <div class="acc-detail" id="p-detail">
+      <div class="acc-hero" id="detail-hero"></div>
+      <div id="detail-actions" style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;"></div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;">
+        <div class="tabs" id="detail-tabs"></div>
+        <div style="padding:18px;" id="detail-tab-content"></div>
+      </div>
+    </div>
+
+    <!-- SCRAPER -->
+    <div class="page" id="p-scraper"></div>
+
+    <!-- INSTELLINGEN -->
+    <div class="page" id="p-instellingen"></div>
+
+    <!-- ACTIE CENTER -->
+    <div class="page" id="p-actiecenter"></div>
+
+    <!-- ZOEKRESULTATEN -->
+    <div class="page" id="p-zoek"></div>
+
+    <!-- LIJSTEN -->
+    <div class="page" id="p-lijsten"></div>
+
+    <!-- PIPELINE -->
+    <div class="page" id="p-pipeline">
+      <div style="margin-bottom:12px;display:flex;align-items:center;gap:10px;">
+        <span style="font-size:12.5px;color:var(--text2);">Klik op een account om details te bekijken of te bewerken.</span>
+        <div style="margin-left:auto;display:flex;gap:6px;">
+          <select id="pipe-owner" onchange="renderPipeline()" style="width:130px;font-size:12px;padding:4px 8px;">
+            <option value="all">Alle eigenaren</option>
+            <option value="MA">Mees</option>
+            <option value="JK">Julian</option>
+          </select>
+        </div>
+      </div>
+      <div class="pipe-board" id="pipe-board"></div>
+    </div>
+
+    <!-- CONTACTS -->
+    <div class="page" id="p-contacts">
+      <div class="tbl-wrap">
+        <table><thead><tr>
+          <th style="padding-left:16px;">Contactpersoon</th>
+          <th>Functie</th><th>Organisatie</th><th>E-mail</th><th>Telefoon</th><th>Status</th>
+        </tr></thead>
+        <tbody id="contacts-tbody"></tbody></table>
+        <div class="empty" id="contacts-empty" style="display:none;"><p>Nog geen contacten</p></div>
+      </div>
+    </div>
+
+    <!-- TODOS -->
+    <div class="page" id="p-todos">
+      <div style="display:flex;gap:10px;margin-bottom:14px;align-items:center;">
+        <button class="btn pri" onclick="openAddTodo()">+ Nieuwe taak</button>
+        <select id="tf-owner" onchange="renderTodos()" style="width:150px;font-size:12px;padding:5px 8px;">
+          <option value="all">Iedereen</option>
+          <option value="MA">Mees Arentsen</option>
+          <option value="JK">Julian Kanhai</option>
+        </select>
+        <select id="tf-status" onchange="renderTodos()" style="width:140px;font-size:12px;padding:5px 8px;">
+          <option value="open">Open taken</option>
+          <option value="done">Afgerond</option>
+          <option value="all">Alles</option>
+        </select>
+      </div>
+      <div id="todos-list"></div>
+      <div class="empty" id="todos-empty" style="display:none;"><p>Geen taken</p></div>
+    </div>
+
+    <!-- OUTREACH -->
+    <div class="page" id="p-outreach">
+      <div class="g2">
+        <div>
+          <!-- Bulk selectie -->
+          <div class="card" style="margin-bottom:14px;">
+            <div class="card-hd" style="justify-content:space-between;">
+              <span class="card-title">Selecteer ontvangers</span>
+              <span id="bulk-sel-count" style="font-size:12px;color:var(--text3);">0 geselecteerd</span>
+            </div>
+
+            <!-- Lijsten sectie -->
+            <div style="margin-bottom:10px;">
+              <div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;">Lijsten</div>
+              <input type="text" id="bulk-lijst-zoek" placeholder="Zoek lijst…" oninput="renderBulkLijstPills()" style="width:100%;font-size:13px;padding:6px 10px;margin-bottom:8px;">
+              <div id="bulk-lijst-pills" style="display:flex;flex-wrap:wrap;gap:6px;max-height:100px;overflow-y:auto;"></div>
+            </div>
+
+            <!-- Accounts sectie -->
+            <div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;">Accounts</div>
+            <div style="display:flex;gap:8px;margin-bottom:8px;">
+              <input type="text" id="bulk-zoek" placeholder="Zoek op naam…" oninput="renderBulkLijst()" style="flex:1;font-size:13px;padding:6px 10px;">
+              <button class="btn sm ghost" onclick="bulkDeselectAll()">Deselecteren</button>
+            </div>
+
+            <!-- Account lijst -->
+            <div id="bulk-list" style="max-height:280px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--r);"></div>
+          </div>
+
+          <!-- Mail samenstellen -->
+          <div class="card">
+            <div class="card-hd"><span class="card-title">Mail samenstellen</span></div>
+
+            <!-- Verzendaccount + opdrachtgever -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+              <div>
+                <label style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Verzenden via</label>
+                <select id="bulk-from" style="width:100%;font-size:13px;padding:7px 10px;"></select>
+              </div>
+              <div>
+                <label style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Opdrachtgever</label>
+                <select id="bulk-opdrachtgever" style="width:100%;font-size:13px;padding:7px 10px;">
+                  <option value="">— geen —</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Type + template -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+              <div>
+                <label style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Type</label>
+                <select id="bulk-type" style="width:100%;font-size:13px;padding:7px 10px;">
+                  <option value="mailshot">Mailshot</option>
+                  <option value="opvolg_mailshot">Opvolg Mailshot</option>
+                </select>
+              </div>
+              <div>
+                <label style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Template</label>
+                <div style="display:flex;gap:6px;">
+                  <select id="bulk-template" style="flex:1;font-size:13px;padding:7px 10px;"></select>
+                  <button class="btn sm ghost" onclick="bulkLaadTemplate()">Laden</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="mail-compose">
+              <div class="mail-field">
+                <span class="mail-field-lbl">Onderwerp</span>
+                <input type="text" id="bulk-subject" placeholder="Bijv: Audio Obscura x [bedrijf]">
+              </div>
+              <div class="mail-body">
+                <textarea id="bulk-body" style="min-height:180px;" placeholder="Schrijf hier je bulk mail…&#10;&#10;Gebruik [naam] voor voornaam contactpersoon.&#10;Gebruik [bedrijf] voor bedrijfsnaam."></textarea>
+              </div>
+              <div style="display:flex;gap:6px;margin-top:6px;align-items:center;">
+                <span style="font-size:11px;color:var(--text3);">Handtekening:</span>
+                <select id="bulk-handtekening" style="font-size:12px;padding:4px 8px;flex:1;">
+                  <option value="">— geen —</option>
+                </select>
+                <button class="btn xs ghost" onclick="bulkVoegHandtekeningToe()">Toevoegen</button>
+              </div>
+            </div>
+
+            <!-- Ontbrekende emails waarschuwing -->
+            <div id="bulk-warning" style="display:none;margin-top:10px;"></div>
+
+            <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;align-items:center;">
+              <span id="bulk-verstuur-info" style="font-size:12px;color:var(--text3);"></span>
+              <button class="btn pri" id="bulk-send-btn" onclick="bulkVerstuur()">Versturen via Outlook →</button>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="card">
+            <div class="card-hd"><span class="card-title">Templates</span><button class="btn sm ghost" onclick="openAddTemplate()">+ Nieuw</button></div>
+            <div id="templates-list"></div>
+          </div>
+          <div class="card" style="margin-top:14px;">
+            <div class="card-hd"><span class="card-title">Handtekeningen</span><button class="btn sm ghost" onclick="openAddHandtekening()">+ Nieuw</button></div>
+            <div id="handtekeningen-list"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ACTIVITY -->
+    <div class="page" id="p-activity">
+      <div class="card">
+        <div id="full-activity"></div>
+        <div class="empty" id="activity-empty" style="display:none;"><p>Nog geen activiteit</p></div>
+      </div>
+    </div>
+
+    <!-- KLANTRAPPORT -->
+    <div class="page" id="p-rapport">
+      <div id="rapport-content"></div>
+    </div>
+
+    <!-- WORKFLOWS -->
+    <div class="page" id="p-workflows">
+      <div style="display:grid;grid-template-columns:1fr 340px;gap:16px;">
+
+        <!-- Left: rules + learn -->
+        <div>
+          <!-- Learn suggestions -->
+          <div id="wf-suggestions"></div>
+
+          <!-- Rules header -->
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+            <div>
+              <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:var(--navy);">Workflow regels</div>
+              <div style="font-size:12px;color:var(--text3);margin-top:2px;">Het systeem controleert deze regels bij elke update en dagelijks bij openen</div>
+            </div>
+            <button class="btn pri" onclick="runWorkflowEngine(true)">▶ Nu uitvoeren</button>
+          </div>
+          <div id="wf-rules-list"></div>
+        </div>
+
+        <!-- Right: signals + log -->
+        <div>
+          <div class="card" style="margin-bottom:14px;">
+            <div class="card-hd">
+              <span class="card-title">Actieve signalen</span>
+              <span id="wf-signal-count" style="font-size:12px;color:var(--text3);"></span>
+            </div>
+            <div id="wf-signals-list"></div>
+          </div>
+          <div class="card">
+            <div class="card-hd"><span class="card-title">Workflow log</span><span style="font-size:11px;color:var(--text3);">Laatste acties</span></div>
+            <div id="wf-log-list"></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<!-- ADD OPDRACHTGEVER MODAL -->
+<div class="modal-bg" id="m-client">
+  <div class="modal">
+    <div class="mh">
+      <div>
+        <div class="mt" id="m-client-title">Opdrachtgever toevoegen</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:2px;">Koppel een bestaand klant-account als opdrachtgever</div>
+      </div>
+      <button class="btn sm ghost" onclick="closeM('m-client')">✕</button>
+    </div>
+    <div class="mb">
+      <div class="fg">
+        <label class="fl">Selecteer account (alleen klanten)</label>
+        <div style="position:relative;">
+          <input type="text" id="cl-acc-search" placeholder="Zoek een klant-account…" oninput="filterClientAccSearch(this.value)">
+          <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:13px;color:var(--text3);">⌕</span>
+        </div>
+        <div id="cl-acc-results" style="display:none;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);max-height:200px;overflow-y:auto;margin-top:3px;"></div>
+        <div id="cl-acc-selected" style="display:none;margin-top:6px;"></div>
+        <input type="hidden" id="cl-acc-id" value="">
+        <div style="font-size:11.5px;color:var(--text3);margin-top:6px;">Staat het account er niet bij? Zet het eerst op status <strong>Klant</strong> en pipeline <strong>Gewonnen</strong>.</div>
+      </div>
+      <div class="fg"><label class="fl">Kleur</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;" id="cl-color-picker">
+          <div onclick="selectClientColor('#0d1f3c')" data-col="#0d1f3c" style="width:30px;height:30px;border-radius:50%;background:#0d1f3c;cursor:pointer;border:3px solid var(--gold);transition:all .12s;" title="Navy"></div>
+          <div onclick="selectClientColor('#1a5fb4')" data-col="#1a5fb4" style="width:30px;height:30px;border-radius:50%;background:#1a5fb4;cursor:pointer;border:2px solid transparent;transition:all .12s;" title="Blauw"></div>
+          <div onclick="selectClientColor('#1a7a3a')" data-col="#1a7a3a" style="width:30px;height:30px;border-radius:50%;background:#1a7a3a;cursor:pointer;border:2px solid transparent;transition:all .12s;" title="Groen"></div>
+          <div onclick="selectClientColor('#c0392b')" data-col="#c0392b" style="width:30px;height:30px;border-radius:50%;background:#c0392b;cursor:pointer;border:2px solid transparent;transition:all .12s;" title="Rood"></div>
+          <div onclick="selectClientColor('#8a6200')" data-col="#8a6200" style="width:30px;height:30px;border-radius:50%;background:#8a6200;cursor:pointer;border:2px solid transparent;transition:all .12s;" title="Amber"></div>
+          <div onclick="selectClientColor('#7b3fa0')" data-col="#7b3fa0" style="width:30px;height:30px;border-radius:50%;background:#7b3fa0;cursor:pointer;border:2px solid transparent;transition:all .12s;" title="Paars"></div>
+          <div onclick="selectClientColor('#0a7060')" data-col="#0a7060" style="width:30px;height:30px;border-radius:50%;background:#0a7060;cursor:pointer;border:2px solid transparent;transition:all .12s;" title="Teal"></div>
+          <div onclick="selectClientColor('#e67e22')" data-col="#e67e22" style="width:30px;height:30px;border-radius:50%;background:#e67e22;cursor:pointer;border:2px solid transparent;transition:all .12s;" title="Oranje"></div>
+          <div onclick="selectClientColor('#2c3e50')" data-col="#2c3e50" style="width:30px;height:30px;border-radius:50%;background:#2c3e50;cursor:pointer;border:2px solid transparent;transition:all .12s;" title="Donker"></div>
+          <div onclick="selectClientColor('#c9a84c')" data-col="#c9a84c" style="width:30px;height:30px;border-radius:50%;background:#c9a84c;cursor:pointer;border:2px solid transparent;transition:all .12s;" title="Goud"></div>
+        </div>
+      </div>
+      <div class="fg"><label class="fl">Notitie</label><textarea id="cl-note" style="min-height:55px;" placeholder="Context over de samenwerking…"></textarea></div>
+    </div>
+    <div class="mf"><button class="btn ghost" onclick="closeM('m-client')">Annuleren</button><button class="btn pri" onclick="saveClient()">Opslaan</button></div>
+  </div>
+</div>
+
+</div>
+
+<!-- LINK ACCOUNT TO CLIENT MODAL -->
+<div class="modal-bg" id="m-link">
+  <div class="modal">
+    <div class="mh"><span class="mt">Koppelen aan opdrachtgever</span><button class="btn sm ghost" onclick="closeM('m-link')">✕</button></div>
+    <div class="mb">
+      <div style="font-size:13px;color:var(--text2);margin-bottom:4px;">Account: <strong id="link-acc-name"></strong></div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:14px;">Selecteer de opdrachtgever(s) waarvoor dit account relevant is. Elk krijgt een eigen status en pipeline-fase.</div>
+      <div id="link-clients-list"></div>
+    </div>
+    <div class="mf"><button class="btn ghost" onclick="closeM('m-link')">Sluiten</button></div>
+  </div>
+</div>
+
+<!-- ADD/EDIT ACCOUNT MODAL -->
+<div class="modal-bg" id="m-acc">
+  <div class="modal">
+    <div class="mh"><span class="mt" id="m-acc-title">Account toevoegen</span><button class="btn sm ghost" onclick="closeM('m-acc')">✕</button></div>
+    <div class="mb">
+      <div class="fdiv">Organisatie</div>
+      <div class="fr">
+        <div class="fg"><label class="fl">Bedrijfsnaam *</label><input type="text" id="f-name" placeholder="Acme B.V."></div>
+        <div class="fg"><label class="fl">Status</label><select id="f-status"><option value="lead">Lead</option><option value="qualified">Qualified Lead</option><option value="prospect">Prospect</option><option value="klant">Klant</option><option value="opdrachtgever">Opdrachtgever</option><option value="inactief">Inactief</option></select></div>
+      </div>
+      <div class="fr">
+        <div class="fg"><label class="fl">Sector / Branche</label><input type="text" id="f-sector" placeholder="bijv. Technologie"></div>
+        <div class="fg"><label class="fl">Segment</label><select id="f-seg"><option value="">— geen —</option><option value="MKB">MKB</option><option value="Enterprise">Enterprise</option><option value="Scale-up">Scale-up</option><option value="Startup">Startup</option><option value="Non-profit">Non-profit</option></select></div>
+      </div>
+      <div class="fr">
+        <div class="fg"><label class="fl">Website</label><input type="text" id="f-web" placeholder="https://..."></div>
+        <div class="fg"><label class="fl">LinkedIn</label><input type="text" id="f-li" placeholder="linkedin.com/company/..."></div>
+      </div>
+      <div class="fr">
+        <div class="fg"><label class="fl">Telefoon</label><input type="tel" id="f-phone" placeholder="+31 ..."></div>
+        <div class="fg"><label class="fl">KvK-nummer</label><input type="text" id="f-kvk"></div>
+      </div>
+      <div class="fg">
+        <label class="fl">Adres / Locatie</label>
+        <input type="text" id="f-addr" placeholder="bijv. Keizersgracht 123, Amsterdam">
+      </div>
+      <div class="fg"><label class="fl">Interessant voor opdrachtgever(s)</label>
+        <div id="f-clients-checkboxes" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:2px;"></div>
+        <div style="font-size:11px;color:var(--text3);margin-top:5px;">Selecteer voor welke opdrachtgevers dit account relevant is</div>
+      </div>
+      <div class="fr">
+        <div class="fg"><label class="fl">Pipeline fase</label><select id="f-pipe"><option value="Nieuw">Nieuw</option><option value="Contact gelegd">Contact gelegd</option><option value="Kennismaking">Kennismaking</option><option value="Voorstel verstuurd">Voorstel verstuurd</option><option value="Onderhandeling">Onderhandeling</option><option value="Gewonnen">Gewonnen</option><option value="Verloren">Verloren</option></select></div>
+        <div class="fg"><label class="fl">Verwachte waarde (€)</label><input type="text" id="f-val" placeholder="5000"></div>
+      </div>
+      <div class="fdiv">Primaire contactpersoon</div>
+      <div class="fr">
+        <div class="fg"><label class="fl">Voornaam</label><input type="text" id="f-cf"></div>
+        <div class="fg"><label class="fl">Achternaam</label><input type="text" id="f-cl"></div>
+      </div>
+      <div class="fr">
+        <div class="fg"><label class="fl">Functie</label><input type="text" id="f-cr" placeholder="CEO, Manager…"></div>
+        <div class="fg"><label class="fl">Tel. contactpersoon</label><input type="tel" id="f-cp"></div>
+      </div>
+      <div class="fg"><label class="fl">E-mail contactpersoon</label><input type="email" id="f-ce" placeholder="naam@bedrijf.nl"></div>
+      <div class="fdiv">Intern</div>
+      <div class="fg"><label class="fl">Eigenaar</label>
+        <div class="asgn" id="asgn-acc">
+          <div class="asgn-opt on" data-u="MA" onclick="selOwner('MA','asgn-acc')"><div class="av ma lg">MA</div>Mees</div>
+          <div class="asgn-opt" data-u="JK" onclick="selOwner('JK','asgn-acc')"><div class="av jk lg">JK</div>Julian</div>
+          <div class="asgn-opt" data-u="BOTH" onclick="selOwner('BOTH','asgn-acc')">Beiden</div>
+        </div>
+      </div>
+      <div class="fg"><label class="fl">Interne notitie</label><textarea id="f-note" placeholder="Context, eerste indruk, volgende stap…"></textarea></div>
+      <div class="fg"><label class="fl">Lijsten</label><div id="f-lijsten-wrap" style="display:flex;flex-direction:column;gap:4px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);"></div></div>
+    </div>
+    <div class="mf"><button class="btn ghost" onclick="closeM('m-acc')">Annuleren</button><button class="btn pri" onclick="saveAcc()">Opslaan</button></div>
+  </div>
+</div>
+
+<!-- ADD TODO MODAL -->
+<div class="modal-bg" id="m-todo">
+  <div class="modal">
+    <div class="mh"><span class="mt">Nieuwe taak</span><button class="btn sm ghost" onclick="closeM('m-todo')">✕</button></div>
+    <div class="mb">
+      <div class="fg"><label class="fl">Omschrijving *</label><input type="text" id="t-title" placeholder="bijv. Follow-up sturen naar…"></div>
+      <div class="fr">
+        <div class="fg"><label class="fl">Prioriteit</label><select id="t-prio"><option value="hoog">Hoog</option><option value="medium" selected>Medium</option><option value="laag">Laag</option></select></div>
+        <div class="fg"><label class="fl">Deadline</label><input type="text" id="t-due" placeholder="bijv. vandaag, 28 mrt"></div>
+      </div>
+      <div class="fg"><label class="fl">Gekoppeld account</label><select id="t-acc"><option value="">— geen —</option></select></div>
+      <div class="fg"><label class="fl">Toegewezen aan</label>
+        <div class="asgn" id="asgn-todo">
+          <div class="asgn-opt on" data-u="MA" onclick="selOwner('MA','asgn-todo')"><div class="av ma lg">MA</div>Mees</div>
+          <div class="asgn-opt" data-u="JK" onclick="selOwner('JK','asgn-todo')"><div class="av jk lg">JK</div>Julian</div>
+        </div>
+      </div>
+    </div>
+    <div class="mf"><button class="btn ghost" onclick="closeM('m-todo')">Annuleren</button><button class="btn pri" onclick="saveTodo()">Aanmaken</button></div>
+  </div>
+</div>
+
+<!-- ADD NOTE MODAL -->
+<div class="modal-bg" id="m-note">
+  <div class="modal" style="max-width:480px;" id="m-note-inner">
+    <div class="mh">
+      <div>
+        <div class="mt" id="m-note-title">Notitie toevoegen</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px;" id="m-note-sub"></div>
+      </div>
+      <div style="display:flex;gap:6px;">
+        <button class="btn sm ghost" onclick="minimaliseerNote()" title="Minimaliseer">—</button>
+        <button class="btn sm ghost" onclick="closeM('m-note')">✕</button>
+      </div>
+    </div>
+    <div class="mb">
+      <!-- Contactpersoon — altijd verplicht -->
+      <div class="fg" id="n-contact-row">
+        <label class="fl">Contactpersoon <span style="color:var(--red);">*</span></label>
+        <select id="n-contact-sel" style="font-size:13px;">
+          <option value="">— kies contactpersoon —</option>
+        </select>
+      </div>
+      <!-- Notitietekst -->
+      <div class="fg" id="n-text-wrap">
+        <label class="fl" id="n-text-label">Notitie</label>
+        <textarea id="n-text" style="min-height:100px;" placeholder="Schrijf hier je notitie…"></textarea>
+      </div>
+      <!-- Type (alleen bij gewone notitie) -->
+      <div class="fg" id="n-type-row">
+        <label class="fl">Type</label>
+        <select id="n-type" onchange="onNoteTypeChange()">
+          <option value="notitie">Algemene notitie</option>
+          <option value="gesprek">Telefoongesprek</option>
+          <option value="email">E-mail</option>
+          <option value="whatsapp">WhatsApp</option>
+          <option value="taak">Taak</option>
+        </select>
+      </div>
+      <input type="hidden" id="n-type-actual" value="notitie">
+      <!-- Gesprek chat UI -->
+      <div id="n-chat-wrap" style="display:none;">
+        <label class="fl" style="margin-bottom:8px;">Berichten</label>
+        <div id="n-chat-messages" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px;"></div>
+        <button type="button" class="btn sm ghost" onclick="voegChatBerichtToe()" style="width:100%;justify-content:center;">+ Bericht toevoegen</button>
+      </div>
+      <!-- Voicemail status -->
+      <div class="fg" id="n-voicemail-row" style="display:none;">
+        <label class="fl">Status voicemail</label>
+        <div style="display:flex;gap:8px;">
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
+            <input type="radio" name="vm-status" id="vm-ingesproken" value="ingesproken" checked> Ingesproken
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
+            <input type="radio" name="vm-status" id="vm-niet" value="niet_ingesproken"> Niet ingesproken
+          </label>
+        </div>
+      </div>
+      <!-- Gespreksduur -->
+      <div class="fg" id="n-dur-row" style="display:none;">
+        <label class="fl" id="n-dur-label">Gespreksduur</label>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="number" id="n-dur" min="0" max="999" placeholder="0" style="width:80px;">
+          <span style="font-size:13px;color:var(--text2);">minuten</span>
+        </div>
+      </div>
+    </div>
+    <div class="mf">
+      <button class="btn ghost" onclick="closeM('m-note')">Annuleren</button>
+      <button class="btn pri" onclick="saveNote()" id="m-note-save-btn">Opslaan</button>
+    </div>
+  </div>
+</div>
+
+<!-- GEMINIMALISEERDE NOTE BUBBLE -->
+<div id="note-bubble" style="display:none;position:fixed;bottom:20px;right:20px;background:var(--navy);color:#fff;border-radius:12px;padding:10px 16px;cursor:pointer;z-index:300;font-size:13px;font-weight:500;box-shadow:0 4px 20px rgba(13,31,60,.3);" onclick="herstelNote()">
+  ✏ Notitie in concept — klik om verder te schrijven
+</div>
+
+<!-- ADD CONTACT MODAL -->
+<div class="modal-bg" id="m-contact">
+  <div class="modal">
+    <div class="mh"><span class="mt" id="m-contact-title">Contactpersoon toevoegen</span><button class="btn sm ghost" onclick="closeM('m-contact')">✕</button></div>
+    <div class="mb">
+      <div class="fr">
+        <div class="fg"><label class="fl">Voornaam *</label><input type="text" id="c-first"></div>
+        <div class="fg"><label class="fl">Achternaam *</label><input type="text" id="c-last"></div>
+      </div>
+      <div class="fr">
+        <div class="fg"><label class="fl">Functie</label><input type="text" id="c-role"></div>
+        <div class="fg"><label class="fl">Afdeling</label><input type="text" id="c-dept"></div>
+      </div>
+      <div class="fg">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+          <label class="fl" style="margin:0;">E-mail <span style="font-size:10px;color:var(--text3);font-weight:400;">— eerste is primair</span></label>
+          <button class="btn xs ghost" onclick="contactVoegEmailToe()" id="c-email-add-btn">+ E-mail</button>
+        </div>
+        <input type="email" id="c-email" placeholder="primair e-mailadres" style="margin-bottom:6px;">
+        <input type="email" id="c-email2" placeholder="tweede e-mailadres" style="display:none;">
+      </div>
+      <div class="fg">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+          <label class="fl" style="margin:0;">Telefoon <span style="font-size:10px;color:var(--text3);font-weight:400;">— eerste is primair</span></label>
+          <button class="btn xs ghost" onclick="contactVoegTelefoonToe()" id="c-phone-add-btn">+ Telefoon</button>
+        </div>
+        <input type="tel" id="c-phone" placeholder="primair telefoonnummer" style="margin-bottom:6px;">
+        <input type="tel" id="c-phone2" placeholder="tweede telefoonnummer" style="display:none;">
+      </div>
+      <div class="fg"><label class="fl">LinkedIn profiel</label><input type="text" id="c-li" placeholder="linkedin.com/in/naam"></div>
+      <div class="fg"><label class="fl">LinkedIn connecties <span style="font-weight:400;color:var(--text3);font-size:11px;">— interessante mensen via hen</span></label><textarea id="c-connections" style="min-height:55px;" placeholder="bijv. Jan de Vries (CEO BlueStar), Peter Klaassen (CFO TechCo)…"></textarea></div>
+      <div class="fg"><label class="fl">Notitie</label><textarea id="c-note" style="min-height:60px;"></textarea></div>
+      <input type="hidden" id="c-edit-id" value="">
+    </div>
+    <div class="mf"><button class="btn ghost" onclick="closeM('m-contact')">Annuleren</button><button class="btn pri" onclick="saveContact()">Opslaan</button></div>
+  </div>
+</div>
+
+<!-- ADD DEAL MODAL -->
+<div class="modal-bg" id="m-deal">
+  <div class="modal">
+    <div class="mh"><span class="mt">Kans / Deal toevoegen</span><button class="btn sm ghost" onclick="closeM('m-deal')">✕</button></div>
+    <div class="mb">
+      <div class="fg"><label class="fl">Naam deal *</label><input type="text" id="d-name" placeholder="bijv. Jaarcontract 2025"></div>
+      <div class="fr">
+        <div class="fg"><label class="fl">Waarde (€)</label><input type="text" id="d-val" placeholder="10000"></div>
+        <div class="fg"><label class="fl">Kans (%)</label><input type="text" id="d-prob" placeholder="60"></div>
+      </div>
+      <div class="fr">
+        <div class="fg"><label class="fl">Fase</label><select id="d-stage"><option>Verkenning</option><option>Kwalificatie</option><option>Voorstel</option><option>Onderhandeling</option><option>Beslissing</option><option>Gewonnen</option><option>Verloren</option></select></div>
+        <div class="fg"><label class="fl">Verwachte sluitdatum</label><input type="text" id="d-close" placeholder="bijv. Q2 2025"></div>
+      </div>
+      <div class="fg"><label class="fl">Notitie</label><textarea id="d-note" style="min-height:60px;"></textarea></div>
+    </div>
+    <div class="mf"><button class="btn ghost" onclick="closeM('m-deal')">Annuleren</button><button class="btn pri" onclick="saveDeal()">Opslaan</button></div>
+  </div>
+</div>
+
+<!-- ADD PROPOSAL MODAL -->
+<div class="modal-bg" id="m-prop">
+  <div class="modal">
+    <div class="mh"><span class="mt">Offerte / Proposal toevoegen</span><button class="btn sm ghost" onclick="closeM('m-prop')">✕</button></div>
+    <div class="mb">
+      <div class="fg"><label class="fl">Titel *</label><input type="text" id="p-title" placeholder="bijv. Voorstel groeistrategie Q2"></div>
+      <div class="fr">
+        <div class="fg"><label class="fl">Waarde (€)</label><input type="text" id="p-val"></div>
+        <div class="fg"><label class="fl">Status</label><select id="p-stat"><option value="concept">Concept</option><option value="verstuurd">Verstuurd</option><option value="in-review">In review</option><option value="geaccepteerd">Geaccepteerd</option><option value="afgewezen">Afgewezen</option></select></div>
+      </div>
+      <div class="fr">
+        <div class="fg"><label class="fl">Datum verstuurd</label><input type="text" id="p-date" placeholder="bijv. 20 mrt 2025"></div>
+        <div class="fg"><label class="fl">Geldig tot</label><input type="text" id="p-exp" placeholder="bijv. 20 apr 2025"></div>
+      </div>
+      <div class="fg"><label class="fl">Omschrijving</label><textarea id="p-desc" style="min-height:60px;"></textarea></div>
+    </div>
+    <div class="mf"><button class="btn ghost" onclick="closeM('m-prop')">Annuleren</button><button class="btn pri" onclick="saveProposal()">Opslaan</button></div>
+  </div>
+</div>
+
+<!-- ADD TEMPLATE MODAL -->
+<div class="modal-bg" id="m-tpl">
+  <div class="modal">
+    <div class="mh"><span class="mt">E-mail template</span><button class="btn sm ghost" onclick="closeM('m-tpl')">✕</button></div>
+    <div class="mb">
+      <div class="fg"><label class="fl">Naam template *</label><input type="text" id="tpl-name" placeholder="bijv. Koude outreach intro"></div>
+      <div class="fg"><label class="fl">Onderwerp</label><input type="text" id="tpl-subj" placeholder="bijv. Kennismaking Intersect x [bedrijf]"></div>
+      <div class="fg"><label class="fl">Inhoud</label><textarea id="tpl-body" style="min-height:140px;" placeholder="Gebruik [naam] en [bedrijf] als variabelen…"></textarea></div>
+    </div>
+    <div class="mf"><button class="btn ghost" onclick="closeM('m-tpl')">Annuleren</button><button class="btn pri" onclick="saveTemplate()">Opslaan</button></div>
+  </div>
+</div>
+
+<!-- HANDTEKENING MODAL -->
+<div class="modal-bg" id="m-handtekening">
+  <div class="modal" style="max-width:560px;">
+    <div class="mh"><span class="mt" id="m-handtekening-titel">Handtekening toevoegen</span><button class="btn sm ghost" onclick="closeM('m-handtekening')">✕</button></div>
+    <div class="mb">
+      <div class="fg"><label class="fl">Naam *</label><input type="text" id="ht-naam" placeholder="bijv. Mees — Intersect"></div>
+      <div class="fg">
+        <label class="fl">Handtekening <span style="font-weight:400;color:var(--text3);font-size:11px;">— plak hier je handtekening uit Outlook/Gmail</span></label>
+        <div id="ht-inhoud" contenteditable="true" style="min-height:160px;border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;font-size:13px;line-height:1.6;overflow-y:auto;max-height:300px;background:var(--surface);" placeholder="Plak hier je handtekening…"></div>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px;">Kopieer je handtekening rechtstreeks uit je e-mailclient en plak hem hierin — afbeeldingen en opmaak blijven bewaard.</div>
+      </div>
+    </div>
+    <div class="mf">
+      <button class="btn ghost" onclick="closeM('m-handtekening')">Annuleren</button>
+      <button class="btn pri" onclick="saveHandtekening()">Opslaan</button>
+    </div>
+  </div>
+</div>
+
+<!-- LIJST MODAL -->
+<div class="modal-bg" id="m-lijst-sel">
+  <div class="modal" style="max-width:480px;">
+    <div class="mh"><span class="mt">Toevoegen aan lijst</span><button class="btn sm ghost" onclick="closeM('m-lijst-sel')">✕</button></div>
+    <div class="mb">
+      <div style="margin-bottom:12px;">
+        <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:6px;">Kies bestaande lijst</label>
+        <div id="lijst-sel-opties" style="display:flex;flex-direction:column;gap:6px;max-height:200px;overflow-y:auto;"></div>
+      </div>
+      <div style="border-top:1px solid var(--border);padding-top:12px;">
+        <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:6px;">Of maak nieuwe lijst aan</label>
+        <div style="display:flex;gap:8px;">
+          <input type="text" id="nieuwe-lijst-naam" placeholder="Naam nieuwe lijst..." style="flex:1;font-size:13px;padding:7px 10px;">
+          <button class="btn pri" onclick="maakNieuweLijstEnVoegToe()">Aanmaken</button>
+        </div>
+      </div>
+    </div>
+    <div class="mf">
+      <button class="btn ghost" onclick="closeM('m-lijst-sel')">Annuleren</button>
+    </div>
+  </div>
+</div>
+
+<!-- DEDUP MODAL -->
+<div class="modal-bg" id="m-dedup">
+  <div class="modal wide" style="max-width:680px;">
+    <div class="mh"><span class="mt">Dubbele accounts opruimen</span><button class="btn sm ghost" onclick="closeM('m-dedup')">✕</button></div>
+    <div class="mb">
+      <div id="dedup-status" style="font-size:13px;color:var(--text2);margin-bottom:12px;"></div>
+      <div id="dedup-list"></div>
+    </div>
+    <div class="mf">
+      <button class="btn ghost" onclick="closeM('m-dedup')">Annuleren</button>
+      <button class="btn ghost" onclick="dedupSelectAll()">Alles aanvinken</button>
+      <button class="btn danger" id="dedup-del-btn" onclick="dedupVerwijder()" style="display:none;">Verwijder geselecteerde</button>
+    </div>
+  </div>
+</div>
+
+<!-- APOLLO MODAL -->
+<div class="modal-bg" id="m-apollo">
+  <div class="modal wide" style="max-width:600px;">
+    <div class="mh"><span class="mt">Apollo — Contacten zoeken</span><button class="btn sm ghost" onclick="closeM('m-apollo')">✕</button></div>
+    <div class="mb" style="max-height:65vh;overflow-y:auto;">
+      <div id="apollo-filter-stap">
+        <div style="font-size:13px;color:var(--text2);margin-bottom:10px;">Welke functietitels wil je zoeken? <span style="color:var(--text3);font-size:11px;">Eerste aangevinkt = hoogste prioriteit</span></div>
+        <input type="text" id="apollo-titel-zoek" placeholder="Zoek functietitel..." oninput="apolloFilterTitels(this.value)" style="width:100%;font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--r);margin-bottom:6px;outline:none;">
+        <div style="display:flex;flex-wrap:wrap;gap:0;max-height:260px;overflow-y:auto;padding-right:4px;" id="apollo-titel-container">
+          
+          <div style="width:100%;margin-top:10px;">
+            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border);">C-Suite</div>
+            <div style="display:flex;flex-wrap:wrap;gap:5px;">
+              <label class="ap-title-label" data-title="CEO" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="CEO" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>CEO</label>
+            <label class="ap-title-label" data-title="CFO" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="CFO" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>CFO</label>
+            <label class="ap-title-label" data-title="COO" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="COO" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>COO</label>
+            <label class="ap-title-label" data-title="CTO" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="CTO" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>CTO</label>
+            <label class="ap-title-label" data-title="CMO" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="CMO" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>CMO</label>
+            <label class="ap-title-label" data-title="CCO" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="CCO" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>CCO</label>
+            <label class="ap-title-label" data-title="CSO" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="CSO" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>CSO</label>
+            <label class="ap-title-label" data-title="CPO" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="CPO" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>CPO</label>
+            <label class="ap-title-label" data-title="CRO" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="CRO" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>CRO</label>
+            <label class="ap-title-label" data-title="Chief Revenue Officer" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Chief Revenue Officer" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Chief Revenue Officer</label>
+            <label class="ap-title-label" data-title="Chief Experience Officer" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Chief Experience Officer" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Chief Experience Officer</label>
+            <label class="ap-title-label" data-title="Chief Partnership Officer" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Chief Partnership Officer" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Chief Partnership Officer</label>
+            </div>
+          </div>
+          <div style="width:100%;margin-top:10px;">
+            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border);">Oprichters</div>
+            <div style="display:flex;flex-wrap:wrap;gap:5px;">
+              <label class="ap-title-label" data-title="Founder" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Founder" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Founder</label>
+            <label class="ap-title-label" data-title="Co-Founder" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Co-Founder" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Co-Founder</label>
+            <label class="ap-title-label" data-title="Owner" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Owner" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Owner</label>
+            <label class="ap-title-label" data-title="Eigenaar" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Eigenaar" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Eigenaar</label>
+            <label class="ap-title-label" data-title="DGA" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="DGA" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>DGA</label>
+            <label class="ap-title-label" data-title="Bestuurder" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Bestuurder" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Bestuurder</label>
+            <label class="ap-title-label" data-title="Zaakvoerder" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Zaakvoerder" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Zaakvoerder</label>
+            <label class="ap-title-label" data-title="Gedelegeerd Bestuurder" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Gedelegeerd Bestuurder" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Gedelegeerd Bestuurder</label>
+            </div>
+          </div>
+          <div style="width:100%;margin-top:10px;">
+            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border);">Directie</div>
+            <div style="display:flex;flex-wrap:wrap;gap:5px;">
+              <label class="ap-title-label" data-title="Directeur" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Directeur" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Directeur</label>
+            <label class="ap-title-label" data-title="Managing Director" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Managing Director" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Managing Director</label>
+            <label class="ap-title-label" data-title="Managing Partner" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Managing Partner" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Managing Partner</label>
+            <label class="ap-title-label" data-title="Director" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Director" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Director</label>
+            <label class="ap-title-label" data-title="General Manager" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="General Manager" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>General Manager</label>
+            <label class="ap-title-label" data-title="Executive Director" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Executive Director" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Executive Director</label>
+            <label class="ap-title-label" data-title="Directeur Generaal" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Directeur Generaal" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Directeur Generaal</label>
+            <label class="ap-title-label" data-title="President" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="President" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>President</label>
+            <label class="ap-title-label" data-title="Chairman" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Chairman" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Chairman</label>
+            <label class="ap-title-label" data-title="Country Manager" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Country Manager" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Country Manager</label>
+            <label class="ap-title-label" data-title="Regional Director" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Regional Director" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Regional Director</label>
+            </div>
+          </div>
+          <div style="width:100%;margin-top:10px;">
+            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border);">Partnerships & Events</div>
+            <div style="display:flex;flex-wrap:wrap;gap:5px;">
+              <label class="ap-title-label" data-title="Partnership Manager" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Partnership Manager" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Partnership Manager</label>
+            <label class="ap-title-label" data-title="Head of Partnerships" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Head of Partnerships" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Head of Partnerships</label>
+            <label class="ap-title-label" data-title="Director of Partnerships" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Director of Partnerships" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Director of Partnerships</label>
+            <label class="ap-title-label" data-title="VP Partnerships" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="VP Partnerships" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>VP Partnerships</label>
+            <label class="ap-title-label" data-title="Partner Manager" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Partner Manager" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Partner Manager</label>
+            <label class="ap-title-label" data-title="Partner Development Manager" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Partner Development Manager" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Partner Development Manager</label>
+            <label class="ap-title-label" data-title="Alliance Manager" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Alliance Manager" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Alliance Manager</label>
+            <label class="ap-title-label" data-title="Channel Partner Manager" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Channel Partner Manager" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Channel Partner Manager</label>
+            <label class="ap-title-label" data-title="Head of Alliances" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Head of Alliances" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Head of Alliances</label>
+            <label class="ap-title-label" data-title="Strategic Partnerships Manager" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Strategic Partnerships Manager" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Strategic Partnerships Manager</label>
+            <label class="ap-title-label" data-title="Events Manager" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Events Manager" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Events Manager</label>
+            <label class="ap-title-label" data-title="Head of Events" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Head of Events" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Head of Events</label>
+            <label class="ap-title-label" data-title="Event Manager" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Event Manager" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Event Manager</label>
+            <label class="ap-title-label" data-title="Director of Events" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Director of Events" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Director of Events</label>
+            <label class="ap-title-label" data-title="Partnerships & Events Manager" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Partnerships & Events Manager" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Partnerships & Events Manager</label>
+            <label class="ap-title-label" data-title="Head of Partnerships & Events" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Head of Partnerships & Events" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Head of Partnerships & Events</label>
+            <label class="ap-title-label" data-title="Sponsorship Manager" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Sponsorship Manager" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Sponsorship Manager</label>
+            <label class="ap-title-label" data-title="Head of Sponsorship" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Head of Sponsorship" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Head of Sponsorship</label>
+            <label class="ap-title-label" data-title="Experience Manager" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Experience Manager" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Experience Manager</label>
+            <label class="ap-title-label" data-title="Head of Experience" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Head of Experience" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Head of Experience</label>
+            </div>
+          </div>
+          <div style="width:100%;margin-top:10px;">
+            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border);">Business Development</div>
+            <div style="display:flex;flex-wrap:wrap;gap:5px;">
+              <label class="ap-title-label" data-title="Business Development Manager" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Business Development Manager" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Business Development Manager</label>
+            <label class="ap-title-label" data-title="Head of Business Development" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Head of Business Development" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Head of Business Development</label>
+            <label class="ap-title-label" data-title="Director Business Development" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Director Business Development" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Director Business Development</label>
+            <label class="ap-title-label" data-title="VP Business Development" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="VP Business Development" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>VP Business Development</label>
+            <label class="ap-title-label" data-title="BD Manager" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="BD Manager" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>BD Manager</label>
+            <label class="ap-title-label" data-title="New Business Manager" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="New Business Manager" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>New Business Manager</label>
+            </div>
+          </div>
+          <div style="width:100%;margin-top:10px;">
+            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border);">Relatiemanagement</div>
+            <div style="display:flex;flex-wrap:wrap;gap:5px;">
+              <label class="ap-title-label" data-title="Relatiemanager" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Relatiemanager" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Relatiemanager</label>
+            <label class="ap-title-label" data-title="Account Manager" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Account Manager" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Account Manager</label>
+            <label class="ap-title-label" data-title="Key Account Manager" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Key Account Manager" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Key Account Manager</label>
+            <label class="ap-title-label" data-title="Client Relations Manager" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Client Relations Manager" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Client Relations Manager</label>
+            <label class="ap-title-label" data-title="Relationship Manager" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Relationship Manager" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Relationship Manager</label>
+            <label class="ap-title-label" data-title="Head of Client Relations" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Head of Client Relations" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Head of Client Relations</label>
+            <label class="ap-title-label" data-title="Director of Client Relations" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Director of Client Relations" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Director of Client Relations</label>
+            <label class="ap-title-label" data-title="Customer Success Manager" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Customer Success Manager" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Customer Success Manager</label>
+            <label class="ap-title-label" data-title="Head of Customer Success" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Head of Customer Success" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Head of Customer Success</label>
+            <label class="ap-title-label" data-title="Account Director" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Account Director" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Account Director</label>
+            <label class="ap-title-label" data-title="Senior Account Manager" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Senior Account Manager" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Senior Account Manager</label>
+            <label class="ap-title-label" data-title="Client Director" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Client Director" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Client Director</label>
+            </div>
+          </div>
+          <div style="width:100%;margin-top:10px;">
+            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border);">Sales</div>
+            <div style="display:flex;flex-wrap:wrap;gap:5px;">
+              <label class="ap-title-label" data-title="Sales Director" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Sales Director" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Sales Director</label>
+            <label class="ap-title-label" data-title="Head of Sales" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Head of Sales" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Head of Sales</label>
+            <label class="ap-title-label" data-title="VP Sales" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="VP Sales" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>VP Sales</label>
+            <label class="ap-title-label" data-title="Commercial Director" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Commercial Director" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Commercial Director</label>
+            <label class="ap-title-label" data-title="Head of Commercial" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Head of Commercial" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Head of Commercial</label>
+            <label class="ap-title-label" data-title="Sales Manager" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Sales Manager" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Sales Manager</label>
+            <label class="ap-title-label" data-title="Regional Sales Director" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Regional Sales Director" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Regional Sales Director</label>
+            <label class="ap-title-label" data-title="Chief Commercial Officer" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Chief Commercial Officer" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Chief Commercial Officer</label>
+            </div>
+          </div>
+          <div style="width:100%;margin-top:10px;">
+            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border);">Marketing</div>
+            <div style="display:flex;flex-wrap:wrap;gap:5px;">
+              <label class="ap-title-label" data-title="Marketing Director" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Marketing Director" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Marketing Director</label>
+            <label class="ap-title-label" data-title="Head of Marketing" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Head of Marketing" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Head of Marketing</label>
+            <label class="ap-title-label" data-title="VP Marketing" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="VP Marketing" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>VP Marketing</label>
+            <label class="ap-title-label" data-title="Marketing Manager" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Marketing Manager" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Marketing Manager</label>
+            <label class="ap-title-label" data-title="Brand Manager" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Brand Manager" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Brand Manager</label>
+            <label class="ap-title-label" data-title="Head of Brand" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Head of Brand" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Head of Brand</label>
+            <label class="ap-title-label" data-title="Head of Growth" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Head of Growth" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Head of Growth</label>
+            <label class="ap-title-label" data-title="Growth Manager" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Growth Manager" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Growth Manager</label>
+            <label class="ap-title-label" data-title="Head of Communications" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Head of Communications" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Head of Communications</label>
+            <label class="ap-title-label" data-title="Communications Director" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Communications Director" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Communications Director</label>
+            <label class="ap-title-label" data-title="PR Manager" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="PR Manager" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>PR Manager</label>
+            <label class="ap-title-label" data-title="Digital Marketing Manager" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Digital Marketing Manager" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Digital Marketing Manager</label>
+            <label class="ap-title-label" data-title="Content Director" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Content Director" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Content Director</label>
+            <label class="ap-title-label" data-title="Head of PR" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Head of PR" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Head of PR</label>
+            <label class="ap-title-label" data-title="Corporate Communications Manager" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Corporate Communications Manager" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Corporate Communications Manager</label>
+            <label class="ap-title-label" data-title="Brand & Communications Manager" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Brand & Communications Manager" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Brand & Communications Manager</label>
+            </div>
+          </div>
+          <div style="width:100%;margin-top:10px;">
+            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border);">Overig</div>
+            <div style="display:flex;flex-wrap:wrap;gap:5px;">
+              <label class="ap-title-label" data-title="Partner" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Partner" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Partner</label>
+            <label class="ap-title-label" data-title="Principal" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Principal" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Principal</label>
+            <label class="ap-title-label" data-title="Managing Member" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Managing Member" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Managing Member</label>
+            <label class="ap-title-label" data-title="Head of Operations" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Head of Operations" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Head of Operations</label>
+            <label class="ap-title-label" data-title="Chief of Staff" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Chief of Staff" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Chief of Staff</label>
+            <label class="ap-title-label" data-title="Board Member" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Board Member" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Board Member</label>
+            <label class="ap-title-label" data-title="Advisory Board" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;"><input type="checkbox" class="ap-title" value="Advisory Board" style="accent-color:var(--navy);width:13px;height:13px;" onchange="apolloTitelVolgorde(this)"> <span class="ap-prio" style="font-size:10px;font-weight:700;color:var(--gold);margin-right:2px;"></span>Advisory Board</label>
+            </div>
+          </div>
+        </div>      </div>
+      <div id="apollo-resultaat-stap" style="display:none;">
+        <div id="apollo-modal-resultaten"></div>
+      </div>
+    </div>
+    <div class="mf">
+      <button class="btn ghost" onclick="closeM('m-apollo')">Sluiten</button>
+      <button class="btn ghost" id="apollo-terug-btn" onclick="document.getElementById('apollo-filter-stap').style.display='block';document.getElementById('apollo-resultaat-stap').style.display='none';document.getElementById('apollo-terug-btn').style.display='none';document.getElementById('apollo-zoek-btn').style.display='inline-flex';document.getElementById('apollo-modal-import-btn').style.display='none';document.getElementById('apollo-partial-btn').style.display='none';" style="display:none;">← Terug & andere titels</button>
+      <button class="btn pri" id="apollo-zoek-btn" onclick="apolloZoekenVanuitModal()">Zoeken in Apollo →</button>
+      <button class="btn ghost" id="apollo-partial-btn" onclick="apolloImporterenEnBewaar()" style="display:none;">Importeer gevonden →</button>
+      <button class="btn pri" id="apollo-modal-import-btn" onclick="apolloModalImporteren()" style="display:none;">Alles importeren →</button>
+    </div>
+  </div>
+</div>
+
+<!-- CSV IMPORT MODAL -->
+<div class="modal-bg" id="m-import">
+  <div class="modal wide">
+    <div class="mh"><span class="mt">CSV / Excel importeren</span><button class="btn sm ghost" onclick="closeM('m-import')">✕</button></div>
+    <div class="mb">
+      <div class="fg">
+        <label class="fl">Upload bestand (CSV)</label>
+        <div class="drop-zone" id="drop-zone" onclick="document.getElementById('csv-file').click()">
+          <input type="file" id="csv-file" accept=".csv,.txt" style="display:none" onchange="handleCSV(this)">
+          <div style="font-size:24px;margin-bottom:8px;">↑</div>
+          <div style="font-size:14px;font-weight:500;color:var(--text2);margin-bottom:4px;">Klik om een CSV te uploaden</div>
+          <div style="font-size:12px;color:var(--text3);">Kolommen: naam, status, sector, website, email, telefoon, contactpersoon, functie</div>
+        </div>
+      </div>
+      <div id="import-preview" style="display:none;">
+        <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px;" id="import-count"></div>
+        <div class="import-preview" id="import-table"></div>
+      </div>
+    </div>
+    <div class="mf"><button class="btn ghost" onclick="closeM('m-import')">Annuleren</button><button class="btn pri" id="import-btn" onclick="doImport()" style="display:none;">Importeren</button></div>
+  </div>
+</div>
+
+<!-- ADD EVENT MODAL -->
+<div class="modal-bg" id="m-event">
+  <div class="modal" style="width:600px;">
+    <div class="mh">
+      <div>
+        <div class="mt">Afspraak plannen</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:2px;">Kies een type en vul de details in</div>
+      </div>
+      <button class="btn sm ghost" onclick="closeM('m-event')">✕</button>
+    </div>
+    <div class="mb" style="padding:0;">
+
+      <!-- Type selector — full width strip -->
+      <div style="display:flex;border-bottom:1px solid var(--border);overflow-x:auto;" id="ev-type-btns">
+        <button onclick="selectEvType(this,'Kennismaking')" data-type="Kennismaking" style="flex:1;padding:12px 8px;font-size:12px;font-weight:600;border:none;border-bottom:2px solid var(--navy);background:var(--navy-fade);color:var(--navy);cursor:pointer;white-space:nowrap;font-family:'DM Sans',sans-serif;min-width:90px;">Kennismaking</button>
+        <button onclick="selectEvType(this,'Follow-up')" data-type="Follow-up" style="flex:1;padding:12px 8px;font-size:12px;font-weight:600;border:none;border-bottom:2px solid transparent;background:none;color:var(--text2);cursor:pointer;white-space:nowrap;font-family:'DM Sans',sans-serif;min-width:80px;">Follow-up</button>
+        <button onclick="selectEvType(this,'Presentatie')" data-type="Presentatie" style="flex:1;padding:12px 8px;font-size:12px;font-weight:600;border:none;border-bottom:2px solid transparent;background:none;color:var(--text2);cursor:pointer;white-space:nowrap;font-family:'DM Sans',sans-serif;min-width:90px;">Presentatie</button>
+        <button onclick="selectEvType(this,'Voorstel bespreken')" data-type="Voorstel bespreken" style="flex:1;padding:12px 8px;font-size:12px;font-weight:600;border:none;border-bottom:2px solid transparent;background:none;color:var(--text2);cursor:pointer;white-space:nowrap;font-family:'DM Sans',sans-serif;min-width:110px;">Voorstel</button>
+        <button onclick="selectEvType(this,'Evaluatie')" data-type="Evaluatie" style="flex:1;padding:12px 8px;font-size:12px;font-weight:600;border:none;border-bottom:2px solid transparent;background:none;color:var(--text2);cursor:pointer;white-space:nowrap;font-family:'DM Sans',sans-serif;min-width:80px;">Evaluatie</button>
+        <button onclick="selectEvType(this,'Intern')" data-type="Intern" style="flex:1;padding:12px 8px;font-size:12px;font-weight:600;border:none;border-bottom:2px solid transparent;background:none;color:var(--text2);cursor:pointer;white-space:nowrap;font-family:'DM Sans',sans-serif;min-width:70px;">Intern</button>
+      </div>
+      <input type="hidden" id="ev-type" value="Kennismaking">
+
+      <div style="padding:18px 22px;display:flex;flex-direction:column;gap:13px;">
+
+        <!-- Titel -->
+        <div class="fg"><label class="fl">Titel afspraak</label>
+          <input type="text" id="ev-title" placeholder="bijv. Kennismaking Intersect × BlueStar">
+        </div>
+
+        <!-- Datum / tijd / duur in één rij -->
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+          <div class="fg"><label class="fl">Datum</label>
+            <input type="date" id="ev-date" onchange="updateDateLabel(this.value)">
+            <div id="ev-date-label" style="font-size:11px;color:var(--navy);margin-top:3px;font-weight:500;"></div>
+          </div>
+          <div class="fg"><label class="fl">Starttijd</label>
+            <select id="ev-time">
+              <option value="">— kies —</option>
+              <option value="07:00">07:00</option>
+              <option value="07:15">07:15</option>
+              <option value="07:30">07:30</option>
+              <option value="07:45">07:45</option>
+              <option value="08:00">08:00</option>
+              <option value="08:15">08:15</option>
+              <option value="08:30">08:30</option>
+              <option value="08:45">08:45</option>
+              <option value="09:00">09:00</option>
+              <option value="09:15">09:15</option>
+              <option value="09:30">09:30</option>
+              <option value="09:45">09:45</option>
+              <option value="10:00">10:00</option>
+              <option value="10:15">10:15</option>
+              <option value="10:30">10:30</option>
+              <option value="10:45">10:45</option>
+              <option value="11:00">11:00</option>
+              <option value="11:15">11:15</option>
+              <option value="11:30">11:30</option>
+              <option value="11:45">11:45</option>
+              <option value="12:00">12:00</option>
+              <option value="12:15">12:15</option>
+              <option value="12:30">12:30</option>
+              <option value="12:45">12:45</option>
+              <option value="13:00">13:00</option>
+              <option value="13:15">13:15</option>
+              <option value="13:30">13:30</option>
+              <option value="13:45">13:45</option>
+              <option value="14:00">14:00</option>
+              <option value="14:15">14:15</option>
+              <option value="14:30">14:30</option>
+              <option value="14:45">14:45</option>
+              <option value="15:00">15:00</option>
+              <option value="15:15">15:15</option>
+              <option value="15:30">15:30</option>
+              <option value="15:45">15:45</option>
+              <option value="16:00">16:00</option>
+              <option value="16:15">16:15</option>
+              <option value="16:30">16:30</option>
+              <option value="16:45">16:45</option>
+              <option value="17:00">17:00</option>
+              <option value="17:15">17:15</option>
+              <option value="17:30">17:30</option>
+              <option value="17:45">17:45</option>
+              <option value="18:00">18:00</option>
+              <option value="18:15">18:15</option>
+              <option value="18:30">18:30</option>
+              <option value="18:45">18:45</option>
+              <option value="19:00">19:00</option>
+              <option value="19:30">19:30</option>
+              <option value="20:00">20:00</option>
+              <option value="20:30">20:30</option>
+              <option value="21:00">21:00</option>
+            </select>
+          </div>
+          <div class="fg"><label class="fl">Duur</label>
+            <select id="ev-dur">
+              <option value="30">30 min</option>
+              <option value="60" selected>1 uur</option>
+              <option value="90">1,5 uur</option>
+              <option value="120">2 uur</option>
+              <option value="180">3 uur</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Locatie -->
+        <div class="fg"><label class="fl">Locatie / Link</label>
+          <input type="text" id="ev-loc" placeholder="Kantoor, Google Meet, Zoom, Teams…">
+        </div>
+
+        <!-- Account zoeken + contactpersoon selecteren -->
+        <div class="fg">
+          <label class="fl">Account koppelen</label>
+          <div style="position:relative;">
+            <input type="text" id="ev-acc-search" placeholder="Zoek account…" oninput="filterEvAccounts(this.value)"
+              style="width:100%;padding-right:36px;">
+            <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:13px;color:var(--text3);">⌕</span>
+          </div>
+          <div id="ev-acc-results" style="display:none;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);max-height:160px;overflow-y:auto;margin-top:3px;"></div>
+          <!-- Selected account pill -->
+          <div id="ev-acc-selected" style="display:none;margin-top:6px;"></div>
+        </div>
+
+        <!-- Contact selecteren (verschijnt als account geselecteerd) -->
+        <div id="ev-contact-section" style="display:none;">
+          <div class="fg">
+            <label class="fl">Contactpersoon aanvinken</label>
+            <div id="ev-contact-list" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:8px 10px;display:flex;flex-direction:column;gap:6px;"></div>
+          </div>
+        </div>
+        <input type="hidden" id="ev-acc-id" value="">
+        <input type="hidden" id="ev-contact-name" value="">
+        <input type="hidden" id="ev-contact-email" value="">
+
+        <!-- Deelnemers Intersect -->
+        <div class="fg"><label class="fl">Deelnemers Intersect</label>
+          <div class="asgn" id="asgn-event">
+            <div class="asgn-opt on" data-u="MA" onclick="selOwner('MA','asgn-event')"><div class="av ma lg">MA</div>Mees</div>
+            <div class="asgn-opt" data-u="JK" onclick="selOwner('JK','asgn-event')"><div class="av jk lg">JK</div>Julian</div>
+            <div class="asgn-opt" data-u="BOTH" onclick="selOwner('BOTH','asgn-event')">Beiden</div>
+          </div>
+        </div>
+
+        <!-- Notitie -->
+        <div class="fg"><label class="fl">Notitie / agenda</label>
+          <textarea id="ev-note" style="min-height:55px;" placeholder="Gespreksonderwerpen, voorbereiding…"></textarea>
+        </div>
+
+        <!-- Reminders -->
+        <div class="fg">
+          <label class="fl">Reminders</label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
+              <input type="checkbox" id="ev-rem-5" checked> 5 min van tevoren
+            </label>
+            <label style="display:flex;align-items:center;gap=6px;font-size:13px;cursor:pointer;">
+              <input type="checkbox" id="ev-rem-0" checked> Bij aanvang
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
+              <input type="checkbox" id="ev-rem-15"> 15 min van tevoren
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
+              <input type="checkbox" id="ev-rem-30"> 30 min van tevoren
+            </label>
+          </div>
+        </div>
+
+        <!-- Bevestigingsmail -->
+        <div style="background:var(--gold-pale);border:1px solid rgba(201,168,76,.25);border-radius:var(--r-lg);padding:14px 16px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <div>
+              <div style="font-size:13px;font-weight:600;color:var(--amber-t);">Bevestigingsmail sturen?</div>
+              <div style="font-size:11.5px;color:var(--amber-t);opacity:.7;margin-top:1px;">Mail wordt geopend in je mailclient</div>
+            </div>
+            <div style="display:flex;gap:6px;">
+              <button id="conf-yes" onclick="trySetConfirmYes()" style="padding:5px 12px;font-size:12px;font-weight:600;border-radius:20px;cursor:pointer;border:1.5px solid var(--border2);background:transparent;color:var(--text2);font-family:'DM Sans',sans-serif;">Ja</button>
+              <button id="conf-no" onclick="setConfirm(false)" style="padding:5px 12px;font-size:12px;font-weight:600;border-radius:20px;cursor:pointer;border:1.5px solid var(--navy);background:var(--navy);color:#fff;font-family:'DM Sans',sans-serif;">Nee</button>
+            </div>
+          </div>
+          <div id="conf-mail-fields" style="display:flex;flex-direction:column;gap:8px;">
+            <div class="fg"><label class="fl" style="font-size:11px;">E-mail ontvanger</label>
+              <input type="text" id="ev-conf-to" placeholder="naam@bedrijf.nl" style="font-size:12.5px;">
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+    <div class="mf">
+      <button class="btn ghost" onclick="closeM('m-event')">Annuleren</button>
+      <button class="btn" id="m-event-save-ics" onclick="saveEventAndExport()" style="gap:5px;">Opslaan + .ics ↗</button>
+      <button class="btn pri" id="m-event-save" onclick="saveEvent()">Opslaan</button>
+    </div>
+  </div>
+</div>
+
+<!-- AGENDA NOTIFICATIES -->
+<div id="agenda-notif-container" style="position:fixed;top:16px;right:16px;z-index:9999;display:flex;flex-direction:column;gap:8px;max-width:320px;pointer-events:none;"></div>
+
+<script>
+// ══════════════ AUTH LAYER ══════════════
+const AUTH_KEY = 'ix_auth_session';
+let _currentUser = null;
+
+function _getStoredSession(){
+  try{
+    const s = localStorage.getItem(AUTH_KEY);
+    if(!s) return null;
+    const session = JSON.parse(s);
+    // Check if session is still valid (6 hours)
+    const age = (Date.now() - session.loginTime) / 1000 / 3600;
+    if(age > 6){ localStorage.removeItem(AUTH_KEY); return null; }
+    return session;
+  }catch(e){ return null; }
 }
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-function getDb() { return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY); }
-function wacht(ms) { return new Promise(r => setTimeout(r, ms)); }
+function _storeSession(user){
+  localStorage.setItem(AUTH_KEY, JSON.stringify({
+    email: user.email,
+    initials: user.initials,
+    name: user.name,
+    loginTime: Date.now(),
+    access_token: user.access_token
+  }));
+}
 
-async function apiCallMetRetry(fn, maxPogingen = 3) {
-  for (let poging = 1; poging <= maxPogingen; poging++) {
-    try {
-      return await fn();
-    } catch(e) {
-      const is429 = e.status === 429 || e.message?.includes('429') || e.message?.includes('rate_limit');
-      if (is429 && poging < maxPogingen) {
-        const wachttijd = poging * 65000;
-        console.log(`[RateLimit] Poging ${poging}/${maxPogingen} — wacht ${wachttijd/1000}s...`);
-        await wacht(wachttijd);
-        continue;
+function _clearSession(){
+  localStorage.removeItem(AUTH_KEY);
+  _currentUser = null;
+}
+
+async function _sbLogin(email, password){
+  const r = await fetch(`${SB_URL}/auth/v1/token?grant_type=password`, {
+    method: 'POST',
+    headers: {'apikey': SB_KEY, 'Content-Type': 'application/json'},
+    body: JSON.stringify({email, password})
+  });
+  const data = await r.json();
+  if(!r.ok) throw new Error(data.error_description || data.message || 'Inloggen mislukt');
+  return data;
+}
+
+async function _sbLogout(){
+  try{
+    const session = _getStoredSession();
+    if(session?.access_token){
+      await fetch(`${SB_URL}/auth/v1/logout`, {
+        method: 'POST',
+        headers: {'apikey': SB_KEY, 'Authorization': `Bearer ${session.access_token}`}
+      });
+    }
+  }catch(e){}
+  _clearSession();
+  showLoginScreen();
+}
+
+function showLoginScreen(){
+  // Remove existing login screen if any
+  const existing = document.getElementById('_login_screen');
+  if(existing) existing.remove();
+
+  const el = document.createElement('div');
+  el.id = '_login_screen';
+  el.innerHTML = `
+    <style>
+      #_login_screen{position:fixed;inset:0;background:#0d1f3c;display:flex;align-items:center;justify-content:center;z-index:9999;font-family:'DM Sans',sans-serif;}
+      ._lbox{background:#fff;border-radius:16px;padding:36px 40px;width:380px;box-shadow:0 24px 64px rgba(0,0,0,.3);}
+      ._ltitle{font-family:'Syne',sans-serif;font-size:22px;font-weight:700;color:#0d1f3c;margin-bottom:4px;}
+      ._lsub{font-size:13px;color:#8a94a6;margin-bottom:28px;}
+      ._lfield{display:flex;flex-direction:column;gap:5px;margin-bottom:16px;}
+      ._llabel{font-size:12px;font-weight:600;color:#4a5568;}
+      ._linput{padding:10px 12px;border:1.5px solid #e3e6ec;border-radius:8px;font-size:14px;font-family:'DM Sans',sans-serif;outline:none;transition:border .1s;color:#0d1f3c;}
+      ._linput:focus{border-color:#0d1f3c;}
+      ._lbtn{width:100%;padding:12px;background:#0d1f3c;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;margin-top:8px;transition:background .1s;}
+      ._lbtn:hover{background:#1a3358;}
+      ._lbtn:disabled{background:#8a94a6;cursor:not-allowed;}
+      ._lerr{color:#c0392b;font-size:12.5px;margin-top:8px;display:none;}
+      ._lfooter{text-align:center;font-size:11.5px;color:#8a94a6;margin-top:20px;}
+      ._lgold{display:block;width:40px;height:4px;background:#c9a84c;border-radius:2px;margin:0 auto 24px;}
+    </style>
+    <div class="_lbox">
+      <div style="text-align:center;margin-bottom:24px;">
+        <div style="width:52px;height:52px;background:#0d1f3c;border-radius:12px;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;">
+          <span style="font-family:'Syne',sans-serif;font-size:18px;font-weight:700;color:#c9a84c;">IX</span>
+        </div>
+        <div class="_ltitle">Intersect CRM</div>
+        <div class="_lsub">Log in om verder te gaan</div>
+        <span class="_lgold"></span>
+      </div>
+      <div class="_lfield">
+        <label class="_llabel">E-mailadres</label>
+        <input class="_linput" type="email" id="_l_email" placeholder="naam@intersect-partners.com" autocomplete="email">
+      </div>
+      <div class="_lfield">
+        <label class="_llabel">Wachtwoord</label>
+        <input class="_linput" type="password" id="_l_pass" placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <div id="_l_err" class="_lerr"></div>
+      <button class="_lbtn" id="_l_btn" onclick="_doLogin()">Inloggen</button>
+      <div class="_lfooter">Sessie verloopt automatisch na 24 uur</div>
+    </div>`;
+  document.body.appendChild(el);
+
+  // Enter key submits
+  el.querySelector('#_l_pass').addEventListener('keydown', e => {
+    if(e.key === 'Enter') _doLogin();
+  });
+  el.querySelector('#_l_email').addEventListener('keydown', e => {
+    if(e.key === 'Enter') el.querySelector('#_l_pass').focus();
+  });
+}
+
+async function _doLogin(){
+  const email = document.getElementById('_l_email').value.trim();
+  const pass = document.getElementById('_l_pass').value;
+  const btn = document.getElementById('_l_btn');
+  const err = document.getElementById('_l_err');
+
+  if(!email || !pass){ err.textContent = 'Vul e-mail en wachtwoord in.'; err.style.display='block'; return; }
+
+  btn.disabled = true; btn.textContent = 'Inloggen…'; err.style.display = 'none';
+
+  try{
+    const data = await _sbLogin(email, pass);
+    const meta = data.user?.user_metadata || {};
+
+    // Determine user initials from email
+    const initials = email.startsWith('mees') ? 'MA' : email.startsWith('julian') ? 'JK' : 'MA';
+    const name = email.startsWith('mees') ? 'Mees Arentsen' : email.startsWith('julian') ? 'Julian Kanhai' : 'Gebruiker';
+
+    _currentUser = { email, initials, name, access_token: data.access_token };
+    _storeSession(_currentUser);
+
+    // Set CU to logged in user
+    CU = initials;
+
+    // Remove login screen
+    document.getElementById('_login_screen')?.remove();
+
+    // Update sidebar user display
+    const av = document.getElementById('cur-av');
+    const nm = document.getElementById('cur-name');
+    if(av){ av.textContent = initials; av.className = 'av ' + initials.toLowerCase(); }
+    if(nm) nm.textContent = name;
+
+    // Start app
+    calPerson = CU;
+    updateUserSwitch();
+    const loaded = await _loadFromSupabase();
+    renderDash();
+    updateBadge();
+    renderClientBar();
+    scraperStartPoll(); // Check scraper status elke 30s
+    setTimeout(()=>{ runWorkflowEngine(false); updateWfBadge(); renderWatNu(); }, 600);
+
+    // Data wordt alleen geladen bij navigatie (klik) — geen achtergrond sync
+
+  }catch(e){
+    err.textContent = e.message || 'Inloggen mislukt. Controleer je gegevens.';
+    err.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = 'Inloggen';
+  }
+}
+
+function _checkAuth(){
+  const session = _getStoredSession();
+  if(session){
+    _currentUser = session;
+    CU = session.initials;
+    return true;
+  }
+  return false;
+}
+
+</script>
+<script>
+// ══════════════ SUPABASE LAYER ══════════════
+const SB_URL='https://wjmalzbdxbtnkyngaccw.supabase.co';
+const SB_KEY='sb_publishable_8BI2HQ9f0_jTnUR7Q1-B7Q_xflM7k7Q';
+
+const _sbH={'apikey':SB_KEY,'Authorization':`Bearer ${SB_KEY}`,'Content-Type':'application/json'};
+const _sbHR={..._sbH,'Prefer':'return=representation'};
+
+async function _sbGet(t,q=''){
+  const r=await fetch(`${SB_URL}/rest/v1/${t}${q}`,{headers:_sbH});
+  if(!r.ok)throw new Error(`GET ${t}: ${await r.text()}`);
+  return r.json();
+}
+async function _sbPost(t,d){
+  const r=await fetch(`${SB_URL}/rest/v1/${t}`,{method:'POST',headers:_sbHR,body:JSON.stringify(d)});
+  if(!r.ok)throw new Error(`POST ${t}: ${await r.text()}`);
+  return r.json();
+}
+async function _sbPatch(t,id,d){
+  const r=await fetch(`${SB_URL}/rest/v1/${t}?id=eq.${id}`,{method:'PATCH',headers:_sbHR,body:JSON.stringify(d)});
+  if(!r.ok)throw new Error(`PATCH ${t}: ${await r.text()}`);
+  return r.json();
+}
+async function _sbUpsert(t,d,conflict){
+  const r=await fetch(`${SB_URL}/rest/v1/${t}?on_conflict=${conflict}`,{method:'POST',headers:{..._sbHR,'Prefer':'return=representation,resolution=merge-duplicates'},body:JSON.stringify(d)});
+  if(!r.ok)throw new Error(`UPSERT ${t}: ${await r.text()}`);
+  return r.json();
+}
+
+// ── DATA MAPPERS ──────────────────────────────
+function _mapAcc(r){return{id:r.id,name:r.name,status:r.status||'lead',sector:r.sector||'',seg:r.segment||'',web:r.website||'',li:r.linkedin||'',phone:r.phone||'',kvk:r.kvk||'',addr:r.address||'',addrUrl:r.address_url||'',pipe:r.pipeline_stage||'Nieuw',val:r.value?String(r.value):'',owner:r.owner||'MA',note:r.note||'',color:r.color_index||0,added:r.added_date||'',cf:r.contact_first||'',cl:r.contact_last||'',cr:r.contact_role||'',cp:r.contact_phone||'',ce:r.contact_email||'',cli:r.contact_linkedin||'',ce2:r.contact_email2||'',cp2:r.contact_phone2||'',contacts:[],deals:[],proposals:[],notes:[],docs:[],clientLinks:{}};}
+function _mapTodo(r){return{id:r.id,title:r.title,done:r.done||false,prio:r.priority||'medium',due:r.due_date||'',acc:r.account_id||null,owner:r.owner||'MA',auto:r.is_auto||false,ruleId:r.rule_id||null,clientId:r.client_id||null,doneDate:r.done_date||null};}
+function _mapEv(r){return{id:r.id,_sbId:r.id,title:r.title,type:r.type||'Kennismaking',date:r.event_date,time:r.start_time||'',dur:r.duration_minutes||60,loc:r.location||'',acc:r.account_id||null,owner:r.owner||'MA',note:r.note||'',contactName:r.contact_name||'',contactEmail:r.contact_email||''};}
+function _mapClient(r){return{id:r.id,name:r.name,sector:r.sector||'',contact:r.contact_person||'',email:r.email||'',color:r.color||'#0d1f3c',note:r.note||''};}
+function _mapTpl(r){return{id:r.id,name:r.name,subj:r.subject||'',body:r.body||''};}
+function _mapAct(r){return{text:r.text,time:new Date(r.created_at).toLocaleDateString('nl-NL',{day:'numeric',month:'short'}),ico:r.icon||'◈',bg:r.bg_color||'#e8f0fb',clientId:r.client_id||null};}
+function _mapNote(r){
+  let chat=null;
+  if(r.chat){try{chat=typeof r.chat==='string'?JSON.parse(r.chat):r.chat;}catch(e){chat=null;}}
+  return{id:r.id,_sbId:r.id,text:r.text,type:r.type||'notitie',by:r.created_by||'MA',contact:r.contact||null,chat,dur:r.dur||null,time:new Date(r.created_at).toLocaleDateString('nl-NL',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})};
+}
+function _mapContact(r){return{id:r.id,first:r.first_name||'',last:r.last_name||'',role:r.role||'',dept:r.department||'',email:r.email||'',email2:r.email2||'',phone:r.phone||'',phone2:r.phone2||'',li:r.linkedin||'',note:r.note||''};}
+function _mapDeal(r){return{id:r.id,name:r.name,val:r.value?String(r.value):'',prob:String(r.probability||50),stage:r.stage||'',close:r.close_date||'',note:r.note||''};}
+function _mapProp(r){return{id:r.id,title:r.title,val:r.value?String(r.value):'',stat:r.status||'concept',date:r.sent_date||'',exp:r.expiry_date||'',desc:r.description||''};}
+
+
+// ── LOADING SCREEN ────────────────────────────
+function _showLoad(msg){
+  let el=document.getElementById('_sb_load');
+  if(!el){
+    el=document.createElement('div');el.id='_sb_load';
+    el.innerHTML=`<style>@keyframes _lb{0%{width:0;margin-left:0}50%{width:60%;margin-left:20%}100%{width:0;margin-left:100%}}</style>
+      <div style="position:fixed;inset:0;background:#0d1f3c;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;">
+        <div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:700;color:#fff;letter-spacing:-.5px;margin-bottom:6px;">Intersect <span style="color:rgba(255,255,255,.35);font-weight:400">CRM</span></div>
+        <div id="_sb_msg" style="font-size:13px;color:rgba(255,255,255,.45);margin-bottom:24px;">${msg}</div>
+        <div style="width:180px;height:2px;background:rgba(255,255,255,.1);border-radius:2px;overflow:hidden;">
+          <div style="height:100%;background:#c9a84c;border-radius:2px;animation:_lb 1.4s ease-in-out infinite;"></div>
+        </div>
+      </div>`;
+    document.body.appendChild(el);
+  }else{document.getElementById('_sb_msg').textContent=msg;}
+}
+function _hideLoad(){
+  const el=document.getElementById('_sb_load');
+  if(el){el.style.opacity='0';el.style.transition='opacity .4s';setTimeout(()=>el.remove(),400);}
+}
+
+// ── MAIN DATA LOADER ──────────────────────────
+async function _loadFromSupabase(){
+  try{
+    _showLoad('Data laden…');
+    const [accR,todoR,evR,clientR,tplR,actR,noteR,conR,dealR,propR,linkR]=await Promise.all([
+      _sbGet('accounts','?select=*&order=created_at.desc'),
+      _sbGet('todos','?select=*&order=created_at.desc'),
+      _sbGet('events','?select=*&order=event_date.asc'),
+      _sbGet('clients','?select=*&order=id.asc'),
+      _sbGet('email_templates','?select=*'),
+      _sbGet('activity_log','?select=*&order=created_at.desc&limit=50'),
+      _sbGet('notes','?select=*&order=created_at.desc'),
+      _sbGet('contacts','?select=*'),
+      _sbGet('deals','?select=*'),
+      _sbGet('proposals','?select=*'),
+      _sbGet('account_client_links','?select=*'),
+    ]);
+    accs=accR.map(_mapAcc);
+    noteR.forEach(n=>{const a=accs.find(x=>x.id===n.account_id);if(a)a.notes.push(_mapNote(n));});
+    conR.forEach(c=>{const a=accs.find(x=>x.id===c.account_id);if(a)a.contacts.push(_mapContact(c));});
+    dealR.forEach(d=>{const a=accs.find(x=>x.id===d.account_id);if(a)a.deals.push(_mapDeal(d));});
+    propR.forEach(p=>{const a=accs.find(x=>x.id===p.account_id);if(a)a.proposals.push(_mapProp(p));});
+    linkR.forEach(l=>{const a=accs.find(x=>x.id===l.account_id);if(a)a.clientLinks[l.client_id]={status:l.status,pipe:l.pipeline_stage,val:l.value?String(l.value):'',note:l.note||''}});
+    todos=todoR.map(_mapTodo);
+    calEvents=evR.map(_mapEv);
+    clients=clientR.map(_mapClient);
+    templates=tplR.map(_mapTpl);
+    activity=actR.map(_mapAct);
+    await _loadLijsten();
+    // Clean up any leftover demo data (accounts with old integer IDs < 10)
+    // Real data from migration will have Supabase bigserial IDs (large numbers)
+    // Ensure Intersect is always in clients list
+    if(!clients.some(c=>c.name==='Intersect')){
+      try{
+        const r=await _sbPost('clients',{name:'Intersect',sector:'Sales & Business Development',contact_person:'Mees Arentsen & Julian Kanhai',email:'mees@intersect-partners.com',color:'#c9a84c',note:'Onze eigen organisatie.'});
+        if(r&&r[0])clients.unshift({id:r[0].id,name:'Intersect',sector:'Sales & Business Development',contact:r[0].contact_person,email:r[0].email,color:'#c9a84c',note:r[0].note});
+      }catch(e){
+        // Add locally if SB fails
+        clients.unshift({id:999999,name:'Intersect',sector:'Sales & Business Development',contact:'Mees & Julian',email:'mees@intersect-partners.com',color:'#c9a84c',note:'Onze eigen organisatie.'});
       }
-      throw e;
+    }
+    _hideLoad();
+    return true;
+  }catch(e){
+    console.error('Supabase load failed:',e);
+    _hideLoad();
+    return false;
+  }
+}
+
+// ── SUPABASE SAVE HELPERS ─────────────────────
+async function _saveAcc(a){
+  const d={name:a.name,status:a.status,sector:a.sector||'',segment:a.seg||'',website:a.web||'',linkedin:a.li||'',phone:a.phone||'',kvk:a.kvk||'',address:a.addr||'',address_url:a.addrUrl||'',pipeline_stage:a.pipe||'Nieuw',value:parseFloat(a.val)||null,owner:a.owner||'MA',note:a.note||'',color_index:a.color||0,added_date:a.added||new Date().toISOString().split('T')[0],contact_first:a.cf||'',contact_last:a.cl||'',contact_role:a.cr||'',contact_phone:a.cp||'',contact_email:a.ce||'',contact_linkedin:a.cli||'',contact_email2:a.ce2||'',contact_phone2:a.cp2||''};
+  let id=a.id;
+  if(id&&typeof id==='number'&&id<2000000000){await _sbPatch('accounts',id,d);}
+  else{const[r]=await _sbPost('accounts',d);id=r.id;a.id=id;}
+  if(a.clientLinks){
+    // Reload clients to get correct SB IDs before saving links
+    let currentClients=clients;
+    try{const r=await _sbGet('clients','?select=id,name');if(r&&r.length)currentClients=r;}catch(e){}
+    for(const[cid,lnk]of Object.entries(a.clientLinks)){
+      // Find real client id - cid might be old temp id, match by looking up in clients array
+      const localClient=clients.find(x=>String(x.id)===String(cid));
+      if(!localClient)continue;
+      // Find real SB id by name
+      const sbClient=currentClients.find(x=>x.name===localClient.name);
+      const realClientId=sbClient?sbClient.id:parseInt(cid);
+      if(!realClientId||isNaN(realClientId))continue;
+      await _sbUpsert('account_client_links',{account_id:id,client_id:realClientId,status:lnk.status||'lead',pipeline_stage:lnk.pipe||'Nieuw',value:parseFloat(lnk.val)||null,note:lnk.note||''},'account_id,client_id');
     }
   }
+  return id;
 }
-
-function extractDomein(website) {
-  try {
-    if (!website) return null;
-    const url = website.startsWith('http') ? website : 'https://' + website;
-    return new URL(url).hostname.replace('www.', '').toLowerCase();
-  } catch { return null; }
+async function _saveTodo(t){
+  const d={title:t.title,done:t.done||false,priority:t.prio||'medium',due_date:t.due||null,account_id:t.acc||null,client_id:t.clientId||null,owner:t.owner||'MA',is_auto:t.auto||false,rule_id:t.ruleId||null,done_date:t.doneDate||null};
+  if(t.id&&typeof t.id==='number'&&t.id<2000000000){await _sbPatch('todos',t.id,d);}
+  else{const[r]=await _sbPost('todos',d);t.id=r.id;}
 }
-
-async function haalBekendeCompanies(db) {
-  const [{ data: accounts }, { data: scraper }] = await Promise.all([
-    db.from('accounts').select('name, website').limit(5000),
-    db.from('scraper_results').select('organisatie, website').limit(5000),
-  ]);
-  const namen = new Set([
-    ...(accounts || []).map(a => a.name?.toLowerCase().trim()).filter(Boolean),
-    ...(scraper || []).map(a => a.organisatie?.toLowerCase().trim()).filter(Boolean),
-  ]);
-  const websites = new Set([
-    ...(accounts || []).map(a => extractDomein(a.website)).filter(Boolean),
-    ...(scraper || []).map(a => extractDomein(a.website)).filter(Boolean),
-  ]);
-  return { namen, websites };
-}
-
-async function zoekBedrijven(opdrachtgever, opdrachtgeverInfo, focusgebied, limit, goedgekeurd, bekendeNamen) {
-  const voorbeeldTekst = goedgekeurd?.length
-    ? `\nEerder goedgekeurde leads (zelfde kwaliteit gewenst):\n${goedgekeurd.map(l => `- ${l.organisatie} | ${l.sector || '?'} | ${l.regio || '?'}`).join('\n')}`
-    : '';
-  const bekendeStr = [...bekendeNamen].slice(0, 50).join(', ');
-  const bekendeNamenTekst = bekendeStr ? `\nAl bekend — NIET opnemen: ${bekendeStr}` : '';
-  const opdrachtgeverContext = opdrachtgeverInfo
-    ? `\nWat "${opdrachtgever}" verkoopt/aanbiedt:\n${opdrachtgeverInfo}`
-    : '';
-
-  const zoekPrompt = `Je bent een B2B sales researcher voor Intersect, een Nederlands sales agency.
-Intersect verkoopt namens opdrachtgever "${opdrachtgever}".
-${opdrachtgeverContext}
-
-Zoek naar ${limit} concrete Nederlandse bedrijven die een geschikte prospect zijn voor "${opdrachtgever}".
-Focusgebied: "${focusgebied}"
-${voorbeeldTekst}
-${bekendeNamenTekst}
-
-Doe maximaal 3 gerichte web searches. Focus op de meest relevante zoekopdracht: sector + regio + type bedrijf.
-Zoek ook naar adres, telefoonnummer en LinkedIn URL van elk bedrijf.
-Beschrijf per bedrijf: naam, website, adres, telefoonnummer, LinkedIn URL, stad, sector, en waarom het een goede prospect is.
-Wees streng: alleen bedrijven die echt passen bij het focusgebied.`;
-
-  const zoekResponse = await apiCallMetRetry(() => anthropic.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 8000,
-    tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 }],
-    messages: [{ role: 'user', content: zoekPrompt }],
-  }));
-
-  const zoekTekst = (zoekResponse.content || [])
-    .filter(b => b.type === 'text').map(b => b.text).join('');
-
-  if (!zoekTekst.trim()) throw new Error('Geen output van zoekstap');
-  console.log(`[Search] Zoekstap klaar, ${zoekTekst.length} tekens`);
-
-  await wacht(8000);
-
-  const zoekTekstKort = zoekTekst.length > 6000 ? zoekTekst.substring(0, 6000) + '\n...' : zoekTekst;
-
-  const jsonResponse = await apiCallMetRetry(() => anthropic.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 4000,
-    system: 'Je converteert bedrijfsinformatie naar een JSON array. Geef ALLEEN de JSON array terug. Begin met [ en eindig met ]. Geen tekst eromheen.',
-    messages: [{
-      role: 'user',
-      content: `Converteer naar JSON array. Score 1-10 (7+ = goed genoeg, streng zijn).
-
-Structuur:
-{"naam":"...","website":"...","stad":"...","adres":"...","telefoon":"...","linkedin":"...","sector":"...","score":8,"reden":"max 10 woorden"}
-
-Bedrijfsinformatie:
-${zoekTekstKort}
-
-Geef ALLEEN de JSON array:`
-    }],
-  }));
-
-  const jsonTekst = (jsonResponse.content || [])
-    .filter(b => b.type === 'text').map(b => b.text).join('');
-
-  console.log(`[JSON] Output: ${jsonTekst.substring(0, 300)}`);
-
-  const startIdx = jsonTekst.indexOf('[');
-  const eindIdx = jsonTekst.lastIndexOf(']');
-  if (startIdx === -1 || eindIdx === -1) throw new Error('Geen JSON: ' + jsonTekst.substring(0, 200));
-
-  const jsonStr = jsonTekst.substring(startIdx, eindIdx + 1);
-  try {
-    return JSON.parse(jsonStr);
-  } catch(e) {
-    return JSON.parse(jsonStr.replace(/[\x00-\x09\x0B\x0C\x0E-\x1F]/g, ''));
+async function _saveEvent(ev){
+  const d={title:ev.title,type:ev.type||'Kennismaking',event_date:ev.date,start_time:ev.time||null,duration_minutes:ev.dur||60,location:ev.loc||null,account_id:ev.acc||null,owner:ev.owner||'MA',note:ev.note||null,contact_name:ev.contactName||null,contact_email:ev.contactEmail||null};
+  if(ev._sbId){
+    // Event bestaat al in Supabase — update
+    await _sbPatch('events',ev._sbId,d);
+  } else if(ev.id && typeof ev.id === 'string' && ev.id.includes('-')){
+    // UUID van Supabase — patch direct
+    await _sbPatch('events',ev.id,d);
+  } else {
+    // Nieuw event — insert
+    const[r]=await _sbPost('events',d);
+    ev._sbId=r.id;
   }
 }
-
-async function handleStart(req, res) {
-  const { opdrachtgever, focusgebied, limit = 20, job_id, gebruiker = 'MA' } = req.body || {};
-  if (!opdrachtgever || !focusgebied) {
-    return res.status(400).json({ error: 'opdrachtgever en focusgebied verplicht' });
-  }
-
-  const TARGET = Math.min(parseInt(limit) || 20, 200);
-  const db = getDb();
-  const startTime = Date.now();
-  const TIJDSLIMIET = 210000; // 210s — ruim binnen Vercel's 300s
-
-  // Haal of maak job aan
-  let job;
-  if (job_id) {
-    const { data } = await db.from('scraper_jobs').select('*').eq('id', job_id).maybeSingle();
-    job = data;
-  }
-
-  if (!job) {
-    // Kijk of er al een actieve job is voor deze opdrachtgever
-    const { data: bestaandeJob } = await db.from('scraper_jobs')
-      .select('*').eq('opdrachtgever', opdrachtgever).eq('status', 'bezig').eq('gebruiker', gebruiker).maybeSingle();
-
-    if (bestaandeJob && bestaandeJob.target === TARGET) {
-      job = bestaandeJob;
-      console.log(`[Job] Hervat bestaande job ${job.id} (${job.gevonden}/${job.target})`);
+async function _saveClient(c){
+  const d={name:c.name,sector:c.sector||'',contact_person:c.contact||'',email:c.email||'',color:c.color||'#0d1f3c',note:c.note||''};
+  // Always check by name first to avoid duplicates
+  try{
+    const existing=await _sbGet('clients',`?name=eq.${encodeURIComponent(c.name)}&select=id`);
+    if(existing&&existing.length>0){
+      // Update existing
+      await _sbPatch('clients',existing[0].id,d);
+      c.sbId=existing[0].id;
     } else {
-      // Sluit eventuele oude jobs
-      await db.from('scraper_jobs').update({ status: 'gestopt' })
-        .eq('opdrachtgever', opdrachtgever).eq('status', 'bezig').eq('gebruiker', gebruiker);
+      // Insert new
+      const[r]=await _sbPost('clients',d);
+      c.sbId=r.id;
+    }
+  }catch(e){
+    // Fallback: just insert
+    const[r]=await _sbPost('clients',d);
+    c.sbId=r.id;
+  }
+}
+async function _saveNote(accId,note){
+  if(!accId){console.warn('_saveNote: geen accId');return;}
+  try{
+    const d={account_id:accId,text:note.text,type:note.type||'notitie',created_by:note.by||'MA',contact:note.contact||null,chat:note.chat?JSON.stringify(note.chat):null,dur:note.dur||null};
+    if(note._sbId){
+      // Bestaande note — patch
+      await _sbPatch('notes',note._sbId,d);
+    } else {
+      // Nieuwe note — insert
+      const[r]=await _sbPost('notes',d);
+      note._sbId=r.id;
+      note.id=r.id;
+    }
+  }catch(e){
+    console.error('_saveNote fout:',e.message,'accId:',accId,'type:',note.type);
+  }
+}
+async function _saveContact(accId,c){
+  const d={account_id:accId,first_name:c.first||'',last_name:c.last||'',role:c.role||'',department:c.dept||'',email:c.email||'',email2:c.email2||'',phone:c.phone||'',phone2:c.phone2||'',linkedin:c.li||'',note:c.note||''};
+  if(c.id && typeof c.id==='number' && c.id < 2000000000){
+    await _sbPatch('contacts',c.id,d);
+  } else {
+    const[r]=await _sbPost('contacts',d);
+    c.id=r.id;
+  }
+}
+async function _saveDeal(accId,d){
+  const[r]=await _sbPost('deals',{account_id:accId,name:d.name,value:parseFloat(d.val)||null,probability:parseInt(d.prob)||50,stage:d.stage||'Verkenning',close_date:d.close||null,note:d.note||''});
+  d.id=r.id;
+}
+async function _saveProp(accId,p){
+  const[r]=await _sbPost('proposals',{account_id:accId,title:p.title,value:parseFloat(p.val)||null,status:p.stat||'concept',sent_date:p.date||null,expiry_date:p.exp||null,description:p.desc||''});
+  p.id=r.id;
+}
+async function _saveTemplate(t){
+  const d={name:t.name,subject:t.subj||'',body:t.body||''};
+  if(t.id&&typeof t.id==='number'&&t.id<2000000000){await _sbPatch('email_templates',t.id,d);}
+  else{const[r]=await _sbPost('email_templates',d);t.id=r.id;}
+}
+async function _logAct(text,ico,bg,clientId=null){
+  await _sbPost('activity_log',{text,icon:ico||'◈',bg_color:bg||'#e8f0fb',client_id:clientId||null,created_by:typeof CU!=='undefined'?CU:'MA'});
+}
 
-      // Haal opdrachtgever info
-      const { data: klant } = await db.from('accounts')
-        .select('note').eq('name', opdrachtgever).maybeSingle();
+</script>
+<script>
+// ══════════════ STATE ══════════════
+let CU=localStorage.getItem('ix_cu')||'MA';
+let editId=null;
+let curAcc=null;
+let curTab='overview';
+let curFilter='all';
+let curClient='all';
+let csvRows=[];
+let selClientColor='#0d1f3c';
+let calView='week'; // 'week' | 'day' | 'month'
+let calOffset=0;
+let calPerson='MA'; // default = current user, set on init
+let sendConfirm=true;
 
-      const { data: nieuweJob } = await db.from('scraper_jobs').insert({
-        opdrachtgever, focusgebied,
-        opdrachtgever_info: klant?.note || '',
-        target: TARGET, gevonden: 0, status: 'bezig',
-        gebruiker,
-      }).select().single();
-      job = nieuweJob;
-      console.log(`[Job] Nieuwe job ${job.id} — target: ${TARGET}`);
+const CLRS=[['#e8f0fb','#1a5fb4'],['#e6f5f3','#0a7060'],['#eaf7ef','#1a7a3a'],['#fff8e6','#8a6200'],['#fdf0ee','#c0392b'],['#f0eefb','#5040a0'],['#fdf6e3','#9a7200']];
+const PSTAGES=['Nieuw','Contact gelegd','Kennismaking','Voorstel verstuurd','Onderhandeling','Gewonnen','Verloren'];
+const PCLRS={'Nieuw':['#eef0f4','#4a5568'],'Contact gelegd':['#e8f0fb','#1a5fb4'],'Kennismaking':['#f0eefb','#4840b0'],'Voorstel verstuurd':['#fdf6e3','#c9a84c'],'Onderhandeling':['#fff8e6','#8a6200'],'Gewonnen':['#eaf7ef','#1a7a3a'],'Verloren':['#fdf0ee','#c0392b']};
+const PROP_CLRS={'concept':'#a09d94','verstuurd':'#1558a8','in-review':'#7a4a08','geaccepteerd':'#2d6b0f','afgewezen':'#962828'};
+
+function ls(k){try{return JSON.parse(localStorage.getItem(k)||'null')}catch{return null}}
+function ss(k,v){localStorage.setItem(k,JSON.stringify(v))}
+
+let accs=ls('ix_accs')||[];
+let todos=ls('ix_todos')||[];
+let activity=ls('ix_act')||[];
+let templates=ls('ix_tpl')||[];
+let clients=ls('ix_clients')||[]; // opdrachtgevers
+
+// ── Seed opdrachtgevers ──
+if(!clients.length){
+  // No demo clients - start clean
+  ss('ix_clients',clients);
+}
+
+// ── Seed accounts met client-koppelingen ──
+if(!accs.length){
+  // No demo accounts - start clean
+  ss('ix_accs',accs);
+}
+if(!todos.length){
+  // No demo todos
+  ss('ix_todos',todos);
+}
+if(!activity.length){
+  // No demo activity
+  ss('ix_act',activity);
+}
+if(!templates.length){
+  // No demo templates
+  ss('ix_tpl',templates);
+}
+
+let calEvents=ls('ix_events')||[];
+if(!calEvents.length){
+  // No demo events
+  ss('ix_events',calEvents);
+}
+
+function localISO(d){
+  if(!d)d=new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+// ══════════════ NAV ══════════════
+function switchUser(u){
+  CU=u;
+  localStorage.setItem('ix_cu',u);
+  updateUserSwitch();
+  // Herrender huidige pagina
+  const active=document.querySelector('.page.on,.acc-detail.on');
+  if(active){
+    const id=active.id.replace('p-','');
+    if(id==='dashboard')renderDash();
+    else if(id==='agenda')renderAgenda();
+  }
+}
+
+function updateUserSwitch(){
+  const ma=document.getElementById('cu-ma');
+  const jk=document.getElementById('cu-jk');
+  if(!ma||!jk)return;
+  if(CU==='MA'){
+    ma.style.cssText='border:none;border-radius:16px;padding:4px 10px;font-size:12px;font-weight:700;cursor:pointer;background:var(--navy);color:#fff;';
+    jk.style.cssText='border:none;border-radius:16px;padding:4px 10px;font-size:12px;font-weight:700;cursor:pointer;background:transparent;color:var(--text2);';
+  } else {
+    jk.style.cssText='border:none;border-radius:16px;padding:4px 10px;font-size:12px;font-weight:700;cursor:pointer;background:var(--navy);color:#fff;';
+    ma.style.cssText='border:none;border-radius:16px;padding:4px 10px;font-size:12px;font-weight:700;cursor:pointer;background:transparent;color:var(--text2);';
+  }
+}
+
+function nav(id){
+  document.querySelectorAll('.page,.acc-detail').forEach(p=>p.classList.remove('on'));
+  const el=document.getElementById('p-'+id);
+  if(el)el.classList.add('on');
+  history.pushState(null,'','#'+id);
+  document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('on'));
+  const titles={dashboard:'Dashboard',agenda:'Agenda',pipeline:'Pipeline',todos:"To-do's",accounts:'Accounts',contacts:'Contacten',outreach:'Outreach',activity:'Activiteit',rapport:'Klantrapport',scraper:'Lead Scraper',instellingen:'Instellingen',actiecenter:'Actie Center',lijsten:'Lijsten'};
+  document.getElementById('topbar-title').innerHTML=titles[id]||id;
+
+  // Volledige data refresh bij elke navigatie — alleen als geen modal open
+  const _doNavRefresh = () => {
+    if(id==='dashboard')renderDash();
+    else if(id==='agenda'){ calOffset=0; calPerson=CU; setTimeout(()=>{ setCalPerson(CU); renderAgenda(); },0); }
+    else if(id==='pipeline')renderPipeline();
+    else if(id==='accounts')renderAccList();
+    else if(id==='contacts')renderContacts();
+    else if(id==='todos')renderTodos();
+    else if(id==='outreach')renderOutreach();
+    else if(id==='activity')renderActivity();
+    else if(id==='rapport')renderRapport();
+    else if(id==='workflows'){renderWorkflows();updateWfBadge();}
+    else if(id==='scraper')renderScraper();
+    else if(id==='instellingen')renderInstellingen();
+    else if(id==='actiecenter')renderActieCenter();
+    else if(id==='lijsten')renderLijsten();
+  };
+  _loadFromSupabase().then(_doNavRefresh).catch(_doNavRefresh);
+  curAcc=null;
+}
+
+// ══════════════ DETAIL ══════════════
+function openDetail(id){
+  const a=accs.find(x=>x.id===id);if(!a)return;
+  curAcc=a;
+  document.querySelectorAll('.page,.acc-detail').forEach(p=>p.classList.remove('on'));
+  document.getElementById('p-detail').classList.add('on');
+  history.pushState(null,'','#account/'+id);
+  const [bg,fg]=CLRS[a.color%CLRS.length];
+  const init=initials(a.name);
+  // Hero
+  const linkedClientsHtml=Object.keys(a.clientLinks||{}).map(cid=>{
+    const c=clients.find(x=>x.id===parseInt(cid));if(!c)return'';
+    const lnk=a.clientLinks[cid];
+    return`<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:10px;font-size:11px;font-weight:600;background:${c.color}18;color:${c.color};border:1px solid ${c.color}30;">
+      <span style="width:6px;height:6px;border-radius:50%;background:${c.color};"></span>${c.name} · ${slbl(lnk.status||a.status)}
+    </span>`;
+  }).join('');
+
+  document.getElementById('detail-hero').innerHTML=`
+    <div class="acc-hero-top">
+      <div class="av xl" style="background:${bg};color:${fg};">${init}</div>
+      <div class="acc-hero-info">
+        <div class="acc-org-name">${a.name}</div>
+        <div class="acc-meta-row">
+          <span class="badge ${a.status}">${slbl(a.status)}</span>
+          ${a.seg?`<span class="tag">${a.seg}</span>`:''}
+          ${a.sector?`<span style="font-size:12px;color:rgba(255,255,255,.55);">${a.sector}</span>`:''}
+        </div>
+        ${linkedClientsHtml?`<div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;">${linkedClientsHtml}</div>`:''}
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn sm" style="background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.2);color:#fff;" onclick="openEditAcc(${a.id})">✎ Bewerken</button>
+          <button class="btn sm" style="background:var(--gold);border-color:var(--gold);color:var(--navy);font-weight:600;" onclick="openAddEvent(${a.id})">+ Afspraak plannen</button>
+          <button class="btn sm" style="background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.2);color:#fff;" onclick="openLijstenPopup(${a.id})">Lijsten</button>
+          <button class="btn sm" style="background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.2);color:#fff;" onclick="openLinkModal(${a.id})">Koppelen</button>
+          <button class="btn sm" style="background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.15);color:rgba(255,255,255,.7);" onclick="nav('accounts')">← Terug</button>
+          <button class="btn sm" style="background:rgba(220,38,38,.15);border-color:rgba(220,38,38,.4);color:#fca5a5;" onclick="deleteAccount(${a.id})">🗑 Verwijderen</button>
+          ${a.web?`<a href="${a.web}" target="_blank" class="btn sm" style="background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.15);color:rgba(255,255,255,.7);">Website ↗</a>`:''}
+        </div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:10px;font-weight:700;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px;">Pipeline fase</div>
+        <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:rgba(255,255,255,.9);">${a.pipe||'Nieuw'}</div>
+        ${a.val?`<div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:700;color:var(--gold-light);margin-top:4px;">€ ${parseInt(a.val).toLocaleString('nl-NL')}</div>`:''}
+      </div>
+    </div>
+    <div class="acc-stats">
+      <div class="acc-stat"><div class="acc-stat-lbl">Contacten</div><div class="acc-stat-val">${1+(a.contacts||[]).length}</div></div>
+      <div class="acc-stat"><div class="acc-stat-lbl">Kansen</div><div class="acc-stat-val">${(a.deals||[]).length}</div></div>
+      <div class="acc-stat"><div class="acc-stat-lbl">Offertes</div><div class="acc-stat-val">${(a.proposals||[]).length}</div></div>
+      <div class="acc-stat"><div class="acc-stat-lbl">Opdrachtgevers</div><div class="acc-stat-val">${Object.keys(a.clientLinks||{}).length}</div></div>
+    </div>`;
+
+  // Tabs
+  const tabs=[
+    {id:'overview',label:'Overzicht',cnt:0},
+    {id:'contacts',label:'Contacten',cnt:1+(a.contacts||[]).length},
+    {id:'deals',label:'Kansen',cnt:(a.deals||[]).length},
+    {id:'proposals',label:'Offertes',cnt:(a.proposals||[]).length},
+    {id:'activity',label:'Activiteit & Notities',cnt:(a.notes||[]).length},
+    {id:'omzet',label:'Intersect Omzet',cnt:0},
+    {id:'outreach',label:'E-mail outreach',cnt:0},
+    {id:'docs',label:'Documenten',cnt:(a.docs||[]).length},
+    {id:'todos',label:'Taken',cnt:todos.filter(t=>t.acc===a.id&&!t.done).length},
+  ];
+  document.getElementById('detail-tabs').innerHTML=tabs.map(t=>
+    `<button class="tab${t.id===curTab?' on':''}" onclick="switchTab('${t.id}')">${t.label}${t.cnt>0?`<span class="tab-cnt">${t.cnt}</span>`:''}</button>`
+  ).join('');
+
+  // Actieknoppen boven de tabs
+  document.getElementById('detail-actions').innerHTML=`
+    <button class="btn pri sm" style="background:#fff8e6;border-color:#8a6200;color:#8a6200;" onclick="openQuickNote('notitie')">Notitie</button>
+    <button class="btn sm" style="background:#fdf0ee;border-color:#c0392b;color:#c0392b;" onclick="openMailCompose('mailshot')">Mailshot</button>
+    <button class="btn sm" style="background:#fff7ed;border-color:#c2410c;color:#c2410c;" onclick="openMailCompose('opvolg_mailshot')">Opvolg Mailshot</button>
+    <button class="btn sm" style="background:#eaf1fd;border-color:#1a5fb4;color:#1a5fb4;" onclick="openQuickNote('linkshot')">Linkshot</button>
+    <button class="btn sm" style="background:#eaf7ef;border-color:#1a7a3a;color:#1a7a3a;" onclick="openQuickNote('whatsapp')">WhatsApp</button>
+    <button class="btn sm" style="background:#f3e8ff;border-color:#6b21a8;color:#6b21a8;" onclick="openQuickNote('voicemail')">Voicemail</button>
+  `;
+  renderTab(curTab);
+  document.getElementById('topbar-title').innerHTML=`<span class="bc">Accounts</span><span class="bc-sep"> / </span>${a.name}`;
+}
+
+function switchTab(t){
+  curTab=t;
+  document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('on',el.textContent.trim().startsWith(t==='overview'?'Overzicht':t==='contacts'?'Contacten':t==='deals'?'Kansen':t==='proposals'?'Offertes':t==='activity'?'Activiteit':t==='outreach'?'E-mail':t==='commissie'?'Intersect':t==='docs'?'Documenten':'Taken')));
+  // re-render tabs properly
+  document.querySelectorAll('.tab').forEach(el=>{
+    const tabId=el.getAttribute('onclick').replace("switchTab('","").replace("')","");
+    el.classList.toggle('on',tabId===t);
+  });
+  renderTab(t);
+}
+
+function renderTab(t){
+  const a=curAcc;if(!a)return;
+  const c=document.getElementById('detail-tab-content');
+  if(t==='overview'){
+    const lastNote = (a.notes||[]).length ? [...(a.notes)].reverse()[0] : null;
+    const typeLabel = {'notitie':'Notitie','gesprek':'Gesprek','email':'E-mail','voicemail':'Voicemail','mailshot':'Mailshot','opvolg_mailshot':'Opvolg Mailshot','linkshot':'Linkshot','whatsapp':'WhatsApp','taak':'Taak'};
+    c.innerHTML=`
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div>
+          <div class="ds"><div class="ds-title">Organisatie</div>
+            ${df('Sector',a.sector)}${df('Segment',a.seg)}${a.addr?`<div class="df"><span class="dl">Adres</span><a href="${a.addrUrl||('https://www.google.com/maps/search/?q='+encodeURIComponent(a.addr))}" target="_blank" style="color:var(--blue);font-size:12.5px;text-decoration:none;">${a.addr}</a></div>`:''}${df('Telefoon',a.phone)}
+            ${a.web?df('Website',`<a href="${a.web}" target="_blank">${a.web}</a>`):''}
+            ${a.li?df('LinkedIn',`<a href="https://${a.li}" target="_blank">${a.li}</a>`):''}
+            ${df('KvK',a.kvk)}
+          </div>
+        </div>
+        <div>
+          <div class="ds"><div class="ds-title">Primaire contact</div>
+            ${[a.cf,a.cl].filter(Boolean).length?`
+            <div class="cc">
+              <div class="av" style="background:${CLRS[a.color%CLRS.length][0]};color:${CLRS[a.color%CLRS.length][1]};width:36px;height:36px;font-size:13px;">${initials([a.cf,a.cl].join(' '))}</div>
+              <div class="cc-body">
+                <div class="cc-name">${[a.cf,a.cl].filter(Boolean).join(' ')}</div>
+                <div class="cc-role">${a.cr||''}</div>
+                <div class="cc-links">
+                  ${a.ce?`<a href="mailto:${a.ce}" class="cc-link">✉ ${a.ce}</a>`:''}
+                  ${a.cp?`<span style="font-size:11.5px;color:var(--text2);">${a.cp}</span>`:''}
+                </div>
+              </div>
+            </div>`:'<span style="color:var(--text3);font-size:13px;">Geen contactpersoon ingesteld.</span>'}
+          </div>
+          <div class="ds"><div class="ds-title">Intern</div>
+            ${df('Eigenaar',a.owner==='BOTH'?'Mees & Julian':a.owner==='MA'?'Mees Arentsen':'Julian Kanhai')}
+            ${(()=>{const ln=(a.notes||[]).length?[...(a.notes)].reverse()[0]:null;return ln?df('Laatste activiteit',`${ln.time} · ${actStijl(ln.type).label}`):df('Laatste activiteit','—');})()}
+            ${a.note?`<div class="note-box"><div class="note-text">${a.note}</div></div>`:''}
+          </div>
+        </div>
+      </div>
+      ${(a.notes||[]).length ? `
+      <div style="margin-top:14px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;">Laatste activiteit</div>
+          <button class="btn xs ghost" onclick="switchTab('activity')">Alle activiteiten →</button>
+        </div>
+        ${[...(a.notes)].reverse().slice(0,5).map(n => {try{return renderActiviteitBalk(n, true, false);}catch(e){return '';}}).join('')}
+      </div>` : ''}`;
+  }
+  else if(t==='contacts'){
+    const all=[...(a.cf?[{id:0,first:a.cf,last:a.cl,role:a.cr,dept:'',email:a.ce,email2:a.ce2||'',phone:a.cp,phone2:a.cp2||'',li:a.cli||'',note:'',_primary:true}]:[]),...(a.contacts||[])];
+    c.innerHTML=`
+      <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
+        <button class="btn pri sm" onclick="openAddContact()">+ Contactpersoon</button>
+      </div>
+      ${all.length?all.map((ct,ci)=>{
+        const cid='ct-detail-'+ci;
+        return `
+        <div style="border:1px solid var(--border);border-radius:var(--r-lg);margin-bottom:8px;overflow:hidden;background:var(--surface);">
+          <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;" onclick="const el=document.getElementById('${cid}');const open=el.style.display==='block';el.style.display=open?'none':'block';this.querySelector('.ct-chev').textContent=open?'▸':'▾';">
+            <div class="av" style="background:${CLRS[a.color%CLRS.length][0]};color:${CLRS[a.color%CLRS.length][1]};width:36px;height:36px;font-size:13px;flex-shrink:0;">${initials(ct.first+' '+ct.last)}</div>
+            <div style="flex:1;min-width:0;">
+              <div style="display:flex;align-items:center;gap:7px;margin-bottom:2px;">
+                <span style="font-size:14px;font-weight:600;color:var(--text);">${ct.first} ${ct.last}</span>
+                ${ct._primary?`<span class="tag" style="font-size:10px;">primair</span>`:''}
+              </div>
+              <div style="font-size:12px;color:var(--text2);">${ct.role||''}${ct.dept?' · '+ct.dept:''}</div>
+              <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:3px;">
+                ${ct.email?`<span style="font-size:12px;color:var(--text3);">✉ ${ct.email}</span>`:''}
+                ${ct.phone?`<span style="font-size:12px;color:var(--text3);">📞 ${ct.phone}</span>`:''}
+              </div>
+            </div>
+            <span class="ct-chev" style="font-size:11px;color:var(--text3);flex-shrink:0;">▸</span>
+          </div>
+          <div id="${cid}" style="display:none;padding:14px;border-top:1px solid var(--border);background:var(--surface2);">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+              <div>
+                ${ct.email?`<div style="margin-bottom:6px;"><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">E-mail${ct.email2?' (primair)':''}</div><a href="mailto:${ct.email}" style="font-size:13px;color:var(--blue);text-decoration:none;">${ct.email}</a></div>`:''}
+                ${ct.email2?`<div style="margin-bottom:6px;"><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">E-mail 2</div><a href="mailto:${ct.email2}" style="font-size:13px;color:var(--blue);text-decoration:none;">${ct.email2}</a></div>`:''}
+              </div>
+              <div>
+                ${ct.phone?`<div style="margin-bottom:6px;"><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">Telefoon${ct.phone2?' (primair)':''}</div><span style="font-size:13px;color:var(--text);">${ct.phone}</span></div>`:''}
+                ${ct.phone2?`<div style="margin-bottom:6px;"><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">Telefoon 2</div><span style="font-size:13px;color:var(--text);">${ct.phone2}</span></div>`:''}
+              </div>
+            </div>
+            ${ct.li?`<div style="margin-bottom:8px;"><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">LinkedIn</div><a href="https://${ct.li.replace('https://','')}" target="_blank" style="font-size:13px;color:var(--blue);text-decoration:none;">${ct.li}</a></div>`:''}
+            ${ct.connections?`<div style="margin-bottom:8px;"><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">Connecties</div><div style="font-size:13px;color:var(--text2);">${ct.connections}</div></div>`:''}
+            ${ct.note?`<div style="margin-bottom:8px;"><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">Notitie</div><div style="font-size:13px;color:var(--text2);">${ct.note}</div></div>`:''}
+            <button class="btn xs ghost" onclick="event.stopPropagation();${ct._primary?'openEditPrimaryContact()':'openEditContact('+ct.id+')'}">Bewerken</button>
+            ${!ct._primary?'<button class="btn xs ghost" style="color:#1a7a3a;border-color:#1a7a3a;" onclick="event.stopPropagation();maakContactPrimair('+ct.id+')">Primair maken</button><button class="btn xs ghost" style="color:#c0392b;border-color:#c0392b;" onclick="event.stopPropagation();verwijderContact('+ct.id+')">Verwijderen</button>':''}
+          </div>
+        </div>`;
+      }).join(''):`<div class="empty"><p>Nog geen contacten</p></div>`}`;
+  }
+  else if(t==='deals'){
+    c.innerHTML=`
+      <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
+        <button class="btn pri sm" onclick="openAddDeal()">+ Kans toevoegen</button>
+      </div>
+      ${(a.deals||[]).length?(a.deals).map(d=>`
+        <div class="deal-card">
+          <div class="deal-top"><div><div class="deal-name">${d.name}</div><div style="font-size:12px;color:var(--text2);">Fase: ${d.stage}</div></div><div class="deal-val">€ ${parseInt(d.val||0).toLocaleString('nl-NL')}</div></div>
+          <div class="deal-prog"><div class="deal-fill" style="width:${d.prob||50}%;background:var(--green);"></div></div>
+          <div class="deal-meta"><span>${d.prob||50}% kans</span><span>Sluiting: ${d.close||'—'}</span>${d.note?`<span>${d.note}</span>`:''}</div>
+        </div>`).join(''):`<div class="empty"><p>Nog geen kansen / deals</p></div>`}`;
+  }
+  else if(t==='proposals'){
+    c.innerHTML=`
+      <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
+        <button class="btn pri sm" onclick="openAddProposal()">+ Offerte toevoegen</button>
+      </div>
+      ${(a.proposals||[]).length?(a.proposals).map(p=>`
+        <div class="prop-card">
+          <div class="prop-status" style="background:${PROP_CLRS[p.stat]||'#888'};"></div>
+          <div class="prop-info"><div class="prop-name">${p.title}</div><div class="prop-meta">Status: <strong>${p.stat}</strong> · Verstuurd: ${p.date||'—'} · Geldig tot: ${p.exp||'—'}</div>${p.desc?`<div style="font-size:12px;color:var(--text2);margin-top:4px;">${p.desc}</div>`:''}</div>
+          ${p.val?`<div style="font-family:'Syne',sans-serif;font-weight:700;color:var(--green-t);">€ ${parseInt(p.val).toLocaleString('nl-NL')}</div>`:''}
+        </div>`).join(''):`<div class="empty"><p>Nog geen offertes</p></div>`}`;
+  }
+  else if(t==='activity'){
+    // Haal alle notes op inclusief mailshots die via compose zijn verstuurd
+    const alleNotes = [...(a.notes||[])].filter(n=>{try{return!!n;}catch(e){return false;}});
+    const alleTypes = [...new Set(alleNotes.map(n=>n.type))].sort();
+    const alleContacten = [...new Set(alleNotes.map(n=>n.contact).filter(Boolean))];
+    const filterType = c.dataset.filterType || '';
+    const filterContact = c.dataset.filterContact || '';
+    const filterDir = c.dataset.filterDir || 'desc';
+
+    let noten = [...alleNotes];
+    if(filterType) noten = noten.filter(n=>n.type===filterType);
+    if(filterContact) noten = noten.filter(n=>n.contact===filterContact);
+    if(filterDir==='asc') noten = noten.sort((a,b)=>a.id-b.id);
+    else noten = noten.sort((a,b)=>b.id-a.id);
+
+    // Alle mogelijke types voor de filter dropdown
+    const alleTypeOpties = Object.keys(ACT_STIJL);
+
+    c.innerHTML=`
+      <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;align-items:center;">
+        <select onchange="document.getElementById('detail-tab-content').dataset.filterType=this.value;renderTab('activity');" style="font-size:12px;padding:4px 8px;width:170px;">
+          <option value="">Alle activiteiten</option>
+          ${alleTypeOpties.map(tp=>`<option value="${tp}" ${filterType===tp?'selected':''}>${actStijl(tp).label}</option>`).join('')}
+        </select>
+        <select onchange="document.getElementById('detail-tab-content').dataset.filterContact=this.value;renderTab('activity');" style="font-size:12px;padding:4px 8px;width:160px;">
+          <option value="">Alle contacten</option>
+          ${alleContacten.map(ct=>`<option value="${ct}" ${filterContact===ct?'selected':''}>${ct}</option>`).join('')}
+        </select>
+        <select onchange="document.getElementById('detail-tab-content').dataset.filterDir=this.value;renderTab('activity');" style="font-size:12px;padding:4px 8px;width:150px;">
+          <option value="desc" ${filterDir==='desc'?'selected':''}>Nieuwste eerst</option>
+          <option value="asc" ${filterDir==='asc'?'selected':''}>Oudste eerst</option>
+        </select>
+        <span style="margin-left:auto;font-size:12px;color:var(--text3);">${noten.length} activiteiten</span>
+      </div>
+      ${noten.length ? noten.map(n => {try{return renderActiviteitBalk(n, false, true);}catch(e){console.warn('note render fout:',e,n);return '';}}).join('') : '<div class="empty"><p>Geen activiteiten gevonden</p></div>'}`;
+  }
+  else if(t==='omzet'){
+    // ── Intersect Omzet tab ───────────────────────────────────────
+    // Config stored on a.omzetCfg; falls back to Audio Obscura defaults
+    const cfg = a.omzetCfg || {
+      vorm: 'staffel',          // staffel | vaste_fee | retainer | achteraf
+      startDate: '',
+      durationMonths: 12,
+      eigenLeadPct: 10,         // % voor eigen leads opdrachtgever (staffel)
+      vasteFee: 0,              // eenmalige vaste fee (vaste_fee)
+      retainerPerMaand: 0,      // maandelijkse retainer
+      achterafPct: 0,           // % achteraf over totale omzet
+      staffelTiers: [
+        {max:50000,   rate:17.5, label:'0 – €50k'},
+        {max:100000,  rate:20,   label:'€50k – €100k'},
+        {max:Infinity,rate:22.5, label:'> €100k'}
+      ]
+    };
+
+    // ── Looptijd check: automatisch oud klant bij verlopen partnership ──
+    if(cfg.startDate && cfg.durationMonths){
+      const _end = new Date(cfg.startDate);
+      _end.setMonth(_end.getMonth() + cfg.durationMonths);
+      if(new Date() > _end && a.status === 'klant'){
+        a.status = 'inactief';
+        a.statusNote = 'Automatisch inactief: partnership looptijd verlopen';
+        const _idx = accs.findIndex(x=>x.id===a.id);
+        if(_idx>=0) accs[_idx] = a;
+        ss('ix_accs', accs);
+        _saveAcc(a).catch(()=>{});
+        if(document.getElementById('detail-hero')) openDetail(a.id);
+      }
+    }
+
+    // ── Won deals (markeer eigen leads via d.isEigenLead) ──────────
+    const wonDeals = (a.deals||[]).filter(d =>
+      d.stage==='Gewonnen' || d.stage==='Gesloten' || d.stage==='Won'
+    );
+
+    const fmt  = n => new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(n);
+    const fmtP = n => n % 1 === 0 ? n+'%' : n.toFixed(1)+'%';
+
+    // ── Looptijd helpers ───────────────────────────────────────────
+    let daysLeft=0, daysTotal=0, timeProgress=0, endDateStr='', startDateStr='';
+    let isExpired = false;
+    if(cfg.startDate){
+      const _s = new Date(cfg.startDate+'T12:00');
+      const _e = new Date(_s); _e.setMonth(_e.getMonth()+(cfg.durationMonths||12));
+      const _now = new Date();
+      daysTotal   = Math.round((_e-_s)/86400000);
+      daysLeft    = Math.max(0,Math.round((_e-_now)/86400000));
+      timeProgress= Math.min(100,Math.max(0,((_now-_s)/(_e-_s))*100));
+      isExpired   = _now > _e;
+      startDateStr= _s.toLocaleDateString('nl-NL',{day:'numeric',month:'long',year:'numeric'});
+      endDateStr  = _e.toLocaleDateString('nl-NL',{day:'numeric',month:'long',year:'numeric'});
+    }
+
+    // ── Bereken Intersect omzet ────────────────────────────────────
+    let intersectOmzet=0, eigenOmzet=0;
+    wonDeals.forEach(d=>{
+      const v=parseFloat(d.val)||0;
+      if(d.isEigenLead) eigenOmzet+=v; else intersectOmzet+=v;
+    });
+    const totalOmzet = intersectOmzet + eigenOmzet;
+
+    // ── Bereken vergoeding op basis van samenwerkingsvorm ──────────
+    let intersectVergoeding=0, eigenVergoeding=0, activeTierRate=17.5;
+    const vorm = cfg.vorm || 'staffel';
+
+    if(vorm==='staffel'){
+      // Schijf: alles tegen het tarief van de schijf waar je in valt
+      const tiers = cfg.staffelTiers || [{max:50000,rate:17.5},{max:100000,rate:20},{max:Infinity,rate:22.5}];
+      let tier = tiers[tiers.length-1];
+      for(const tx of tiers){ if(intersectOmzet<=tx.max){tier=tx;break;} }
+      activeTierRate = tier.rate;
+      intersectVergoeding = intersectOmzet * tier.rate / 100;
+      eigenVergoeding     = eigenOmzet * (cfg.eigenLeadPct||10) / 100;
+    } else if(vorm==='vaste_fee'){
+      intersectVergoeding = cfg.vasteFee || 0;
+    } else if(vorm==='retainer'){
+      // Maanden verstreken * maandbedrag
+      let maanden = 0;
+      if(cfg.startDate){
+        const _s=new Date(cfg.startDate+'T12:00');
+        maanden = Math.max(0,Math.round((new Date()-_s)/2629800000));
+      }
+      intersectVergoeding = (cfg.retainerPerMaand||0) * maanden;
+    } else if(vorm==='achteraf'){
+      intersectVergoeding = totalOmzet * (cfg.achterafPct||0) / 100;
+    }
+    const totalVergoeding = intersectVergoeding + eigenVergoeding;
+
+    // ── Next tier (alleen staffel) ─────────────────────────────────
+    let nextTierInfo = null;
+    if(vorm==='staffel'){
+      const tiers = cfg.staffelTiers || [{max:50000,rate:17.5},{max:100000,rate:20},{max:Infinity,rate:22.5}];
+      for(const tx of tiers){
+        if(intersectOmzet < tx.max && tx.max !== Infinity){ nextTierInfo = tx; break; }
+      }
+    }
+
+    // ── HTML ───────────────────────────────────────────────────────
+    c.innerHTML = `
+    <!-- Toolbar -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:7px;">
+        <span style="display:block;width:3px;height:14px;background:var(--gold);border-radius:2px;"></span>
+        Intersect Omzet
+        <span style="font-size:11px;font-weight:400;color:var(--text3);padding:2px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;">${{staffel:'Staffel',vaste_fee:'Vaste fee',retainer:'Retainer',achteraf:'Achteraf %'}[vorm]||vorm}</span>
+        ${isExpired?'<span style="font-size:11px;padding:2px 9px;border-radius:10px;background:var(--red-bg);color:var(--red-t);font-weight:600;">⚠ Verlopen</span>':''}
+      </div>
+      <button class="btn sm ghost" onclick="openOmzetInstellingen(${a.id})">⚙ Instellingen</button>
+    </div>
+
+    <!-- KPI strip -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;">
+      <!-- Totale omzet (Intersect) -->
+      <div style="background:var(--navy);border-radius:var(--r-lg);padding:16px 18px;color:#fff;">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:rgba(255,255,255,.4);margin-bottom:5px;">Totale Intersect omzet</div>
+        <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:700;">${fmt(intersectOmzet)}</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.35);margin-top:3px;">${wonDeals.filter(d=>!d.isEigenLead).length} deal${wonDeals.filter(d=>!d.isEigenLead).length!==1?'s':''}</div>
+      </div>
+      <!-- Vergoeding Intersect -->
+      <div style="background:var(--gold);border-radius:var(--r-lg);padding:16px 18px;">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:rgba(13,31,60,.4);margin-bottom:5px;">Jouw vergoeding</div>
+        <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:700;color:var(--navy);">${fmt(totalVergoeding)}</div>
+        <div style="font-size:11px;color:rgba(13,31,60,.45);margin-top:3px;">${vorm==='staffel'?fmtP(activeTierRate)+' Intersect + '+fmtP(cfg.eigenLeadPct||10)+' eigen':''}</div>
+      </div>
+      <!-- Looptijd / Vorm -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px 18px;">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);margin-bottom:5px;">Partnership looptijd</div>
+        ${cfg.startDate ? `
+          <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:700;color:${isExpired?'var(--red)':'var(--navy)'};">${isExpired?'Verlopen':daysLeft+' dgn'}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:3px;">t/m ${endDateStr}</div>
+          <div style="margin-top:8px;height:4px;background:var(--border);border-radius:2px;overflow:hidden;">
+            <div style="height:100%;width:${timeProgress.toFixed(1)}%;background:${isExpired?'var(--red)':timeProgress>80?'var(--amber)':'var(--navy)'};border-radius:2px;transition:width .3s;"></div>
+          </div>
+        ` : `<div style="font-size:12.5px;color:var(--text3);">Niet ingesteld</div><button class="btn xs ghost" style="margin-top:6px;" onclick="openOmzetInstellingen(${a.id})">Instellen →</button>`}
+      </div>
+    </div>
+
+    <!-- Staffel voortgang (alleen bij staffel) -->
+    ${vorm==='staffel'?`
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px 18px;margin-bottom:14px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <div style="font-family:'Syne',sans-serif;font-size:12.5px;font-weight:700;">Staffel schijven</div>
+        ${nextTierInfo?`<div style="font-size:11.5px;color:var(--text2);">Nog <strong>${fmt(nextTierInfo.max-intersectOmzet)}</strong> voor ${fmtP(nextTierInfo.rate)}</div>`:'<div style="font-size:11.5px;color:var(--green-t);font-weight:600;">🏆 Hoogste schijf</div>'}
+      </div>
+      <div style="display:flex;gap:0;margin-bottom:12px;">
+        ${(cfg.staffelTiers||[{max:50000,rate:17.5,label:'0 – €50k'},{max:100000,rate:20,label:'€50k – €100k'},{max:Infinity,rate:22.5,label:'> €100k'}]).map((tier,i,arr)=>{
+          const active = intersectOmzet >= (i===0?0:(arr[i-1].max)) && intersectOmzet <= tier.max;
+          const past   = tier.max !== Infinity && intersectOmzet > tier.max;
+          const bg     = active?'var(--navy)':past?'rgba(13,31,60,.08)':'var(--surface2)';
+          const clr    = active?'var(--gold)':past?'var(--navy)':'var(--text3)';
+          const border = i===0?'8px 0 0 8px':i===arr.length-1?'0 8px 8px 0':'0';
+          return '<div style="flex:1;padding:12px 10px;background:'+bg+';border:1px solid '+(active?'var(--navy)':past?'rgba(13,31,60,.15)':'var(--border)')+';border-radius:'+border+';text-align:center;'+(i>0?'border-left:none':'')+';"><div style="font-size:16px;font-weight:700;color:'+clr+';">'+tier.rate+'%</div><div style="font-size:10px;color:'+(active?'rgba(255,255,255,.55)':past?'var(--text2)':'var(--text3)')+';margin-top:2px;">'+tier.label+'</div>'+(active?'<div style="font-size:9px;color:var(--gold);margin-top:3px;font-weight:700;letter-spacing:.5px;">ACTIEF</div>':'')+'</div>';
+        }).join('')}
+      </div>
+      ${nextTierInfo?`
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text3);margin-bottom:5px;">
+        <span>${fmt(intersectOmzet)}</span><span>${fmt(nextTierInfo.max)}</span>
+      </div>
+      <div style="height:6px;background:var(--surface2);border-radius:3px;overflow:hidden;">
+        <div style="height:100%;width:${Math.min(100,((intersectOmzet/(nextTierInfo.max||1))*100)).toFixed(1)}%;background:var(--navy);border-radius:3px;transition:width .4s;"></div>
+      </div>
+      `:''}
+    </div>`:''}
+
+    <!-- Uitsplitsing (alleen staffel heeft eigen leads) -->
+    ${vorm==='staffel'?`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:8px;">Intersect leads</div>
+        <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:700;color:var(--navy);">${fmt(intersectOmzet)}</div>
+        <div style="font-size:12px;color:var(--text2);margin-top:3px;">${fmtP(activeTierRate)} → <strong>${fmt(intersectVergoeding)}</strong></div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:8px;">Eigen leads opdrachtgever</div>
+        <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:700;color:var(--navy);">${fmt(eigenOmzet)}</div>
+        <div style="font-size:12px;color:var(--text2);margin-top:3px;">${fmtP(cfg.eigenLeadPct||10)} → <strong>${fmt(eigenVergoeding)}</strong></div>
+      </div>
+    </div>`:''}
+
+    <!-- Gewonnen deals tabel met eigen-lead toggle -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;margin-bottom:14px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border);">
+        <div style="font-family:'Syne',sans-serif;font-size:12.5px;font-weight:700;display:flex;align-items:center;gap:6px;">
+          <span style="display:block;width:3px;height:13px;background:var(--gold);border-radius:2px;"></span>Gewonnen deals
+        </div>
+        <button class="btn xs ghost" onclick="switchTab('deals')">Alle deals →</button>
+      </div>
+      ${wonDeals.length ? `
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="background:var(--surface2);">
+          <th style="text-align:left;padding:9px 14px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;">Deal</th>
+          <th style="padding:9px 14px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;">Omzet</th>
+          <th style="padding:9px 14px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;">Lead type</th>
+          ${vorm==='staffel'?'<th style="padding:9px 14px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;">Tarief</th><th style="padding:9px 14px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;">Vergoeding</th>':''}
+        </tr></thead>
+        <tbody>
+          ${wonDeals.map((d,di)=>{
+            const val = parseFloat(d.val)||0;
+            const rate = d.isEigenLead ? (cfg.eigenLeadPct||10) : activeTierRate;
+            const verg = vorm==='staffel' ? val*rate/100 : 0;
+            return '<tr style="border-top:1px solid var(--border);"><td style="padding:10px 14px;font-weight:500;">'+d.name+'</td><td style="padding:10px 14px;font-family:\'Syne\',sans-serif;font-weight:600;">'+fmt(val)+'</td><td style="padding:10px 14px;"><button onclick="toggleDealEigenLead('+a.id+','+di+')" style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid '+(d.isEigenLead?'var(--amber)':'var(--navy)')+';background:'+(d.isEigenLead?'var(--amber-bg)':'var(--navy-fade)')+';color:'+(d.isEigenLead?'var(--amber-t)':'var(--navy)')+';font-family:\'DM Sans\',sans-serif;">'+(d.isEigenLead?'🤝 Eigen lead':'📊 Intersect lead')+'</button></td>'+(vorm==='staffel'?'<td style="padding:10px 14px;color:var(--text2);">'+fmtP(rate)+'</td><td style="padding:10px 14px;font-family:\'Syne\',sans-serif;font-weight:700;color:var(--navy);">'+fmt(verg)+'</td>':'')+'</tr>';
+          }).join('')}
+        </tbody>
+        <tfoot>
+          <tr style="border-top:2px solid var(--border);background:var(--surface2);">
+            <td style="padding:10px 14px;font-weight:700;">Totaal</td>
+            <td style="padding:10px 14px;font-family:'Syne',sans-serif;font-weight:700;">${fmt(totalOmzet)}</td>
+            <td></td>
+            ${vorm==='staffel'?'<td></td><td style="padding:10px 14px;font-family:\'Syne\',sans-serif;font-weight:700;color:var(--gold);">'+fmt(totalVergoeding)+'</td>':''}
+          </tr>
+        </tfoot>
+      </table>
+      ` : `<div class="empty" style="padding:28px;"><p>Nog geen gewonnen deals — zet een deal op "Gewonnen" in het Kansen tabblad.</p></div>`}
+    </div>`;
+  }
+  else if(t==='outreach'){
+    c.innerHTML=`
+      <div style="margin-bottom:14px;font-size:13px;color:var(--text2);">Stel een e-mail op naar de contactpersoon van <strong>${a.name}</strong>. Gebruik een template of schrijf direct.</div>
+      <div class="mail-compose">
+        <div class="mail-field"><span class="mail-field-lbl">Aan</span><input type="text" id="det-mail-to" value="${[a.cf,a.cl].filter(Boolean).join(' ')}${a.ce?' <'+a.ce+'>':''}"></div>
+        <div class="mail-field"><span class="mail-field-lbl">Onderwerp</span><input type="text" id="det-mail-subj" placeholder="Onderwerp…"></div>
+        <div class="mail-body"><textarea id="det-mail-body" placeholder="Schrijf hier je e-mail…&#10;&#10;[naam] en [bedrijf] worden automatisch ingevuld."></textarea></div>
+        <div class="mail-foot">
+          <select id="det-tpl-sel" style="font-size:12px;padding:4px 8px;width:180px;">
+            <option value="">Template kiezen…</option>
+            ${templates.map(t=>`<option value="${t.id}">${t.name}</option>`).join('')}
+          </select>
+          <button class="btn sm ghost" onclick="loadDetTemplate()">Laden</button>
+          <button class="btn sm pri" onclick="sendDetMail()">Openen in Mail ↗</button>
+        </div>
+      </div>`;
+  }
+  else if(t==='docs'){
+    c.innerHTML=`
+      <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
+        <button class="btn sm ghost" onclick="alert('Documentkoppeling komt in de volgende versie. Je kunt nu bestandsnamen handmatig toevoegen.')">+ Document koppelen</button>
+      </div>
+      ${(a.docs||[]).length?(a.docs).map(d=>{
+        const ico=d.type==='pdf'?'📄':d.type==='doc'?'📝':'📁';
+        return`<div class="doc-item"><div class="doc-icon" style="background:var(--surface2);">${ico}</div><div class="doc-name">${d.name}</div><div class="doc-meta">${d.size||''} · ${d.date||''}</div></div>`;
+      }).join(''):`<div class="empty"><p>Nog geen documenten gekoppeld</p></div>`}`;
+  }
+  else if(t==='todos'){
+    const accTodos=todos.filter(td=>td.acc===a.id);
+    const accEvents=calEvents.filter(e=>e.acc===a.id).sort((x,y)=>x.date.localeCompare(y.date));
+    const _tn=new Date();const todayISO=`${_tn.getFullYear()}-${String(_tn.getMonth()+1).padStart(2,'0')}-${String(_tn.getDate()).padStart(2,'0')}`;
+    const upcomingEvs=accEvents.filter(e=>e.date>=todayISO);
+    c.innerHTML=`
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-bottom:12px;">
+        <button class="btn sm ghost" onclick="openAddEvent(${a.id})">+ Afspraak plannen</button>
+        <button class="btn pri sm" onclick="openAddTodoForAcc(${a.id})">+ Taak toevoegen</button>
+      </div>
+      ${upcomingEvs.length?`
+      <div style="margin-bottom:14px;">
+        <div class="ds-title" style="margin-bottom:8px;">Aankomende afspraken</div>
+        ${upcomingEvs.map(ev=>{
+          const d=new Date(ev.date+'T12:00');
+          const [evBg,evFg]=CLRS[a.color%CLRS.length];
+          return`<div style="display:flex;gap:10px;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);margin-bottom:6px;align-items:center;">
+            <div style="text-align:center;min-width:38px;flex-shrink:0;">
+              <div style="font-size:10px;font-weight:700;color:var(--navy);text-transform:uppercase;">${d.toLocaleDateString('nl-NL',{day:'numeric',month:'short'})}</div>
+              <div style="font-size:11px;color:var(--text2);">${ev.time||''}</div>
+            </div>
+            <div style="flex:1;">
+              <div style="font-size:13px;font-weight:600;">${ev.title}</div>
+              <div style="font-size:11.5px;color:var(--text2);">${ev.type||''}${ev.loc?' · '+ev.loc:''} · ${ev.dur} min</div>
+            </div>
+            <div class="av ${(ev.owner||'MA').toLowerCase()} lg">${ev.owner||'MA'}</div>
+          </div>`;
+        }).join('')}
+      </div>`:''}
+      <div class="ds-title" style="margin-bottom:8px;">Taken</div>
+      ${accTodos.length?accTodos.map(td=>`
+        <div class="todo-item">
+          <div class="chk ${td.done?'done':''}" onclick="toggleTodo(${td.id})">✓</div>
+          <div style="flex:1;"><div class="todo-t ${td.done?'done':''}">${td.title}</div>
+          <div class="todo-m">${td.due||''}<span class="prio p${td.prio[0]}">${td.prio}</span></div></div>
+          <div class="av ${td.owner.toLowerCase()} lg">${td.owner}</div>
+        </div>`).join(''):`<div style="color:var(--text3);font-size:13px;padding:8px 0;">Geen taken voor dit account</div>`}`;
+  }
+}
+
+function df(l,v){if(!v)return '';return`<div class="df"><span class="df-lbl">${l}</span><span class="df-val">${v}</span></div>`;}
+
+// ══════════════ RENDER FUNCTIONS ══════════════
+function renderDash(){
+  const now=new Date();
+  const h=now.getHours();
+  const greet=h<12?'Goedemorgen':h<18?'Goedemiddag':'Goedenavond';
+  const userName=CU==='MA'?'Mees':'Julian';
+  const dateStr=now.toLocaleDateString('nl-NL',{weekday:'long',day:'numeric',month:'long'});
+
+  // Personal vs client dashboard
+  const isClientMode=curClient!=='all';
+  document.getElementById('dash-personal').style.display=isClientMode?'none':'block';
+  document.getElementById('dash-client').style.display=isClientMode?'block':'none';
+
+  if(isClientMode){
+    renderClientDash();
+    return;
+  }
+
+  // ── Personal dashboard ──
+  const gEl=document.getElementById('dash-greeting');
+  if(gEl)gEl.textContent=greet+', '+userName;
+  const dsEl=document.getElementById('dash-date-sub');
+  if(dsEl)dsEl.textContent=dateStr.charAt(0).toUpperCase()+dateStr.slice(1);
+
+  // KPIs
+  const klanten=accs.filter(a=>a.status==='klant');
+  const revenue=klanten.reduce((s,a)=>s+(parseFloat(a.val)||0),0);
+  document.getElementById('s-rev').textContent='€ '+revenue.toLocaleString('nl-NL');
+  document.getElementById('s-rev-sub').textContent=klanten.length+' actieve klant'+(klanten.length===1?'':'en');
+  const activeStages=['Nieuw','Contact gelegd','Kennismaking','Voorstel verstuurd','Onderhandeling'];
+  const pipeAccs=accs.filter(a=>activeStages.includes(a.pipe));
+  const pipeVal=pipeAccs.reduce((s,a)=>s+(parseFloat(a.val)||0),0);
+  document.getElementById('s-pipe-val').textContent='€ '+pipeVal.toLocaleString('nl-NL');
+  document.getElementById('s-pipe-sub').textContent=pipeAccs.length+' actieve kansen';
+  let weighted=0;
+  accs.forEach(a=>{
+    if((a.deals||[]).length){a.deals.forEach(d=>weighted+=(parseFloat(d.val)||0)*(parseFloat(d.prob)||50)/100);}
+    else if(['prospect','qualified'].includes(a.status)){weighted+=(parseFloat(a.val)||0)*0.55;}
+  });
+  document.getElementById('s-weighted').textContent='€ '+Math.round(weighted).toLocaleString('nl-NL');
+  const myTodos=todos.filter(t=>t.owner===CU&&!t.done);
+  const urgent=myTodos.filter(t=>t.prio==='hoog'||t.due?.toLowerCase().includes('vandaag'));
+  document.getElementById('s-open-todos').textContent=myTodos.length;
+  document.getElementById('s-todos-sub').textContent='Vandaag urgent: '+urgent.length;
+
+  // ── Vandaag taken (persoonlijk) ──
+  const myUrgent=myTodos.filter(t=>t.due?.toLowerCase().includes('vandaag')||t.prio==='hoog').slice(0,5);
+  const showT=myUrgent.length?myUrgent:myTodos.slice(0,5);
+  document.getElementById('today-todos').innerHTML=showT.length?showT.map(t=>{
+    const acc=accs.find(a=>a.id===t.acc);
+    return`<div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;">
+      <div class="chk ${t.done?'done':''}" style="border-color:rgba(255,255,255,.25);background:${t.done?'var(--gold)':'transparent'};" onclick="toggleTodo(${t.id})">✓</div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:12px;font-weight:500;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${t.done?'opacity:.4;text-decoration:line-through':''}">${t.title}</div>
+        <div style="font-size:10.5px;color:rgba(255,255,255,.4);">${acc?acc.name:''}${t.due?' · '+t.due:''}</div>
+      </div>
+    </div>`;
+  }).join('')+`<button onclick="nav('todos')" style="font-size:11px;color:rgba(255,255,255,.35);background:none;border:none;cursor:pointer;margin-top:4px;padding:0;">Alle taken →</button>`
+  :`<div style="color:rgba(255,255,255,.35);font-size:12px;">Geen urgente taken vandaag</div>`;
+
+  // ── Stale ──
+  const stale=accs.filter(a=>['lead','prospect','qualified'].includes(a.status)&&!(a.notes||[]).length).slice(0,3);
+  document.getElementById('stale-accounts').innerHTML=stale.length?stale.map(a=>`<span onclick="openDetail(${a.id})" style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border:1px solid rgba(255,255,255,.1);border-radius:20px;font-size:11px;cursor:pointer;color:rgba(255,255,255,.5);margin:2px;">${a.name}</span>`).join(''):`<div style="font-size:11.5px;color:rgba(255,255,255,.25);">Alles up-to-date ✓</div>`;
+
+  // ── Komende week taken ──
+  const weekTodos=todos.filter(t=>!t.done&&t.owner===CU).slice(0,6);
+  document.getElementById('dash-week-todos').innerHTML=weekTodos.length?weekTodos.map(t=>{
+    const acc=accs.find(a=>a.id===t.acc);
+    const pc=t.prio==='hoog'?'ph':t.prio==='medium'?'pm':'pl';
+    return`<div class="todo-item" style="padding:7px 10px;margin-bottom:5px;">
+      <div class="chk ${t.done?'done':''}" onclick="toggleTodo(${t.id})">✓</div>
+      <div style="flex:1;min-width:0;">
+        <div class="todo-t ${t.done?'done':''}" style="font-size:12.5px;">${t.title}</div>
+        <div class="todo-m">${t.due?`<span>${t.due}</span>`:''}<span class="prio ${pc}">${t.prio}</span>${acc?`<span style="color:var(--blue-t);">${acc.name}</span>`:''}</div>
+      </div>
+    </div>`;
+  }).join(''):`<div style="color:var(--text3);font-size:12.5px;padding:8px 0;">Geen taken voor ${userName}</div>`;
+
+  // ── Hot deals ──
+  const hot=accs.filter(a=>['Voorstel verstuurd','Onderhandeling'].includes(accClientPipe(a))).sort((a,b)=>(parseFloat(b.val)||0)-(parseFloat(a.val)||0)).slice(0,4);
+  document.getElementById('hot-deals').innerHTML=hot.length?hot.map(a=>`<div onclick="openDetail(${a.id})" style="display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px solid var(--border);cursor:pointer;">
+    <div class="org-av" style="background:${CLRS[a.color%CLRS.length][0]};color:${CLRS[a.color%CLRS.length][1]};width:26px;height:26px;border-radius:5px;font-size:9px;">${initials(a.name)}</div>
+    <div style="flex:1;min-width:0;"><div style="font-size:12.5px;font-weight:500;">${a.name}</div><div style="font-size:11px;color:var(--text3);">${accClientPipe(a)}</div></div>
+    ${a.val?`<span style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--green-t);">€${(parseInt(a.val)/1000).toFixed(0)}k</span>`:''}
+  </div>`).join(''):`<div style="color:var(--text3);font-size:12.5px;">Geen deals in eindfase</div>`;
+
+  // Mini calendar
+  renderMiniCalendar();
+
+  // Wat nu widget
+  renderWatNu();
+
+  // Pipeline funnel
+  const maxVal=Math.max(...PSTAGES.map(s=>accs.filter(a=>a.pipe===s).reduce((x,a)=>x+(parseFloat(a.val)||0),0)),1);
+  document.getElementById('dash-funnel').innerHTML=PSTAGES.map(s=>{
+    const list=accs.filter(a=>a.pipe===s);const val=list.reduce((x,a)=>x+(parseFloat(a.val)||0),0);
+    if(!list.length)return'';
+    const [,fg]=PCLRS[s]||['','#666'];
+    const pct=Math.max(Math.round(val/maxVal*100),4);
+    return`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+      <div style="font-size:11px;color:var(--text2);width:105px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${s}</div>
+      <div style="flex:1;height:16px;background:var(--surface2);border-radius:3px;overflow:hidden;">
+        <div style="height:100%;width:${pct}%;background:${fg};border-radius:3px;"></div>
+      </div>
+      <div style="font-size:11px;font-weight:700;color:var(--text3);min-width:36px;text-align:right;">${list.length}</div>
+    </div>`;
+  }).join('');
+
+  // Closeable
+  const closeable=accs.filter(a=>['Voorstel verstuurd','Onderhandeling'].includes(a.pipe)).sort((a,b)=>(parseFloat(b.val)||0)-(parseFloat(a.val)||0));
+  document.getElementById('dash-closeable').innerHTML=closeable.length?closeable.map(a=>`<div onclick="openDetail(${a.id})" style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);cursor:pointer;">
+    <div class="org-av" style="background:${CLRS[a.color%CLRS.length][0]};color:${CLRS[a.color%CLRS.length][1]};width:26px;height:26px;border-radius:6px;font-size:9px;">${initials(a.name)}</div>
+    <div style="flex:1;"><div style="font-size:12.5px;font-weight:500;">${a.name}</div><div style="font-size:11px;color:var(--text3);">${a.pipe}</div></div>
+    ${a.val?`<span style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--green-t);">€${parseInt(a.val).toLocaleString('nl-NL')}</span>`:''}
+  </div>`).join(''):`<div class="empty" style="padding:20px;"><p style="font-size:12.5px;">Geen deals in eindfase</p></div>`;
+
+  // Activity
+  document.getElementById('dash-activity').innerHTML=activity.slice(0,6).map(a=>`<div class="act-item"><div class="act-ico" style="background:${a.bg};">${a.ico}</div><div class="act-txt">${a.text}</div><div class="act-time">${a.time}</div></div>`).join('');
+
+  // Intersect Omzet Overzicht
+  renderDashOmzet();
+}
+
+// ── CLIENT DASHBOARD ──
+function renderClientDash(){
+  const c=clients.find(x=>x.id===curClient);if(!c)return;
+  const linked=accs.filter(a=>a.clientLinks&&a.clientLinks[curClient]);
+  const byPipe={};PSTAGES.forEach(s=>byPipe[s]=linked.filter(a=>a.clientLinks[curClient].pipe===s||(!a.clientLinks[curClient].pipe&&a.pipe===s)));
+  const totalVal=linked.reduce((s,a)=>s+(parseFloat(a.clientLinks[curClient].val||a.val)||0),0);
+  const recentAct=activity.filter(a=>a.clientId===curClient).slice(0,5);
+  const clientTodos=todos.filter(t=>t.clientId===curClient&&!t.done);
+  const upcoming=calEvents.filter(e=>{
+    const acc=accs.find(a=>a.id===e.acc);
+    return acc&&acc.clientLinks&&acc.clientLinks[curClient]&&e.date>=localISO();
+  }).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,4);
+
+  document.getElementById('dash-client-content').innerHTML=`
+    <!-- Client hero -->
+    <div style="background:${c.color};border-radius:var(--r-xl);padding:20px 24px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:rgba(255,255,255,.5);margin-bottom:4px;">Opdrachtgever dashboard</div>
+        <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:700;color:#fff;margin-bottom:4px;">${c.name}</div>
+        <div style="font-size:13px;color:rgba(255,255,255,.6);">${c.sector||''}${c.contact?' · Contactpersoon: '+c.contact:''}</div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn sm" style="background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.2);color:#fff;" onclick="nav('rapport');setClient(${curClient})">Rapport ↗</button>
+        <button class="btn sm" style="background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.2);color:#fff;" onclick="nav('pipeline')">Pipeline →</button>
+      </div>
+    </div>
+
+    <!-- Client KPIs -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
+      <div class="kpi navy"><div class="kpi-lbl">Accounts totaal</div><div class="kpi-val">${linked.length}</div><div class="kpi-sub">Gekoppeld</div></div>
+      <div class="kpi gold"><div class="kpi-lbl">Pipeline waarde</div><div class="kpi-val">€ ${totalVal.toLocaleString('nl-NL')}</div><div class="kpi-sub">Alle fases</div></div>
+      <div class="kpi green"><div class="kpi-lbl">Gewonnen</div><div class="kpi-val">${(byPipe['Gewonnen']||[]).length}</div><div class="kpi-sub">Deals gesloten</div></div>
+      <div class="kpi amber"><div class="kpi-lbl">Open taken</div><div class="kpi-val">${clientTodos.length}</div><div class="kpi-sub">Voor ${c.name}</div></div>
+    </div>
+
+    <!-- Content grid -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;">
+
+      <!-- Pipeline per fase -->
+      <div class="card">
+        <div class="card-hd"><span class="card-title">Pipeline</span><button class="btn sm ghost" onclick="nav('pipeline')">→</button></div>
+        ${PSTAGES.map(s=>{const list=byPipe[s]||[];if(!list.length)return'';const[,fg]=PCLRS[s]||['','#666'];return`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;cursor:pointer;" onclick="nav('pipeline')">
+          <div style="font-size:11px;color:var(--text2);width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${s}</div>
+          <div style="flex:1;height:14px;background:var(--surface2);border-radius:2px;overflow:hidden;">
+            <div style="height:100%;width:${Math.max(list.length/linked.length*100,4)}%;background:${fg};"></div>
+          </div>
+          <div style="font-size:11px;font-weight:700;color:var(--text3);min-width:18px;">${list.length}</div>
+        </div>`;}).join('')}
+      </div>
+
+      <!-- Recente activiteit voor deze klant -->
+      <div class="card">
+        <div class="card-hd"><span class="card-title">Activiteit</span></div>
+        ${recentAct.length?recentAct.map(a=>`<div class="act-item"><div class="act-ico" style="background:${a.bg};">${a.ico}</div><div class="act-txt">${a.text}</div><div class="act-time">${a.time}</div></div>`).join(''):`<div class="empty" style="padding:16px;"><p style="font-size:12px;">Nog geen activiteit voor ${c.name}</p></div>`}
+      </div>
+
+      <!-- Aankomende afspraken voor deze klant -->
+      <div class="card">
+        <div class="card-hd"><span class="card-title">Afspraken</span><button class="btn xs ghost" onclick="openAddEvent()">+ Nieuw</button></div>
+        ${upcoming.length?upcoming.map(ev=>{
+          const acc=accs.find(a=>a.id===ev.acc);
+          const d=new Date(ev.date+'T12:00');
+          return`<div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer;" onclick="openDetail(${acc?.id||0})">
+            <div style="text-align:center;min-width:36px;flex-shrink:0;">
+              <div style="font-size:9px;font-weight:700;color:${c.color};text-transform:uppercase;">${d.toLocaleDateString('nl-NL',{day:'numeric',month:'short'})}</div>
+              <div style="font-size:11px;color:var(--text2);">${ev.time||''}</div>
+            </div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:12.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${ev.title}</div>
+              ${acc?`<div style="font-size:11px;color:var(--text3);">${acc.name}</div>`:''}
+            </div>
+          </div>`;
+        }).join(''):`<div style="color:var(--text3);font-size:12.5px;padding:8px 0;">Geen afspraken gepland</div><button class="btn sm ghost" style="margin-top:6px;" onclick="openAddEvent()">Afspraak plannen</button>`}
+      </div>
+
+    </div>
+
+    <!-- Top accounts voor deze klant -->
+    <div class="card" style="margin-top:14px;">
+      <div class="card-hd"><span class="card-title">Accounts voor ${c.name}</span><button class="btn sm ghost" onclick="nav('accounts')">Alle →</button></div>
+      ${linked.slice(0,5).map(a=>{
+        const lnk=a.clientLinks[curClient];
+        const [bg,fg]=CLRS[a.color%CLRS.length];
+        return`<div onclick="openDetail(${a.id})" style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);cursor:pointer;">
+          <div class="org-av" style="background:${bg};color:${fg};width:30px;height:30px;border-radius:7px;">${initials(a.name)}</div>
+          <div style="flex:1;"><div style="font-size:13px;font-weight:500;">${a.name}</div><div style="font-size:11px;color:var(--text3);">${lnk.pipe||a.pipe||'—'}</div></div>
+          <span class="badge ${lnk.status||a.status}">${slbl(lnk.status||a.status)}</span>
+          ${lnk.val?`<span style="font-size:12px;font-weight:700;color:var(--green-t);">€${parseInt(lnk.val).toLocaleString('nl-NL')}</span>`:''}
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+// ── MINI CALENDAR (dashboard snippet) ──
+function renderMiniCalendar(){
+  const now=new Date();
+  const today=now.getDate();
+  const todayDow=(now.getDay()+6)%7; // Mon=0
+  const days=['Ma','Di','Wo','Do','Vr','Za','Zo'];
+  const weekEl=document.getElementById('cal-week');
+  if(!weekEl)return;
+  weekEl.innerHTML='';
+  for(let i=0;i<7;i++){
+    const d=new Date(now);d.setDate(today-todayDow+i);
+    const isToday=i===todayDow;
+    const ds=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const hasEv=calEvents.some(e=>e.date===ds);
+    weekEl.innerHTML+=`<div onclick="nav('agenda')" style="flex:1;text-align:center;padding:4px 2px;border-radius:6px;cursor:pointer;background:${isToday?'var(--navy)':'transparent'};">
+      <div style="font-size:9px;font-weight:600;color:${isToday?'rgba(255,255,255,.6)':'var(--text3)'};">${days[i]}</div>
+      <div style="font-size:13px;font-weight:700;color:${isToday?'#fff':'var(--text)'};">${d.getDate()}</div>
+      ${hasEv?`<div style="width:4px;height:4px;border-radius:50%;background:${isToday?'var(--gold)':'var(--navy)'};margin:2px auto 0;"></div>`:'<div style="height:6px;"></div>'}
+    </div>`;
+  }
+  // Upcoming events in mini list
+  const todayISO=localISO(now);
+  const evs=calEvents.filter(e=>e.date>=todayISO).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,5);
+  document.getElementById('cal-events').innerHTML=evs.length?evs.map(ev=>{
+    const acc=accs.find(a=>a.id===ev.acc);
+    const isToday=ev.date===todayISO;
+    const d=new Date(ev.date+'T12:00');
+    return`<div onclick="nav('agenda')" style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);cursor:pointer;align-items:flex-start;">
+      <div style="min-width:32px;text-align:center;flex-shrink:0;">
+        <div style="font-size:9px;font-weight:700;color:${isToday?'var(--navy)':'var(--text3)'};text-transform:uppercase;">${isToday?'Vandaag':d.toLocaleDateString('nl-NL',{day:'numeric',month:'short'})}</div>
+        <div style="font-size:10.5px;color:var(--text2);">${ev.time||''}</div>
+      </div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${ev.title}</div>
+        ${acc?`<div style="font-size:10.5px;color:var(--text3);">${acc.name}</div>`:''}
+      </div>
+    </div>`;
+  }).join(''):`<div style="color:var(--text3);font-size:11.5px;padding:8px 0;text-align:center;">Geen afspraken</div>`;
+}
+
+// ══════════════ AGENDA PAGE ══════════════
+function setCalView(v){
+  calView=v;calOffset=0;
+  document.querySelectorAll('.cal-view-btn').forEach(b=>b.classList.toggle('on',
+    (v==='week'&&b.textContent.trim()==='Week')||
+    (v==='day'&&b.textContent.trim()==='Dag')||
+    (v==='month'&&b.textContent.trim()==='Maand')));
+  renderAgenda();
+}
+
+function setCalPerson(p){
+  calPerson=p;
+  ['MA','JK','BOTH'].forEach(id=>{
+    const el=document.getElementById('cal-person-'+id);
+    if(!el)return;
+    const on=id===p;
+    el.style.background=on?'var(--navy)':'var(--surface)';
+    el.style.color=on?'#fff':'var(--text2)';
+    el.style.fontWeight=on?'600':'500';
+  });
+  renderAgenda();
+}
+
+function calNav(dir){calOffset+=dir;renderAgenda();}
+function calGoToday(){calOffset=0;renderAgenda();}
+
+function renderAgenda(){
+  // Build client filter options if needed
+  const cf=document.getElementById('cal-client-filter');
+  if(cf&&cf.options.length<=1){
+    clients.forEach(c=>{
+      const opt=document.createElement('option');
+      opt.value=c.id;opt.textContent=c.name;
+      cf.appendChild(opt);
+    });
+  }
+  const clientF=cf?cf.value:'all';
+
+  // Filter by person
+  let evs=calEvents.filter(e=>{
+    if(calPerson==='BOTH')return true;
+    return e.owner===calPerson||e.owner==='BOTH';
+  });
+
+  // Filter by opdrachtgever (via linked account)
+  if(clientF!=='all'){
+    evs=evs.filter(e=>{
+      if(!e.acc)return false;
+      const a=accs.find(x=>x.id===e.acc);
+      return a&&a.clientLinks&&a.clientLinks[parseInt(clientF)];
+    });
+  }
+
+  if(calView==='week')renderWeekView(evs);
+  else if(calView==='day')renderDayView(evs);
+  else renderMonthView(evs);
+}
+
+let agendaMode='agenda';
+function setAgendaMode(mode){
+  agendaMode=mode;
+  const agBtn=document.getElementById('cal-view-agenda');
+  const tkBtn=document.getElementById('cal-view-taken');
+  const calWrap=document.getElementById('agenda-calendar-wrap');
+  const takenWrap=document.getElementById('agenda-taken-wrap');
+  if(mode==='agenda'){
+    if(agBtn){agBtn.classList.add('on');}
+    if(tkBtn){tkBtn.classList.remove('on');}
+    if(calWrap)calWrap.style.display='';
+    if(takenWrap)takenWrap.style.display='none';
+  } else {
+    if(agBtn){agBtn.classList.remove('on');}
+    if(tkBtn){tkBtn.classList.add('on');}
+    if(calWrap)calWrap.style.display='none';
+    if(takenWrap)takenWrap.style.display='';
+    renderAgendaTaken();
+  }
+}
+
+function renderAgendaTaken(){
+  const el=document.getElementById('agenda-taken-view');
+  if(!el)return;
+
+  const today=new Date();today.setHours(0,0,0,0);
+  const prioOrder={'hoog':0,'middel':1,'laag':2,'':3};
+  const prioLabel={'hoog':'Hoog','middel':'Middel','laag':'Laag'};
+  const prioCls={'hoog':'ph','middel':'pm','laag':'pl'};
+
+  // Bepaal de 7 dagen van de huidige week (ma-zo) op basis van calOffset
+  const mon=getWeekStart(calOffset);
+  const weekDagen=[];
+  for(let i=0;i<7;i++){const d=new Date(mon);d.setDate(mon.getDate()+i);weekDagen.push(d);}
+
+  // Filter taken op persoon
+  let mijnTaken=todos.filter(t=>{
+    if(t.done)return false;
+    if(calPerson==='BOTH')return true;
+    return t.owner===calPerson||!t.owner;
+  });
+
+  // Voeg vervallen taken toe (deadline voor vandaag, nog niet afgerond)
+  // Ze worden op vandaag getoond als ze al voorbij zijn
+  const dagenHtml=weekDagen.map(dag=>{
+    const dagISO=`${dag.getFullYear()}-${String(dag.getMonth()+1).padStart(2,'0')}-${String(dag.getDate()).padStart(2,'0')}`;
+    const dagNaam=dag.toLocaleDateString('nl-NL',{weekday:'long'});
+    const dagNum=dag.toLocaleDateString('nl-NL',{day:'numeric',month:'short'});
+    const isVandaag=dag.getTime()===today.getTime();
+    const isVerleden=dag.getTime()<today.getTime();
+
+    // Taken die bij deze dag horen
+    // Reguliere taken: deadline===dagISO
+    // Overdue taken: deadline < vandaag, tonen op vandaag
+    let dagTaken=mijnTaken.filter(t=>{
+      if(!t.due)return false;
+      if(isVandaag){
+        // Toon ook alle verlopen taken op vandaag
+        return t.due<=dagISO;
+      }
+      if(isVerleden)return false;
+      return t.due===dagISO;
+    });
+
+    // Sorteren op prioriteit
+    dagTaken.sort((a,b)=>(prioOrder[a.prio||'']||3)-(prioOrder[b.prio||'']||3));
+
+    if(dagTaken.length===0&&isVerleden&&!isVandaag)return'';
+
+    return`<div style="background:var(--surface);border:1px solid ${isVandaag?'var(--navy)':'var(--border)'};border-radius:var(--r-lg);overflow:hidden;${isVandaag?'box-shadow:0 0 0 2px rgba(13,31,60,.08);':''}">
+      <div style="padding:9px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:${isVandaag?'var(--navy)':'var(--surface2)'};">
+        <div>
+          <span style="font-size:12px;font-weight:700;color:${isVandaag?'#fff':'var(--text)'};text-transform:capitalize;">${dagNaam}</span>
+          <span style="font-size:11px;color:${isVandaag?'rgba(255,255,255,.5)':'var(--text3)'};margin-left:6px;">${dagNum}</span>
+        </div>
+        ${dagTaken.length>0?`<span style="background:${isVandaag?'var(--gold)':'var(--surface3)'};color:${isVandaag?'var(--navy)':'var(--text2)'};font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;">${dagTaken.length}</span>`:''}
+      </div>
+      <div style="padding:8px 10px;display:flex;flex-direction:column;gap:5px;min-height:40px;">
+        ${dagTaken.length?dagTaken.map(t=>{
+          const acc=t.acc?accs.find(a=>a.id===t.acc):null;
+          const isOverdue=t.due<dagISO&&isVandaag;
+          return`<div style="display:flex;align-items:flex-start;gap:8px;padding:7px 9px;background:var(--surface2);border:1px solid ${isOverdue?'rgba(192,57,43,.2)':'var(--border)'};border-radius:var(--r);${isOverdue?'border-left:3px solid var(--red);':''}" class="todo-item">
+            <div class="chk${t.done?' done':''}" onclick="toggleTodo(${t.id})" style="margin-top:2px;flex-shrink:0;">${t.done?'✓':''}</div>
+            <div style="flex:1;min-width:0;">
+              <div class="todo-t${t.done?' done':''}" style="font-size:12.5px;">${t.text}</div>
+              <div style="display:flex;gap:6px;align-items:center;margin-top:3px;flex-wrap:wrap;">
+                ${t.prio?`<span class="prio ${prioCls[t.prio]||''}" style="font-size:10px;">${prioLabel[t.prio]||t.prio}</span>`:''}
+                ${acc?`<span style="font-size:11px;color:var(--text3);">${acc.name}</span>`:''}
+                ${isOverdue?`<span style="font-size:10px;font-weight:700;color:var(--red-t);">Verlopen</span>`:''}
+              </div>
+            </div>
+          </div>`;
+        }).join(''):`<div style="font-size:12px;color:var(--text3);padding:6px 2px;">Geen taken</div>`}
+      </div>
+    </div>`;
+  }).filter(Boolean).join('');
+
+  el.innerHTML=`
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;">
+      <div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--surface2);">
+        <div style="font-family:'Syne',sans-serif;font-size:12.5px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:6px;">
+          <span style="display:block;width:3px;height:13px;background:var(--gold);border-radius:2px;"></span>
+          Taken deze week
+          <span style="font-size:11px;font-weight:400;color:var(--text3);">${calPerson==='MA'?'Mees':calPerson==='JK'?'Julian':'Mees & Julian'}</span>
+        </div>
+        <button class="btn xs ghost" onclick="openAddTodo()">+ Taak</button>
+      </div>
+      <div style="padding:12px;display:grid;grid-template-columns:repeat(7,1fr);gap:8px;">
+        ${dagenHtml||'<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--text3);font-size:13px;">Geen taken deze week</div>'}
+      </div>
+    </div>`;
+}
+
+function getWeekStart(offset){
+  const now=new Date();
+  const dow=(now.getDay()+6)%7;
+  const mon=new Date(now);mon.setDate(now.getDate()-dow+offset*7);mon.setHours(0,0,0,0);
+  return mon;
+}
+
+function renderWeekView(evs){
+  const mon=getWeekStart(calOffset);
+  const days=[]; for(let i=0;i<7;i++){const d=new Date(mon);d.setDate(mon.getDate()+i);days.push(d);}
+  const _tn=new Date();const todayISO=`${_tn.getFullYear()}-${String(_tn.getMonth()+1).padStart(2,'0')}-${String(_tn.getDate()).padStart(2,'0')}`;
+  const dayNames=['Ma','Di','Wo','Do','Vr','Za','Zo'];
+  const s=days[0],e=days[6];
+  document.getElementById('cal-period-label').textContent=`${s.getDate()} ${s.toLocaleDateString('nl-NL',{month:'short'})} – ${e.getDate()} ${e.toLocaleDateString('nl-NL',{month:'short',year:'numeric'})}`;
+
+  // Kwartierslots 7:00 - 21:00
+  const SLOTS=[];
+  for(let h=7;h<=21;h++){
+    for(let m=0;m<60;m+=15){
+      if(h===21&&m>0)break;
+      SLOTS.push({h,m});
+    }
+  }
+  const SLOT_H=16; // px per kwartier
+  const PX_PER_MIN=SLOT_H/15;
+
+  // Header
+  let html=`<div class="week-wrap"><div class="week-header-row">
+    <div class="week-th-time"></div>`;
+  days.forEach((d,i)=>{
+    const ds=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const isT=ds===todayISO;
+    const numEl=isT?`<div class="week-th-num today-n">${d.getDate()}</div>`:`<div class="week-th-num">${d.getDate()}</div>`;
+    html+=`<div class="week-th-day${isT?' today-hd':''}">
+      <div class="week-th-label">${dayNames[i]}</div>${numEl}
+    </div>`;
+  });
+  html+=`</div><div class="week-body" id="week-body-scroll"><div class="week-grid" id="week-grid-inner">`;
+
+  // Rows — kwartierslots
+  SLOTS.forEach(slot=>{
+    const {h,m}=slot;
+    const timeStr=`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+    const isHour=m===0;
+    html+=`<div class="week-row ${isHour?'week-row-hour':'week-row-quarter'}" style="height:${SLOT_H}px;">`;
+    html+=`<div class="week-time-cell" style="font-size:10px;color:${isHour?'var(--text2)':'transparent'};">${isHour?timeStr:''}</div>`;
+    days.forEach(d=>{
+      const ds=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      const isT=ds===todayISO;
+      // Toon event als het op dit kwartier begint
+      const slotEvs=evs.filter(ev=>{
+        if(ev.date!==ds||!ev.time)return false;
+        const [eh,em]=ev.time.split(':').map(Number);
+        return eh===h&&Math.floor(em/15)*15===m;
+      });
+      html+=`<div class="week-ev-cell${isT?' today-c':''}" onclick="openAddEventOnDate('${ds}','${timeStr}')" ondragover="event.preventDefault();event.currentTarget.style.background='var(--navy-fade)'" ondragleave="event.currentTarget.style.background=''" ondrop="evDrop(event,'${ds}','${timeStr}')">`;
+      slotEvs.forEach(ev=>{
+        const a=accs.find(x=>x.id===ev.acc);
+        const [bg,fg]=a?CLRS[a.color%CLRS.length]:['#e8f0fb','#1a5fb4'];
+        const durPx=Math.max(Math.round((ev.dur||60)*PX_PER_MIN)-2,SLOT_H);
+        html+=`<div class="w-ev" draggable="true" data-evid="${ev.id}" style="background:${bg};color:${fg};height:${durPx}px;cursor:grab;" onclick="if(!_wasDragging){event.stopPropagation();showEventPopup(event,${ev.id});}" ondragstart="evDragStart(event,${ev.id})" ondragend="event.target.style.opacity='';_wasDragging=false;">
+          <div style="font-size:10px;opacity:.7;">${ev.time}</div>
+          <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${ev.title}</div>
+          ${ev.dur>20?`<div style="font-size:9.5px;opacity:.6;">${ev.dur} min</div>`:''}
+        </div>`;
+      });
+      html+=`</div>`;
+    });
+    html+=`</div>`;
+  });
+  html+=`</div></div></div>`;
+  document.getElementById('agenda-view').innerHTML=html;
+
+  // Live tijdlijn — werkt in zowel Chrome als Safari
+  function tekenNuLijn(){
+    document.querySelectorAll('.cal-now-line,.cal-now-dot').forEach(el=>el.remove());
+    const grid=document.getElementById('week-grid-inner');
+    if(!grid)return;
+    const nu=new Date();
+    const todayKolom=days.findIndex(d=>{
+      const ds=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      return ds===todayISO;
+    });
+    if(todayKolom<0)return;
+    const minVanaf7=(nu.getHours()-7)*60+nu.getMinutes();
+    if(minVanaf7<0||minVanaf7>840)return;
+    const top=Math.round(minVanaf7*PX_PER_MIN);
+    // Gebruik grid breedte voor kolomberekening
+    const gridBreedte=grid.offsetWidth||grid.getBoundingClientRect().width;
+    const kolBreedte=gridBreedte>56?(gridBreedte-56)/7:100;
+    const leftPx=56+todayKolom*kolBreedte;
+
+    const dot=document.createElement('div');
+    dot.className='cal-now-dot';
+    dot.style.cssText=`top:${top-3}px;left:${leftPx-4}px;`;
+    const lijn=document.createElement('div');
+    lijn.className='cal-now-line';
+    lijn.style.cssText=`top:${top}px;left:${leftPx}px;`;
+    grid.appendChild(dot);
+    grid.appendChild(lijn);
+  }
+
+  setTimeout(()=>{
+    const body=document.getElementById('week-body-scroll');
+    if(body){
+      const nu=new Date();
+      const minVanaf7=(nu.getHours()-7)*60+nu.getMinutes();
+      const scrollTo=Math.max(0,Math.round(minVanaf7*PX_PER_MIN)-120);
+      body.scrollTop=scrollTo;
+    }
+    tekenNuLijn();
+  },50);
+
+  // Herken live elke minuut
+  if(window._nuLijnInterval)clearInterval(window._nuLijnInterval);
+  window._nuLijnInterval=setInterval(tekenNuLijn,60000);
+}
+
+function renderDayView(evs){
+  const base=new Date();base.setHours(0,0,0,0);base.setDate(base.getDate()+calOffset);
+  const ds=`${base.getFullYear()}-${String(base.getMonth()+1).padStart(2,'0')}-${String(base.getDate()).padStart(2,'0')}`;
+  const todayISO=localISO(new Date());
+  const isToday=ds===todayISO;
+  const dayEvs=evs.filter(e=>e.date===ds).sort((a,b)=>(a.time||'00:00').localeCompare(b.time||'00:00'));
+  document.getElementById('cal-period-label').textContent=base.toLocaleDateString('nl-NL',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+
+  const SLOTS=[];
+  for(let h=7;h<=21;h++){
+    for(let m=0;m<60;m+=15){
+      if(h===21&&m>0)break;
+      SLOTS.push({h,m});
+    }
+  }
+  const SLOT_H=20;
+  const PX_PER_MIN=SLOT_H/15;
+
+  let html=`<div class="day-wrap">
+    <div class="day-hd">
+      <div>
+        <div style="font-family:'Syne',sans-serif;font-size:17px;font-weight:700;color:#fff;">${base.toLocaleDateString('nl-NL',{weekday:'long',day:'numeric',month:'long'})}</div>
+        <div style="font-size:12px;color:rgba(255,255,255,.5);margin-top:2px;">${dayEvs.length} afspraak${dayEvs.length!==1?'en':''}</div>
+      </div>
+      <button class="btn sm" style="background:var(--gold);border-color:var(--gold);color:var(--navy);font-weight:600;" onclick="openAddEventOnDate('${ds}','09:00')">+ Afspraak</button>
+    </div>
+    <div class="day-body" id="day-body-scroll"><div class="day-grid" id="day-grid-inner">`;
+
+  SLOTS.forEach(slot=>{
+    const {h,m}=slot;
+    const timeStr=`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+    const isHour=m===0;
+    const slotEvs=dayEvs.filter(ev=>{
+      if(!ev.time)return false;
+      const [eh,em]=ev.time.split(':').map(Number);
+      return eh===h&&Math.floor(em/15)*15===m;
+    });
+    html+=`<div class="day-row ${isHour?'day-row-hour':'day-row-quarter'}" style="height:${SLOT_H}px;">
+      <div class="day-tc" style="font-size:10px;color:${isHour?'var(--text2)':'transparent'};">${isHour?timeStr:''}</div>
+      <div class="day-ec" onclick="openAddEventOnDate('${ds}','${timeStr}')">`;
+    slotEvs.forEach(ev=>{
+      const a=accs.find(x=>x.id===ev.acc);
+      const [bg,fg]=a?CLRS[a.color%CLRS.length]:['#e8f0fb','#1a5fb4'];
+      const durPx=Math.max(Math.round((ev.dur||60)*PX_PER_MIN)-3,SLOT_H);
+      const mapsLink=ev.loc?`<a href="https://maps.google.com/?q=${encodeURIComponent(ev.loc)}" target="_blank" onclick="event.stopPropagation()" style="font-size:10.5px;color:${fg};opacity:.7;text-decoration:none;">Maps</a>`:'';
+      html+=`<div class="d-ev" style="border-left-color:${fg};background:${bg}18;height:${durPx}px;overflow:hidden;" onclick="event.stopPropagation();showEventPopup(event,${ev.id})">
+        <div class="d-ev-title" style="color:${fg};">${ev.time} — ${ev.title}</div>
+        <div class="d-ev-meta">${ev.type||''}${ev.dur?' · '+ev.dur+' min':''}${a?' · '+a.name:''}${ev.loc?` · ${ev.loc} ${mapsLink}`:''}</div>
+      </div>`;
+    });
+    html+=`</div></div>`;
+  });
+  html+=`</div></div></div>`;
+  document.getElementById('agenda-view').innerHTML=html;
+
+  setTimeout(()=>{
+    const body=document.getElementById('day-body-scroll');
+    if(body){
+      const nu=new Date();
+      const minVanaf7=(nu.getHours()-7)*60+nu.getMinutes();
+      body.scrollTop=Math.max(0,Math.round(minVanaf7*PX_PER_MIN)-120);
+    }
+    if(isToday){
+      const grid=document.getElementById('day-grid-inner');
+      if(!grid)return;
+      const nu=new Date();
+      const minVanaf7=(nu.getHours()-7)*60+nu.getMinutes();
+      if(minVanaf7<0||minVanaf7>840)return;
+      const top=Math.round(minVanaf7*PX_PER_MIN);
+      const dot=document.createElement('div');
+      dot.className='cal-day-now-dot';
+      dot.style.cssText=`top:${top-3}px;left:52px;`;
+      const lijn=document.createElement('div');
+      lijn.className='cal-day-now-line';
+      lijn.style.cssText=`top:${top}px;left:60px;`;
+      grid.appendChild(dot);
+      grid.appendChild(lijn);
+    }
+  },50);
+}
+
+function renderMonthView(evs){
+  const now=new Date();
+  const base=new Date(now.getFullYear(),now.getMonth()+calOffset,1);
+  const y=base.getFullYear();const m=base.getMonth();
+  const first=new Date(y,m,1);
+  const firstDow=(first.getDay()+6)%7;
+  const dim=new Date(y,m+1,0).getDate();
+  const todayISO=localISO(now);
+  document.getElementById('cal-period-label').textContent=first.toLocaleDateString('nl-NL',{month:'long',year:'numeric'}).replace(/^\w/,c=>c.toUpperCase());
+  const days=['Ma','Di','Wo','Do','Vr','Za','Zo'];
+  let html=`<div class="month-wrap"><div class="month-head-row">${days.map(d=>`<div class="month-head-cell">${d}</div>`).join('')}</div><div class="month-body">`;
+  for(let i=0;i<firstDow;i++){const pd=new Date(y,m,1-firstDow+i);html+=`<div class="month-cell other-month"><div class="month-day-num">${pd.getDate()}</div></div>`;}
+  for(let day=1;day<=dim;day++){
+    const dd=new Date(y,m,day);const ds=`${dd.getFullYear()}-${String(dd.getMonth()+1).padStart(2,'0')}-${String(dd.getDate()).padStart(2,'0')}`;
+    const de=evs.filter(e=>e.date===ds);const isT=ds===todayISO;
+    html+=`<div class="month-cell${isT?' today-cell':''}" onclick="setCalView('day');const _d=new Date('${ds}T12:00');const _t=new Date();_t.setHours(0,0,0,0);calOffset=Math.round((_d-_t)/86400000);renderAgenda();">
+      <div class="month-day-num">${day}</div>
+      ${de.slice(0,2).map(ev=>{const a=accs.find(x=>x.id===ev.acc);const[bg,fg]=a?CLRS[a.color%CLRS.length]:['#e8f0fb','#1a5fb4'];return`<div class="m-ev-pill" style="background:${bg};color:${fg};" onclick="event.stopPropagation();showEventPopup(event,${ev.id})">${ev.time?ev.time.slice(0,5)+' ':''}${ev.title}</div>`;}).join('')}
+      ${de.length>2?`<div style="font-size:10px;color:var(--text3);font-weight:600;">+${de.length-2} meer</div>`:''}
+    </div>`;
+  }
+  const total=Math.ceil((firstDow+dim)/7)*7;
+  for(let i=dim+firstDow;i<total;i++){html+=`<div class="month-cell other-month"><div class="month-day-num">${i-dim-firstDow+1}</div></div>`;}
+  html+=`</div></div>`;
+  document.getElementById('agenda-view').innerHTML=html;
+}
+
+// Event popup (small card near click)
+function showEventPopup(e,evId){
+  document.querySelectorAll('.ev-popup').forEach(p=>p.remove());
+  const ev=calEvents.find(x=>x.id===evId);if(!ev)return;
+  const acc=accs.find(a=>a.id===ev.acc);
+  const d=new Date(ev.date+'T12:00').toLocaleDateString('nl-NL',{weekday:'short',day:'numeric',month:'short'});
+  const pop=document.createElement('div');
+  pop.className='ev-popup';
+  const[bg,fg]=acc?CLRS[acc.color%CLRS.length]:['#e8f0fb','#1a5fb4'];
+  pop.innerHTML=`
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;">
+      <div>
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:${fg};letter-spacing:.5px;margin-bottom:3px;">${ev.type||'Afspraak'}</div>
+        <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:var(--text);">${ev.title}</div>
+      </div>
+      <button onclick="this.closest('.ev-popup').remove()" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:16px;line-height:1;margin-left:8px;">✕</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:5px;font-size:12.5px;color:var(--text2);">
+      <div style="display:flex;gap:7px;align-items:center;"><span style="color:var(--text3);width:14px;">◷</span>${d}${ev.time?' · '+ev.time:''} · ${ev.dur||60} min</div>
+      ${ev.loc?`<div style="display:flex;gap:7px;align-items:center;"><span style="color:var(--text3);width:14px;">⌖</span><span>${ev.loc}</span><a href="https://maps.google.com/?q=${encodeURIComponent(ev.loc)}" target="_blank" onclick="event.stopPropagation()" style="font-size:10.5px;color:var(--blue-t);text-decoration:none;margin-left:4px;">🗺</a></div>`:''}
+      ${acc?`<div style="display:flex;gap:7px;align-items:center;"><div style="width:12px;height:12px;border-radius:3px;background:${bg};flex-shrink:0;"></div><span onclick="event.stopPropagation();document.querySelectorAll('.ev-popup').forEach(p=>p.remove());openDetail(${acc.id})" style="cursor:pointer;color:var(--blue-t);text-decoration:underline;">${acc.name}</span></div>`:''}
+      ${ev.contactName?`<div style="display:flex;gap:7px;align-items:center;"><span style="color:var(--text3);width:14px;">👤</span><span style="font-size:12.5px;">${ev.contactName}</span></div>`:''}
+      ${ev.note?`<div style="font-size:11.5px;color:var(--text3);margin-top:4px;border-top:1px solid var(--border);padding-top:6px;">${ev.note}</div>`:''}
+    </div>
+    <div style="display:flex;gap:6px;margin-top:12px;align-items:center;">
+      <div class="av ${(ev.owner||'MA').toLowerCase()}" style="width:22px;height:22px;font-size:8px;">${ev.owner||'MA'}</div>
+      <span style="font-size:11.5px;color:var(--text3);flex:1;">${ev.owner==='MA'?'Mees':ev.owner==='JK'?'Julian':'Mees & Julian'}</span>
+      <button onclick="event.stopPropagation();this.closest('.ev-popup').remove();editEvent(${ev.id})" class="btn xs" style="background:var(--navy);border-color:var(--navy);color:#fff;">✎ Bewerken</button>
+      <button onclick="event.stopPropagation();if(confirm('Afspraak verwijderen?')){deleteEvent(${ev.id});this.closest('.ev-popup').remove();}" class="btn xs ghost" style="color:var(--red-t);border-color:var(--red);">✕</button>
+    </div>`;
+  // Position near click
+  const rect=e.target.getBoundingClientRect();
+  let left=rect.right+8;let top=rect.top;
+  if(left+290>window.innerWidth)left=rect.left-298;
+  if(top+200>window.innerHeight)top=window.innerHeight-210;
+  pop.style.left=Math.max(8,left)+'px';pop.style.top=Math.max(8,top)+'px';
+  document.body.appendChild(pop);
+  // Close on outside click
+  setTimeout(()=>document.addEventListener('click',function h(ev){if(!pop.contains(ev.target)){pop.remove();document.removeEventListener('click',h);}},true),10);
+}
+
+function editEvent(evId){
+  const ev=calEvents.find(x=>x.id===evId);if(!ev)return;
+  openAddEvent(ev.acc||null);
+  setTimeout(()=>{
+    document.getElementById('ev-title').value=ev.title||'';
+    document.getElementById('ev-date').value=ev.date||'';
+    if(ev.date)updateDateLabel(ev.date);
+    document.getElementById('ev-time').value=ev.time||'';
+    document.getElementById('ev-dur').value=ev.dur||60;
+    document.getElementById('ev-loc').value=ev.loc||'';
+    document.getElementById('ev-note').value=ev.note||'';
+    document.querySelectorAll('#ev-type-btns button').forEach(b=>b.classList.toggle('ev-type-on',b.dataset.t===ev.type));
+    document.getElementById('ev-type').value=ev.type||'Kennismaking';
+    // Edit modus: knoppen aanpassen
+    const saveBtn=document.getElementById('m-event-save');
+    const saveIcsBtn=document.getElementById('m-event-save-ics');
+    if(saveBtn){saveBtn.textContent='Opslaan wijzigingen';saveBtn.onclick=()=>saveEditedEvent(evId);}
+    if(saveIcsBtn)saveIcsBtn.style.display='none';
+  },80);
+}
+
+function saveEditedEvent(evId){
+  const idx=calEvents.findIndex(x=>x.id===evId);if(idx<0)return;
+  const title=document.getElementById('ev-title').value.trim();
+  if(!title){alert('Vul een titel in.');return;}
+  calEvents[idx]={...calEvents[idx],title,
+    type:document.getElementById('ev-type').value,
+    date:document.getElementById('ev-date').value,
+    time:document.getElementById('ev-time').value,
+    dur:parseInt(document.getElementById('ev-dur').value)||60,
+    loc:document.getElementById('ev-loc').value.trim(),
+    note:document.getElementById('ev-note').value.trim(),
+    owner:document.querySelector('#asgn-event .asgn-opt.on')?.dataset.u||CU,
+  };
+  ss('ix_calev',calEvents);
+  _saveEvent(calEvents[idx]).catch(()=>{});
+  closeM('m-event');
+  if(document.getElementById('p-agenda').classList.contains('on'))renderAgenda();
+  if(document.getElementById('p-dashboard').classList.contains('on'))renderDash();
+}
+
+// Drag & drop agenda
+let _dragEvId=null;
+let _wasDragging=false;
+function evDragStart(e,evId){
+  _dragEvId=evId;
+  _wasDragging=true;
+  e.dataTransfer.effectAllowed='move';
+  e.dataTransfer.setData('text/plain', String(evId));
+  e.target.style.opacity='.4';
+}
+function evDrop(e,date,time){
+  e.preventDefault();
+  e.stopPropagation();
+  document.querySelectorAll('.week-ev-cell').forEach(c=>c.style.background='');
+  if(!_dragEvId)return;
+  const evId=_dragEvId;
+  _dragEvId=null;
+  const idx=calEvents.findIndex(x=>x.id===evId);
+  if(idx<0)return;
+  // Open edit modal met nieuwe datum/tijd — gebruiker bevestigt zelf
+  editEvent(evId);
+  setTimeout(()=>{
+    document.getElementById('ev-date').value=date;
+    if(date)updateDateLabel(date);
+    document.getElementById('ev-time').value=time||'';
+  },120);
+}
+
+async function deleteAccount(accId){
+  if(!confirm('Account verwijderen? Dit verwijdert ook alle gekoppelde notities, deals en contacten.'))return;
+  accs=accs.filter(a=>a.id!==accId);
+  ss('ix_accs',accs);
+  try{
+    const H={'apikey':'sb_publishable_8BI2HQ9f0_jTnUR7Q1-B7Q_xflM7k7Q','Authorization':'Bearer sb_publishable_8BI2HQ9f0_jTnUR7Q1-B7Q_xflM7k7Q','Content-Type':'application/json'};
+    const BASE='https://wjmalzbdxbtnkyngaccw.supabase.co/rest/v1/';
+    await fetch(BASE+'notes?account_id=eq.'+accId,{method:'DELETE',headers:H});
+    await fetch(BASE+'contacts?account_id=eq.'+accId,{method:'DELETE',headers:H});
+    await fetch(BASE+'deals?account_id=eq.'+accId,{method:'DELETE',headers:H});
+    await fetch(BASE+'proposals?account_id=eq.'+accId,{method:'DELETE',headers:H});
+    await fetch(BASE+'accounts?id=eq.'+accId,{method:'DELETE',headers:H});
+  }catch(e){console.warn('deleteAccount:',e);}
+  nav('accounts');
+}
+
+async function deleteEvent(evId){
+  if(!confirm('Afspraak verwijderen?'))return;
+  // Haal sbId op VOORDAT we uit de array verwijderen
+  const ev=calEvents.find(x=>x.id===evId)||{};
+  const sbId=ev._sbId||ev.id;
+  // Verwijder lokaal
+  calEvents=calEvents.filter(x=>x.id!==evId);
+  ss('ix_calev',calEvents);
+  // Verwijder in Supabase
+  try{
+    const H={'apikey':'sb_publishable_8BI2HQ9f0_jTnUR7Q1-B7Q_xflM7k7Q','Authorization':'Bearer sb_publishable_8BI2HQ9f0_jTnUR7Q1-B7Q_xflM7k7Q'};
+    const res=await fetch('https://wjmalzbdxbtnkyngaccw.supabase.co/rest/v1/events?id=eq.'+sbId,{method:'DELETE',headers:H});
+    if(!res.ok)console.warn('deleteEvent Supabase fout:',res.status,await res.text());
+    else console.log('deleteEvent OK, sbId:',sbId);
+  }catch(e){console.warn('deleteEvent error:',e);}
+  if(document.getElementById('p-agenda').classList.contains('on'))renderAgenda();
+  if(document.getElementById('p-dashboard').classList.contains('on'))renderDash();
+}
+
+function openAddEventOnDate(ds,time){
+  openAddEvent();
+  // Set after modal opens
+  setTimeout(()=>{
+    document.getElementById('ev-date').value=ds;
+    if(time){
+      const sel=document.getElementById('ev-time');
+      // Find closest option
+      const hh=time.split(':')[0];
+      const mm=time.split(':')[1]||'00';
+      const rounded=parseInt(mm)<30?hh+':00':hh+':30';
+      sel.value=rounded;
+    }
+  },10);
+}
+
+let accSortField = '';
+let accSortDir = 1;
+
+function toggleSort(field) {
+  if (accSortField === field) accSortDir *= -1;
+  else { accSortField = field; accSortDir = 1; }
+  ['status','seg','pipe','val'].forEach(f => {
+    const el = document.getElementById('sort-'+f);
+    if (el) el.textContent = f === accSortField ? (accSortDir === 1 ? ' ▲' : ' ▼') : '';
+  });
+  renderAccList();
+}
+
+function adresStad(a) {
+  if (!a.addr) return '<span style="color:var(--text3);">—</span>';
+
+  // Bekende Nederlandse steden/plaatsen lijst voor matching
+  const STEDEN = ['Amsterdam','Rotterdam','Den Haag','Utrecht','Eindhoven','Tilburg','Groningen',
+    'Almere','Breda','Nijmegen','Enschede','Apeldoorn','Haarlem','Arnhem','Zaanstad','Amersfoort',
+    'Haarlemmermeer','\'s-Hertogenbosch','Zwolle','Zoetermeer','Leiden','Maastricht','Dordrecht',
+    'Ede','Westland','Deventer','Delft','Alkmaar','Emmen','Venlo','Leeuwarden','Helmond','Hilversum',
+    'Heerlen','Assen','Roosendaal','Purmerend','Middleburg','Sittard','Vlaardingen','Spijkenisse',
+    'Gouda','Lelystad','Hoorn','Alblasserdam','Capelle','Schiedam','Nieuwegein','Alphen','Zeist',
+    'Weert','Bergen op Zoom','Oss','Hardenberg','Hoogeveen','Veenendaal','Doetinchem','Amstelveen',
+    'Heerhugowaard','Landgraaf','Barendrecht','Den Bosch','s-Hertogenbosch','Hengelo','Harderwijk',
+    'Woerden','Ridderkerk','Meppel','Waalwijk','Terneuzen','Kampen','Drachten','Goes','Roermond',
+    'Heemskerk','Veldhoven','Winschoten','Sneek','Tiel','Bussum','Huizen','Naarden'];
+
+  const tekst = a.addr;
+
+  // Zoek bekende stad in het adres
+  for (const stad of STEDEN) {
+    if (tekst.toLowerCase().includes(stad.toLowerCase())) {
+      const url = a.addrUrl || ('https://www.google.com/maps/search/?q=' + encodeURIComponent(tekst));
+      return '<a href="' + url + '" target="_blank" onclick="event.stopPropagation()" style="color:var(--blue);text-decoration:none;">' + stad + '</a>';
     }
   }
 
-  if (!job) return res.status(500).json({ error: 'Kon geen job aanmaken' });
+  // Geen bekende stad gevonden — probeer postcode patroon: "1234 AB Plaatsnaam"
+  const postcodeMatch = tekst.match(/\d{4}\s*[A-Z]{2}\s+([A-Za-zÀ-ÿ\s\-\']+?)(?:,|$)/);
+  if (postcodeMatch) {
+    const stad = postcodeMatch[1].trim();
+    const url = a.addrUrl || ('https://www.google.com/maps/search/?q=' + encodeURIComponent(tekst));
+    return '<a href="' + url + '" target="_blank" onclick="event.stopPropagation()" style="color:var(--blue);text-decoration:none;">' + stad + '</a>';
+  }
 
-  const opdrachtgeverInfo = job.opdrachtgever_info || '';
-  if (opdrachtgeverInfo) console.log(`[Opdrachtgever] Info: ${opdrachtgeverInfo.substring(0, 60)}...`);
+  // Laatste deel na laatste komma
+  const delen = tekst.split(',').map(s => s.trim());
+  const laatste = delen[delen.length - 1] || tekst;
+  const url = a.addrUrl || ('https://www.google.com/maps/search/?q=' + encodeURIComponent(tekst));
+  return '<a href="' + url + '" target="_blank" onclick="event.stopPropagation()" style="color:var(--blue);text-decoration:none;">' + laatste + '</a>';
+}
 
-  // Eerder goedgekeurde leads als voorbeeld
-  const { data: goedgekeurd } = await db.from('scraper_results')
-    .select('organisatie, sector, regio')
-    .eq('opdrachtgever', opdrachtgever).eq('status', 'doorgestuurd')
-    .order('created_at', { ascending: false }).limit(8);
+function renderAccList(){
+  updateCounts();
+  const ownerF=document.getElementById('filter-owner').value;
+  const search=document.getElementById('search-inp').value.toLowerCase();
+  let list=clientAccs().filter(a=>curFilter==='all'||accClientStatus(a)===curFilter);
+  if(ownerF!=='all')list=list.filter(a=>a.owner===ownerF||a.owner==='BOTH');
+  if(search)list=list.filter(a=>a.name.toLowerCase().includes(search)||(a.cf+' '+a.cl).toLowerCase().includes(search)||(a.sector||'').toLowerCase().includes(search));
 
-  const { namen: bekendeNamen, websites: bekendeWebsites } = await haalBekendeCompanies(db);
-  console.log(`[Dedup] ${bekendeNamen.size} bekende namen | Job voortgang: ${job.gevonden}/${job.target}`);
+  // Sorteren
+  if(accSortField){
+    list.sort((a,b)=>{
+      let va='',vb='';
+      if(accSortField==='status'){va=accClientStatus(a)||'';vb=accClientStatus(b)||'';}
+      else if(accSortField==='seg'){va=a.seg||'';vb=b.seg||'';}
+      else if(accSortField==='pipe'){va=accClientPipe(a)||'';vb=accClientPipe(b)||'';}
+      else if(accSortField==='val'){return((parseFloat(accClientVal(b))||0)-(parseFloat(accClientVal(a))||0))*accSortDir;}
+      return va.localeCompare(vb)*accSortDir;
+    });
+  }
 
-  let opgeslagenDezeRun = 0;
-  let ronde = 0;
-
-  // Blijf zoeken zolang er tijd is en target niet bereikt
-  while (job.gevonden + opgeslagenDezeRun < job.target) {
-    const tijdVerstreken = Date.now() - startTime;
-    if (tijdVerstreken > TIJDSLIMIET) {
-      console.log(`[Timeout] Tijdslimiet bereikt na ${Math.round(tijdVerstreken/1000)}s — job wordt hervat`);
-      break;
+  // Duplicaten detectie over ALLE accounts (niet alleen gefilterd)
+  const nameCounts={};
+  accs.forEach(a=>{
+    const key=a.name.trim().toLowerCase();
+    if(!nameCounts[key])nameCounts[key]=[];
+    nameCounts[key].push(a);
+  });
+  const dups=Object.values(nameCounts).filter(g=>g.length>1);
+  const dupBanner=document.getElementById('dup-banner');
+  if(dupBanner){
+    if(dups.length){
+      dupBanner.style.display='flex';
+      dupBanner.innerHTML='<span style="font-size:13px;font-weight:600;color:#92610a;">⚠ Mogelijke duplicaten: </span><span style="font-size:12.5px;color:var(--text2);">'+dups.map(g=>g.map(a=>`<span onclick="openDetail(${a.id})" style="cursor:pointer;color:var(--blue-t);text-decoration:underline;">${a.name}</span>`).join(' & ')).join(' · ')+'</span><button onclick="document.getElementById(\'dup-banner\').style.display=\'none\'" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--text3);font-size:16px;padding:0 4px;">✕</button>';
+    } else {
+      dupBanner.style.display='none';
     }
+  }
 
-    ronde++;
-    const nogNodig = job.target - job.gevonden - opgeslagenDezeRun;
-    const rondeGrootte = Math.min(20, nogNodig);
-    console.log(`[Ronde ${ronde}] Zoek ${rondeGrootte} bedrijven (${job.gevonden + opgeslagenDezeRun}/${job.target})`);
+  const tbody=document.getElementById('acc-tbody');
+  tbody.innerHTML='';
+  document.getElementById('acc-empty').style.display=list.length?'none':'block';
+  list.forEach(a=>{
+    const [bg,fg]=CLRS[a.color%CLRS.length];
+    const _primaryContact = a.cf || a.cl ? [a.cf,a.cl].filter(Boolean).join(' ') : (a.contacts&&a.contacts.length ? [a.contacts[0].first,a.contacts[0].last].filter(Boolean).join(' ') : '');
+    const contact=_primaryContact||'—';
+    const hasContact=!!_primaryContact;
+    const ownerHtml=a.owner==='BOTH'?`<div style="display:flex;"><div class="av ma lg">MA</div><div class="av jk lg" style="margin-left:-4px;">JK</div></div>`:`<div class="av ${a.owner.toLowerCase()} lg">${a.owner}</div>`;
+    const status=accClientStatus(a);
+    const pipe=accClientPipe(a);
+    const val=accClientVal(a);
+    const linkedCount=Object.keys(a.clientLinks||{}).length;
 
-    let gevonden;
+    // Laatste activiteit tijdstip
+    const lastNote=(a.notes||[]).length?[...(a.notes)].reverse()[0]:null;
+    const lastContactStr=lastNote?`<div style="font-size:10px;color:var(--text3);margin-top:1px;">${lastNote.time}</div>`:'';
+
+    const tr=document.createElement('tr');
+    tr.onclick=()=>openDetail(a.id);
+    tr.innerHTML=`
+      <td style="width:32px;padding-left:12px;" onclick="event.stopPropagation()"><input type="checkbox" class="acc-apollo-cb" data-id="${a.id}" data-name="${a.name.replace(/"/g,'')}" style="width:15px;height:15px;cursor:pointer;" onchange="accChkChange()"></td>
+      <td style="padding-left:8px;"><div class="org-cell">
+        <div class="org-av" style="background:${bg};color:${fg};">${initials(a.name)}</div>
+        <div>
+          <div style="font-weight:500;">${a.name}</div>
+          <div style="font-size:11px;color:var(--text3);display:flex;gap:4px;flex-wrap:wrap;margin-top:2px;">${clientBadges(a)}</div>
+        </div>
+      </div></td>
+      <td><span class="badge ${status}" style="cursor:pointer;" onclick="event.stopPropagation();setFilter('${status}')">${slbl(status)}</span></td>
+      <td style="color:var(--text2);cursor:pointer;" onclick="event.stopPropagation();document.getElementById('filter-owner').value='all';setSegFilter('${a.seg||''}');renderAccList();">${a.seg||'—'}</td>
+      <td style="color:${hasContact?'var(--blue)':'var(--text3)'};cursor:${hasContact?'pointer':'default'};" onclick="${hasContact?`event.stopPropagation();openDetail(${a.id});setTimeout(()=>switchTab('contacts'),200)`:''}">
+        ${contact}${lastContactStr}
+      </td>
+      <td style="font-size:12px;">${adresStad(a)}</td>
+      <td>${ownerHtml}</td>
+      <td style="font-size:12px;color:${PCLRS[pipe]?PCLRS[pipe][1]:'var(--text2)'};">${pipe||'—'}</td>
+      <td style="font-weight:600;color:var(--green-t);">${val?'€ '+parseInt(val).toLocaleString('nl-NL'):'—'}</td>
+      <td>
+        <button class="btn xs ghost" onclick="event.stopPropagation();openLinkModal(${a.id})" title="Koppel aan opdrachtgever" style="color:var(--navy);">
+          ${linkedCount>0?`<span style="width:7px;height:7px;border-radius:50%;background:var(--gold);display:inline-block;margin-right:3px;"></span>${linkedCount}x`:'Koppelen'}
+        </button>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+let curSegFilter='';
+function setSegFilter(seg){ curSegFilter=seg; }
+
+
+function renderPipeline(){
+  const ownerF=document.getElementById('pipe-owner').value;
+  const ctxAccs=clientAccs();
+  const board=document.getElementById('pipe-board');
+  board.innerHTML='';
+  PSTAGES.forEach(s=>{
+    let stageList=ctxAccs.filter(a=>accClientPipe(a)===s);
+    if(ownerF!=='all')stageList=stageList.filter(a=>a.owner===ownerF||a.owner==='BOTH');
+    const [bg,fg]=PCLRS[s]||['#eef0f4','#4a5568'];
+    const total=stageList.reduce((x,a)=>x+(parseFloat(accClientVal(a))||0),0);
+    const col=document.createElement('div');
+    col.className='pipe-col';
+    col.innerHTML=`
+      <div class="pipe-hd" style="background:${bg};color:${fg};">
+        <span>${s}</span><span class="pipe-cnt" style="background:${fg}20;color:${fg};">${stageList.length}</span>
+      </div>
+      <div class="pipe-body">
+        ${stageList.map(a=>{
+          const [abg,afg]=CLRS[a.color%CLRS.length];
+          const contact=[a.cf,a.cl].filter(Boolean).join(' ');
+          const cNote=accClientNote(a);
+          return`<div class="pipe-card" onclick="openDetail(${a.id})">
+            <div style="display:flex;gap:6px;align-items:center;margin-bottom:3px;">
+              <div style="width:20px;height:20px;border-radius:4px;background:${abg};color:${afg};display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;flex-shrink:0;">${initials(a.name)}</div>
+              <div class="pipe-org">${a.name}</div>
+            </div>
+            ${contact?`<div class="pipe-contact">${contact}${a.cr?' · '+a.cr:''}</div>`:''}
+            ${cNote?`<div style="font-size:10.5px;color:var(--text3);margin-bottom:4px;font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${cNote}</div>`:''}
+            <div class="pipe-meta">
+              ${accClientVal(a)?`<span class="pipe-val">€ ${parseInt(accClientVal(a)).toLocaleString('nl-NL')}</span>`:'<span></span>'}
+              <div class="av ${a.owner==='BOTH'?'ma':a.owner.toLowerCase()} lg">${a.owner==='BOTH'?'↔':a.owner}</div>
+            </div>
+          </div>`;
+        }).join('')}
+        ${total>0?`<div style="text-align:right;font-size:11px;font-weight:700;color:var(--text3);padding:3px 3px 0;">€ ${total.toLocaleString('nl-NL')}</div>`:''}
+      </div>`;
+    board.appendChild(col);
+  });
+}
+
+function renderContacts(){
+  const tbody=document.getElementById('contacts-tbody');
+  tbody.innerHTML='';
+  const all=accs.filter(a=>a.cf||a.cl);
+  document.getElementById('contacts-empty').style.display=all.length?'none':'block';
+  all.forEach(a=>{
+    const name=[a.cf,a.cl].filter(Boolean).join(' ');
+    const tr=document.createElement('tr');
+    tr.onclick=()=>openDetail(a.id);
+    tr.innerHTML=`
+      <td style="width:32px;padding-left:12px;" onclick="event.stopPropagation()"><input type="checkbox" class="acc-apollo-cb" data-id="${a.id}" data-name="${a.name.replace(/"/g,'')}" style="width:15px;height:15px;cursor:pointer;" onchange="accChkChange()"></td>
+      <td style="padding-left:8px;"><div class="org-cell">
+        <div class="av" style="background:${CLRS[a.color%CLRS.length][0]};color:${CLRS[a.color%CLRS.length][1]};">${initials(name)}</div>
+        <span style="font-weight:500;">${name}</span>
+      </div></td>
+      <td style="color:var(--text2);">${a.cr||'—'}</td>
+      <td style="color:var(--text2);">${a.name}</td>
+      <td>${a.ce?`<a href="mailto:${a.ce}" style="color:var(--blue);font-size:12.5px;">${a.ce}</a>`:'—'}</td>
+      <td style="color:var(--text2);">${a.cp||'—'}</td>
+      <td><span class="badge ${a.status}">${slbl(a.status)}</span></td>`;
+    tbody.appendChild(tr);
+    // also render extra contacts
+    (a.contacts||[]).forEach(ct=>{
+      const tr2=document.createElement('tr');
+      tr2.onclick=()=>openDetail(a.id);
+      const n2=[ct.first,ct.last].filter(Boolean).join(' ');
+      tr2.innerHTML=`
+        <td style="padding-left:16px;"><div class="org-cell">
+          <div class="av" style="background:${CLRS[a.color%CLRS.length][0]};color:${CLRS[a.color%CLRS.length][1]};">${initials(n2)}</div>
+          <span style="font-weight:500;">${n2}</span>
+        </div></td>
+        <td style="color:var(--text2);">${ct.role||'—'}</td>
+        <td style="color:var(--text2);">${a.name}</td>
+        <td>${ct.email?`<a href="mailto:${ct.email}" style="color:var(--blue);font-size:12.5px;">${ct.email}</a>`:'—'}</td>
+        <td style="color:var(--text2);">${ct.phone||'—'}</td>
+        <td><span class="badge ${a.status}">${slbl(a.status)}</span></td>`;
+      tbody.appendChild(tr2);
+    });
+  });
+}
+
+function renderTodos(){
+  const of=document.getElementById('tf-owner').value;
+  const sf=document.getElementById('tf-status').value;
+  let list=todos;
+  if(of!=='all')list=list.filter(t=>t.owner===of);
+  if(sf==='open')list=list.filter(t=>!t.done);
+  if(sf==='done')list=list.filter(t=>t.done);
+  const el=document.getElementById('todos-list');
+  el.innerHTML='';
+  document.getElementById('todos-empty').style.display=list.length?'none':'block';
+  list.forEach(t=>{
+    const acc=accs.find(a=>a.id===t.acc);
+    const pc=t.prio==='hoog'?'ph':t.prio==='medium'?'pm':'pl';
+    const div=document.createElement('div');
+    div.className='todo-item';
+    div.innerHTML=`
+      <div class="chk ${t.done?'done':''}" onclick="toggleTodo(${t.id})">✓</div>
+      <div style="flex:1;">
+        <div class="todo-t ${t.done?'done':''}">${t.title}</div>
+        <div class="todo-m">
+          ${t.due?`<span>${t.due}</span>`:''}
+          ${acc?`<span onclick="openDetail(${acc.id})" style="color:var(--blue);cursor:pointer;">${acc.name}</span>`:''}
+          <span class="prio ${pc}">${t.prio}</span>
+        </div>
+      </div>
+      <div class="av ${t.owner.toLowerCase()} lg">${t.owner}</div>`;
+    el.appendChild(div);
+  });
+  updateBadge();
+}
+
+function renderOutreach(){
+  renderBulkLijst();
+  renderBulkVerzendaccounts();
+  renderBulkOpdrachtgevers();
+  renderBulkTemplates();
+  renderHandtekeningen();
+  // templates lijst rechts
+  const tl=document.getElementById('templates-list');
+  if(tl) tl.innerHTML=templates.length?templates.map(t=>`
+    <div class="template-card" onclick="applyTemplate(${t.id})">
+      <div class="template-name">${t.name}</div>
+      <div class="template-preview">${t.subj}</div>
+    </div>`).join(''):`<div class="empty"><p>Nog geen templates</p></div>`;
+}
+
+function renderBulkVerzendaccounts(){
+  const sel = document.getElementById('bulk-from');
+  if(!sel) return;
+  const data = instGetData();
+  sel.innerHTML = '<option value="">— kies e-mailaccount —</option>';
+  ['MA','JK'].forEach(user => {
+    const emails = data[`ms_email_${user}`] || [];
+    const naam = user === 'MA' ? 'Mees' : 'Julian';
+    emails.forEach((email, i) => {
+      sel.innerHTML += `<option value="${email}">${email} (${naam}${i===0?' · primair':''})</option>`;
+    });
+  });
+  const curEmails = data[`ms_email_${CU}`] || [];
+  if(curEmails.length) sel.value = curEmails[0];
+}
+
+function renderBulkOpdrachtgevers(){
+  const sel = document.getElementById('bulk-opdrachtgever');
+  if(!sel) return;
+  sel.innerHTML = '<option value="">— geen —</option>';
+  accs.filter(a=>a.status==='klant').forEach(k => {
+    sel.innerHTML += `<option value="${k.id}">${k.name}</option>`;
+  });
+}
+
+let _geselecteerdeLijsten = new Set();
+let _geselecteerdeAccounts = new Set();
+
+function renderBulkLijstPills(){
+  const zoek = (document.getElementById('bulk-lijst-zoek')?.value||'').toLowerCase();
+  const el = document.getElementById('bulk-lijst-pills');
+  if(!el) return;
+  const gefilterd = lijsten.filter(l => !zoek || l.naam.toLowerCase().includes(zoek));
+  if(!gefilterd.length){
+    el.innerHTML = '<span style="font-size:12px;color:var(--text3);">Geen lijsten gevonden</span>';
+    return;
+  }
+  el.innerHTML = gefilterd.map(l => {
+    const actief = _geselecteerdeLijsten.has(l.id);
+    return `<div onclick="bulkToggleLijst(${l.id})" style="display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid ${actief?'var(--navy)':'var(--border)'};background:${actief?'var(--navy)':'var(--surface)'};color:${actief?'#fff':'var(--text2)'};">
+      ${actief?'✓ ':''}${l.naam} <span style="opacity:.6;">${(l.accounts||[]).length}</span>
+    </div>`;
+  }).join('');
+}
+
+function bulkToggleLijst(lijstId){
+  if(_geselecteerdeLijsten.has(lijstId)){
+    // Deselecteer — verwijder accounts van deze lijst uit de Set (tenzij ze in een andere lijst zitten)
+    _geselecteerdeLijsten.delete(lijstId);
+    const lijst = lijsten.find(l=>l.id===lijstId);
+    (lijst?.accounts||[]).forEach(accId => {
+      // Alleen verwijderen als niet in een andere geselecteerde lijst
+      let inAndere = false;
+      for(const id of _geselecteerdeLijsten){
+        const andere = lijsten.find(l=>l.id===id);
+        if((andere?.accounts||[]).includes(accId)){ inAndere=true; break; }
+      }
+      if(!inAndere) _geselecteerdeAccounts.delete(accId);
+    });
+  } else {
+    _geselecteerdeLijsten.add(lijstId);
+    // Voeg accounts van deze lijst toe aan de Set
+    const lijst = lijsten.find(l=>l.id===lijstId);
+    (lijst?.accounts||[]).forEach(accId => {
+      const a = accs.find(x=>x.id===accId);
+      if(a && a.ce) _geselecteerdeAccounts.add(accId);
+    });
+  }
+  renderBulkLijstPills();
+  renderBulkLijst();
+}
+
+function renderBulkTemplates(){
+  const sel = document.getElementById('bulk-template');
+  if(!sel) return;
+  sel.innerHTML = '<option value="">— geen template —</option>';
+  (templates||[]).forEach(t => {
+    sel.innerHTML += `<option value="${t.id}">${t.name}</option>`;
+  });
+  // Init lijstpills
+  renderBulkLijstPills();
+}
+
+function renderBulkLijst(){
+  const bl = document.getElementById('bulk-list');
+  if(!bl) return;
+
+  // Sync huidige checkboxes naar Set
+  document.querySelectorAll('.bulk-chk:checked').forEach(cb => _geselecteerdeAccounts.add(parseInt(cb.dataset.id)));
+
+  const zoek = (document.getElementById('bulk-zoek')?.value||'').toLowerCase();
+  let gefilterd = accs;
+  if(zoek) gefilterd = gefilterd.filter(a=>a.name.toLowerCase().includes(zoek)||(a.cf||'').toLowerCase().includes(zoek)||(a.cl||'').toLowerCase().includes(zoek));
+
+  gefilterd = [...gefilterd].sort((a,b)=>{
+    const asel = _geselecteerdeAccounts.has(a.id);
+    const bsel = _geselecteerdeAccounts.has(b.id);
+    if(asel && !bsel) return -1;
+    if(!asel && bsel) return 1;
+    if(a.ce && !b.ce) return -1;
+    if(!a.ce && b.ce) return 1;
+    return a.name.localeCompare(b.name);
+  });
+
+  if(!gefilterd.length){
+    bl.innerHTML = '<div style="padding:20px;text-align:center;font-size:13px;color:var(--text3);">Geen accounts gevonden</div>';
+    return;
+  }
+
+  bl.innerHTML = gefilterd.map(a => {
+    const contact = [a.cf,a.cl].filter(Boolean).join(' ');
+    const heeftEmail = !!a.ce;
+    const isChecked = _geselecteerdeAccounts.has(a.id);
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--border);${heeftEmail?'':'opacity:.5;'}">
+      <input type="checkbox" class="bulk-chk" data-id="${a.id}" ${isChecked?'checked':''} ${heeftEmail?'':'disabled title="Geen e-mailadres"'} style="width:15px;height:15px;flex-shrink:0;" onchange="bulkChkChange(this)">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${a.name}</div>
+        <div style="font-size:11.5px;color:var(--text3);">${contact||''}${contact&&a.ce?' · ':''}${a.ce||'<span style="color:#c0392b;">geen e-mail</span>'}</div>
+      </div>
+      <span class="badge ${a.status}" style="font-size:10px;flex-shrink:0;">${slbl(a.status)}</span>
+    </div>`;
+  }).join('');
+
+  updateBulkCount();
+}
+
+function bulkChkChange(cb){
+  const id = parseInt(cb.dataset.id);
+  if(cb.checked) _geselecteerdeAccounts.add(id);
+  else _geselecteerdeAccounts.delete(id);
+  updateBulkCount();
+}
+
+function bulkDeselectAll(){
+  _geselecteerdeAccounts.clear();
+  _geselecteerdeLijsten.clear();
+  renderBulkLijstPills();
+  renderBulkLijst();
+  updateBulkCount();
+}
+
+function updateBulkCount(){
+  const n = _geselecteerdeAccounts.size;
+  const el = document.getElementById('bulk-sel-count');
+  if(el) el.textContent = n + ' geselecteerd';
+  const info = document.getElementById('bulk-verstuur-info');
+  if(info) info.textContent = n ? `${n} mails worden verstuurd` : '';
+}
+
+function bulkLaadTemplate(){
+  const tplId = parseInt(document.getElementById('bulk-template')?.value);
+  if(!tplId) return;
+  const tpl = (templates||[]).find(t=>t.id===tplId);
+  if(!tpl) return;
+  document.getElementById('bulk-subject').value = tpl.subj||'';
+  document.getElementById('bulk-body').value = tpl.body||'';
+}
+
+async function bulkVerstuur(){
+  const van = document.getElementById('bulk-from')?.value;
+  const opdrachtgeverId = parseInt(document.getElementById('bulk-opdrachtgever')?.value)||null;
+  const onderwerp = document.getElementById('bulk-subject')?.value.trim();
+  const body = document.getElementById('bulk-body')?.value.trim();
+  const mailType = document.getElementById('bulk-type')?.value||'mailshot';
+
+  if(!van){ alert('Kies een verzendaccount.'); return; }
+  if(!onderwerp){ alert('Vul een onderwerp in.'); return; }
+  if(!body){ alert('Schrijf een bericht.'); return; }
+
+  // Sync checkboxes naar Set voor het geval er nog niet gesyncte zijn
+  document.querySelectorAll('.bulk-chk:checked').forEach(cb => _geselecteerdeAccounts.add(parseInt(cb.dataset.id)));
+  const geselecteerdeIds = [..._geselecteerdeAccounts];
+  if(!geselecteerdeIds.length){ alert('Selecteer minimaal 1 ontvanger.'); return; }
+
+  const teVersturen = geselecteerdeIds.map(id=>accs.find(a=>a.id===id)).filter(a=>a&&a.ce);
+  const zonderEmail = geselecteerdeIds.map(id=>accs.find(a=>a.id===id)).filter(a=>a&&!a.ce);
+
+  // Toon waarschuwing voor ontbrekende emails
+  const warnEl = document.getElementById('bulk-warning');
+  if(zonderEmail.length){
+    warnEl.style.display='';
+    warnEl.innerHTML=`<div style="background:#fff8e6;border:1px solid #f59e0b;border-radius:var(--r);padding:10px 12px;margin-bottom:8px;">
+      <div style="font-size:12px;font-weight:700;color:#92610a;margin-bottom:4px;">⚠ ${zonderEmail.length} account${zonderEmail.length>1?'s worden':'wordt'} overgeslagen (geen e-mail):</div>
+      <div style="font-size:12px;color:#92610a;">${zonderEmail.map(a=>`<span onclick="openDetail(${a.id})" style="cursor:pointer;text-decoration:underline;">${a.name}</span>`).join(', ')}</div>
+    </div>`;
+  } else {
+    warnEl.style.display='none';
+  }
+
+  if(!teVersturen.length){ alert('Geen accounts met e-mailadres in de selectie.'); return; }
+  if(!confirm(`${teVersturen.length} mails versturen via ${van}?`)) return;
+
+  const btn = document.getElementById('bulk-send-btn');
+  btn.disabled = true;
+  const opdrachtgever = accs.find(a=>a.id===opdrachtgeverId);
+  let verstuurd = 0, fouten = [];
+
+  for(const a of teVersturen){
+    const voornaam = a.cf || a.name;
+    const onderwerpV = onderwerp.replace(/\[naam\]/gi, voornaam).replace(/\[bedrijf\]/gi, a.name);
+    const bodyV = body
+      // Strip de placeholder preview van de handtekening als die erin zit
+      .replace(/\n\n-- .+ --\n[\s\S]*?…$/, '')
+      .replace(/\[naam\]/gi, voornaam).replace(/\[bedrijf\]/gi, a.name);
+    // Zet enters om naar HTML zodat opmaak bewaard blijft
+    const bodyTekstHtml = '<p>' + bodyV
+      .split(/\n\n+/)
+      .map(p => p.trim().replace(/\n/g, '<br>'))
+      .filter(Boolean)
+      .join('</p><p>') + '</p>';
+    // Voeg handtekening HTML toe als die geselecteerd is
+    const handtekeningHtml = document.getElementById('bulk-body')?.dataset.handtekeningHtml || '';
+    const bodyHtml = handtekeningHtml
+      ? bodyTekstHtml + '<br><br>' + handtekeningHtml
+      : bodyTekstHtml;
+    btn.textContent = `Versturen ${verstuurd+1}/${teVersturen.length}…`;
+
     try {
-      gevonden = await zoekBedrijven(opdrachtgever, opdrachtgeverInfo, focusgebied, rondeGrootte, goedgekeurd, bekendeNamen);
-      console.log(`[Ronde ${ronde}] ${gevonden.length} kandidaten`);
-    } catch(e) {
-      console.error(`[Ronde ${ronde}] Fout:`, e.message);
-      break;
+      const res = await fetch('/api/mail', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-email': van },
+        body: JSON.stringify({ aan: a.ce, cc: [], onderwerp: onderwerpV, inhoud: bodyHtml, log_acc_id: a.id, mail_type: mailType, bijlages: [] }),
+      });
+      if(!res.ok) throw new Error(await res.text());
+
+      // Log als notitie
+      const contact = [a.cf,a.cl].filter(Boolean).join(' ');
+      const noteText = `${mailType==='mailshot'?'Mailshot':'Opvolg Mailshot'} verstuurd${opdrachtgever?' voor '+opdrachtgever.name:''}\nVan: ${van} → Aan: ${a.ce}\nOnderwerp: ${onderwerpV}\n\n${bodyV}`;
+      const note = { type: mailType, text: noteText, by: CU, contact, id: Date.now()+verstuurd };
+      a.notes = a.notes || [];
+      a.notes.push(note);
+      const idx = accs.findIndex(x=>x.id===a.id);
+      if(idx>=0) accs[idx]=a;
+      _saveNote(a.id, note).catch(()=>{});
+      verstuurd++;
+    } catch(e){
+      fouten.push(a.name);
+      console.error('Bulk mail fout:', a.name, e.message);
     }
+  }
 
-    for (const bedrijf of gevonden) {
-      if (!bedrijf.naam || bedrijf.score < 6) continue;
-      if (job.gevonden + opgeslagenDezeRun >= job.target) break;
+  btn.disabled = false;
+  btn.textContent = 'Versturen via Outlook →';
 
-      const naam = bedrijf.naam.toLowerCase().trim();
-      const domein = extractDomein(bedrijf.website);
+  const msg = fouten.length
+    ? `✓ ${verstuurd} mails verstuurd. ${fouten.length} mislukt: ${fouten.join(', ')}`
+    : `✓ ${verstuurd} mails verstuurd!`;
+  alert(msg);
+  bulkDeselectAll();
+}
 
-      if (bekendeNamen.has(naam)) { console.log(`[skip-naam] ${bedrijf.naam}`); continue; }
-      if (domein && bekendeWebsites.has(domein)) { console.log(`[skip-web] ${bedrijf.naam}`); continue; }
-      if (await bestaatAl(null, bedrijf.website)) { console.log(`[skip-db] ${bedrijf.naam}`); continue; }
+function renderActivity(){
+  const el=document.getElementById('full-activity');
+  el.innerHTML=activity.map(a=>`
+    <div class="act-item"><div class="act-ico" style="background:${a.bg};">${a.ico}</div><div class="act-txt">${a.text}</div><div class="act-time">${a.time}</div></div>`).join('');
+  document.getElementById('activity-empty').style.display=activity.length?'none':'block';
+}
 
-      const { error } = await db.from('scraper_results').insert({
-        opdrachtgever, focusgebied,
-        status: 'ter_beoordeling',
-        organisatie: bedrijf.naam,
-        sector:   bedrijf.sector   || '',
-        segment:  '',
-        website:  bedrijf.website  || '',
-        adres:    bedrijf.adres    || '',
-        regio:    bedrijf.stad     || '',
-        medewerkers: '',
-        kvk_nummer: null,
-        telefoon: bedrijf.telefoon || '',
-        linkedin: bedrijf.linkedin || '',
-        score:    bedrijf.score,
-        reden:    bedrijf.reden    || '',
-        haakje:   '',
-        notitie:  `[${opdrachtgever}] ${bedrijf.reden || ''}`,
+// ══════════════ SAVE FUNCTIONS ══════════════
+function saveAcc(){
+  const name=document.getElementById('f-name').value.trim();
+  if(!name){alert('Vul een bedrijfsnaam in.');return;}
+  const owner=document.querySelector('#asgn-acc .asgn-opt.on')?.dataset.u||'MA';
+  const selectedClientIds=[...document.querySelectorAll('#f-clients-checkboxes input:checked')].map(x=>parseInt(x.value));
+  const addrVal = document.getElementById('f-addr').value.trim();
+  const mapsUrl = addrVal ? `https://www.google.com/maps/search/?q=${encodeURIComponent(addrVal)}` : '';
+  const a={name,status:document.getElementById('f-status').value,sector:document.getElementById('f-sector').value.trim(),seg:document.getElementById('f-seg').value,web:document.getElementById('f-web').value.trim(),li:document.getElementById('f-li').value.trim(),phone:document.getElementById('f-phone').value.trim(),kvk:document.getElementById('f-kvk').value.trim(),addr:addrVal,addrUrl:mapsUrl,pipe:document.getElementById('f-pipe').value,val:document.getElementById('f-val').value.trim(),cf:document.getElementById('f-cf').value.trim(),cl:document.getElementById('f-cl').value.trim(),cr:document.getElementById('f-cr').value.trim(),cp:document.getElementById('f-cp').value.trim(),ce:document.getElementById('f-ce').value.trim(),note:document.getElementById('f-note').value.trim(),owner,added:localISO()};
+  const user=CU==='MA'?'Mees':'Julian';
+  if(editId){
+    const idx=accs.findIndex(x=>x.id===editId);
+    a.id=editId;a.color=accs[idx].color;a.contacts=accs[idx].contacts||[];a.deals=accs[idx].deals||[];a.proposals=accs[idx].proposals||[];a.notes=accs[idx].notes||[];a.docs=accs[idx].docs||[];
+    const oldLinks=accs[idx].clientLinks||{};
+    a.clientLinks={...oldLinks};
+    selectedClientIds.forEach(cid=>{if(!a.clientLinks[cid])a.clientLinks[cid]={status:a.status,pipe:a.pipe,val:a.val,note:''};});
+    accs[idx]=a;
+    addActivity(`<strong>${user}</strong> heeft <strong>${name}</strong> bijgewerkt`,'◻','#e8f0fb');
+  }else{
+    a.id=Date.now();a.color=accs.length%CLRS.length;a.contacts=[];a.deals=[];a.proposals=[];a.notes=[];a.docs=[];
+    a.clientLinks={};
+    selectedClientIds.forEach(cid=>{a.clientLinks[cid]={status:a.status,pipe:a.pipe,val:a.val,note:''};});
+    accs.push(a);
+    addActivity(`<strong>${user}</strong> heeft <strong>${name}</strong> toegevoegd als ${slbl(a.status)}`,'◈',CLRS[a.color%CLRS.length][0]);
+  }
+  ss('ix_accs',accs);
+  updateLijstenVoorAccount(a.id);
+  closeM('m-acc');
+  _saveAcc(a).then(()=>{
+    _logAct(`<strong>${CU==='MA'?'Mees':'Julian'}</strong> heeft <strong>${a.name}</strong> ${editId?'bijgewerkt':'toegevoegd als '+slbl(a.status)}`,'◈',CLRS[a.color%CLRS.length][0]).catch(()=>{});
+    activity.unshift({text:`<strong>${CU==='MA'?'Mees':'Julian'}</strong> heeft <strong>${a.name}</strong> ${editId?'bijgewerkt':'toegevoegd als '+slbl(a.status)}`,time:'Zojuist',ico:'◈',bg:CLRS[a.color%CLRS.length][0]});
+    if(editId) openDetail(a.id);
+    else nav('accounts');
+  }).catch(e=>{
+    console.error('Save acc:',e);
+    if(editId) openDetail(a.id);
+    else nav('accounts');
+  });
+}
+
+function saveTodo(){
+  const title=document.getElementById('t-title').value.trim();
+  if(!title)return;
+  const owner=document.querySelector('#asgn-todo .asgn-opt.on')?.dataset.u||CU;
+  todos.unshift({id:Date.now(),title,done:false,prio:document.getElementById('t-prio').value,due:document.getElementById('t-due').value.trim(),acc:parseInt(document.getElementById('t-acc').value)||null,owner});
+  ss('ix_todos',todos);closeM('m-todo');renderTodos();
+}
+
+function saveNote(){
+  if(!curAcc)return;
+  const type=document.getElementById('n-type-actual').value;
+  const contact=document.getElementById('n-contact-sel').value;
+  if(!contact){alert('Kies een contactpersoon.');return;}
+
+  // Chat types — whatsapp en linkshot (gesprek gebruikt gewone tekst maar met duur)
+  const isChatType = type==='whatsapp' || type==='linkshot';
+  let finalText='';
+  if(isChatType){
+    const gevuldeBerichten=chatBerichten.filter(b=>b.tekst.trim());
+    if(!gevuldeBerichten.length){alert('Voeg minimaal één bericht toe.');return;}
+    finalText=gevuldeBerichten.map(b=>`[${b.van==='MA'?'Mees':b.van==='JK'?'Julian':b.van}]: ${b.tekst.trim()}`).join('\n');
+  } else {
+    finalText=document.getElementById('n-text').value.trim();
+    const vmStatus=document.querySelector('input[name="vm-status"]:checked');
+    const isNietIngesproken = type==='voicemail' && vmStatus?.value==='niet_ingesproken';
+    if(!finalText && !isNietIngesproken){alert('Schrijf eerst een notitie.');return;}
+  }
+
+  if(!curAcc.notes)curAcc.notes=[];
+  const dur=parseInt(document.getElementById('n-dur').value)||0;
+  const vmStatus=document.querySelector('input[name="vm-status"]:checked');
+  const editId=parseInt(document.getElementById('m-note').dataset.editId)||null;
+
+  if(type==='voicemail'&&vmStatus){
+    const prefix=vmStatus.value==='ingesproken'?'[Ingesproken] ':'[Niet ingesproken] ';
+    if(!finalText.startsWith('[')) finalText=prefix+finalText;
+  }
+
+  const chatArr = isChatType ? chatBerichten.filter(b=>b.tekst.trim()) : null;
+
+  if(editId){
+    const idx=curAcc.notes.findIndex(n=>n.id===editId);
+    if(idx>=0){
+      curAcc.notes[idx]={...curAcc.notes[idx],text:finalText,contact,type,chat:chatArr};
+      // Gebruik _sbId als die bestaat, anders het id zelf (Supabase UUID)
+      const sbId=curAcc.notes[idx]._sbId||curAcc.notes[idx].id;
+      _sbPatch('notes',sbId,{text:finalText,type,contact:contact||null,chat:chatArr?JSON.stringify(chatArr):null}).catch(e=>console.warn('note edit:',e));
+    }
+  } else {
+    const note={id:Date.now(),text:finalText,type,by:CU,dur:dur||null,contact,chat:chatArr,
+      time:new Date().toLocaleDateString('nl-NL',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})};
+    curAcc.notes.push(note);
+    addActivity(`<strong>${CU==='MA'?'Mees':'Julian'}</strong> voegde ${actStijl(type).label} toe bij <strong>${curAcc.name}</strong>`,'◈',CLRS[curAcc.color%CLRS.length][0]);
+    // Sla op naar Supabase — slechts 1x
+    _saveNote(curAcc.id,note).catch(e=>console.warn('note:',e));
+  }
+
+  const idx=accs.findIndex(a=>a.id===curAcc.id);
+  accs[idx]=curAcc;ss('ix_accs',accs);
+  chatBerichten=[];
+  document.getElementById('note-bubble').style.display='none';
+  closeM('m-note');
+  renderTab('activity');
+  if(document.getElementById('p-dashboard').classList.contains('on'))renderDash();
+}
+
+function saveContact(){
+  if(!curAcc)return;
+  const first=document.getElementById('c-first').value.trim();
+  const last=document.getElementById('c-last').value.trim();
+  if(!first&&!last)return;
+  if(!curAcc.contacts)curAcc.contacts=[];
+  const editId=parseInt(document.getElementById('c-edit-id').value)||null;
+  const editRaw=document.getElementById('c-edit-id').value;
+
+  // Primaire contactpersoon bewerken — sla op in account
+  if(editRaw==='_primary'){
+    curAcc.cf=first;
+    curAcc.cl=last;
+    curAcc.cr=document.getElementById('c-role').value.trim();
+    curAcc.cp=document.getElementById('c-phone').value.trim();
+    curAcc.cp2=document.getElementById('c-phone2').value.trim();
+    curAcc.ce=document.getElementById('c-email').value.trim();
+    curAcc.ce2=document.getElementById('c-email2').value.trim();
+    curAcc.cli=document.getElementById('c-li').value.trim();
+    const idx2=accs.findIndex(a=>a.id===curAcc.id);
+    accs[idx2]=curAcc;ss('ix_accs',accs);
+    _saveAcc(curAcc).then(()=>{ closeM('m-contact'); renderTab('contacts'); });
+    return;
+  }
+  const contact={
+    id: editId || Date.now(),
+    first, last,
+    role:document.getElementById('c-role').value.trim(),
+    dept:document.getElementById('c-dept').value.trim(),
+    email:document.getElementById('c-email').value.trim(),
+    email2:document.getElementById('c-email2').value.trim(),
+    phone:document.getElementById('c-phone').value.trim(),
+    phone2:document.getElementById('c-phone2').value.trim(),
+    li:document.getElementById('c-li').value.trim(),
+    connections:document.getElementById('c-connections').value.trim(),
+    note:document.getElementById('c-note').value.trim()
+  };
+  if(editId){
+    const ci=curAcc.contacts.findIndex(c=>c.id===editId);
+    if(ci>-1)curAcc.contacts[ci]=contact;
+  } else {
+    curAcc.contacts.push(contact);
+  }
+  const idx=accs.findIndex(a=>a.id===curAcc.id);
+  accs[idx]=curAcc;ss('ix_accs',accs);
+  _saveContact(curAcc.id,contact).then(()=>{
+    closeM('m-contact');
+    renderTab('contacts');
+  }).catch(e=>{
+    console.error('contact save:',e);
+    closeM('m-contact');
+    renderTab('contacts');
+  });
+}
+
+function saveDeal(){
+  if(!curAcc)return;
+  const name=document.getElementById('d-name').value.trim();
+  if(!name)return;
+  if(!curAcc.deals)curAcc.deals=[];
+  const deal={id:Date.now(),name,val:document.getElementById('d-val').value.trim(),prob:document.getElementById('d-prob').value.trim(),stage:document.getElementById('d-stage').value,close:document.getElementById('d-close').value.trim(),note:document.getElementById('d-note').value.trim()};
+  curAcc.deals.push(deal);
+  const idx=accs.findIndex(a=>a.id===curAcc.id);
+  accs[idx]=curAcc;ss('ix_accs',accs);
+  _saveDeal(curAcc.id,deal).then(()=>{
+    closeM('m-deal');renderTab('deals');
+  }).catch(e=>{
+    console.error('deal save:',e);
+    closeM('m-deal');renderTab('deals');
+  });
+}
+
+function saveProposal(){
+  if(!curAcc)return;
+  const title=document.getElementById('p-title').value.trim();
+  if(!title)return;
+  if(!curAcc.proposals)curAcc.proposals=[];
+  const prop={id:Date.now(),title,val:document.getElementById('p-val').value.trim(),stat:document.getElementById('p-stat').value,date:document.getElementById('p-date').value.trim(),exp:document.getElementById('p-exp').value.trim(),desc:document.getElementById('p-desc').value.trim()};
+  curAcc.proposals.push(prop);
+  const idx=accs.findIndex(a=>a.id===curAcc.id);
+  accs[idx]=curAcc;ss('ix_accs',accs);
+  _saveProp(curAcc.id,prop).then(()=>{
+    closeM('m-prop');renderTab('proposals');
+  }).catch(e=>{
+    console.error('prop save:',e);
+    closeM('m-prop');renderTab('proposals');
+  });
+}
+
+function saveTemplate(){
+  const name=document.getElementById('tpl-name').value.trim();
+  if(!name)return;
+  const _nt={id:Date.now(),name,subj:document.getElementById('tpl-subj').value.trim(),body:document.getElementById('tpl-body').value.trim()};templates.push(_nt);
+  ss('ix_tpl',templates);
+  _saveTemplate(_nt).catch(e=>console.warn('tpl:',e));closeM('m-tpl');renderOutreach();
+}
+
+// ══ HANDTEKENINGEN ══
+let handtekeningen = JSON.parse(localStorage.getItem('ix_handtekeningen')||'[]');
+
+function renderHandtekeningen(){
+  const el = document.getElementById('handtekeningen-list');
+  if(!el) return;
+  if(!handtekeningen.length){
+    el.innerHTML = '<div class="empty"><p>Nog geen handtekeningen</p></div>';
+    return;
+  }
+  el.innerHTML = handtekeningen.map(h => `
+    <div class="template-card" style="display:flex;align-items:center;justify-content:space-between;">
+      <div onclick="openEditHandtekening(${h.id})" style="cursor:pointer;flex:1;">
+        <div class="template-name">${h.naam}</div>
+        <div class="template-preview" style="white-space:pre-wrap;font-size:11px;">${(h.inhoud||'').substring(0,80)}…</div>
+      </div>
+      <button class="btn xs ghost" style="color:#c0392b;border-color:#c0392b;margin-left:8px;flex-shrink:0;" onclick="verwijderHandtekening(${h.id})">✕</button>
+    </div>`).join('');
+  const sel = document.getElementById('bulk-handtekening');
+  if(sel){
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">— geen —</option>';
+    handtekeningen.forEach(h => sel.innerHTML += `<option value="${h.id}">${h.naam}</option>`);
+    sel.value = cur;
+  }
+}
+
+function openAddHandtekening(){
+  document.getElementById('ht-naam').value = '';
+  document.getElementById('ht-inhoud').innerHTML = '';
+  document.getElementById('m-handtekening').dataset.editId = '';
+  document.getElementById('m-handtekening-titel').textContent = 'Handtekening toevoegen';
+  document.getElementById('m-handtekening').classList.add('on');
+}
+
+function openEditHandtekening(id){
+  const h = handtekeningen.find(x=>x.id===id);
+  if(!h) return;
+  document.getElementById('ht-naam').value = h.naam;
+  document.getElementById('ht-inhoud').innerHTML = h.inhoud;
+  document.getElementById('m-handtekening').dataset.editId = id;
+  document.getElementById('m-handtekening-titel').textContent = 'Handtekening bewerken';
+  document.getElementById('m-handtekening').classList.add('on');
+}
+
+function saveHandtekening(){
+  const naam = document.getElementById('ht-naam').value.trim();
+  if(!naam){ alert('Geef de handtekening een naam.'); return; }
+  const inhoud = document.getElementById('ht-inhoud').innerHTML.trim();
+  if(!inhoud){ alert('Handtekening is leeg.'); return; }
+  const editId = parseInt(document.getElementById('m-handtekening').dataset.editId)||null;
+  if(editId){
+    const idx = handtekeningen.findIndex(h=>h.id===editId);
+    if(idx>=0) handtekeningen[idx] = { id: editId, naam, inhoud };
+  } else {
+    handtekeningen.push({ id: Date.now(), naam, inhoud });
+  }
+  localStorage.setItem('ix_handtekeningen', JSON.stringify(handtekeningen));
+  closeM('m-handtekening');
+  renderHandtekeningen();
+}
+
+function verwijderHandtekening(id){
+  if(!confirm('Handtekening verwijderen?')) return;
+  handtekeningen = handtekeningen.filter(h=>h.id!==id);
+  localStorage.setItem('ix_handtekeningen', JSON.stringify(handtekeningen));
+  renderHandtekeningen();
+}
+
+function bulkVoegHandtekeningToe(){
+  const id = parseInt(document.getElementById('bulk-handtekening')?.value)||null;
+  if(!id) return;
+  const h = handtekeningen.find(x=>x.id===id);
+  if(!h) return;
+  const el = document.getElementById('bulk-body');
+  if(!el) return;
+  // Sla handtekening op als data-attribuut zodat de API hem als HTML kan toevoegen
+  el.dataset.handtekeningHtml = h.inhoud;
+  el.dataset.handtekeningNaam = h.naam;
+  // Toon bevestiging in het veld
+  const huidigeTekst = el.value.trimEnd();
+  const preview = h.inhoud.replace(/<[^>]+>/g,'').substring(0,60);
+  el.value = huidigeTekst + (huidigeTekst ? '\n\n' : '') + '-- ' + h.naam + ' --\n' + preview + '…';
+  // Visuele bevestiging
+  const btn = document.querySelector('[onclick="bulkVoegHandtekeningToe()"]');
+  if(btn){ btn.textContent = '✓ Toegevoegd'; setTimeout(()=>btn.textContent='Toevoegen',2000); }
+}
+
+// ══════════════ OPEN MODALS ══════════════
+function renderClientCheckboxes(existingLinks){
+  const el=document.getElementById('f-clients-checkboxes');
+  if(!el)return;
+  el.innerHTML=clients.length?clients.map(c=>`
+    <label style="display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border:1px solid ${existingLinks[c.id]?c.color:'var(--border)'};border-radius:20px;cursor:pointer;font-size:12px;background:${existingLinks[c.id]?c.color+'18':'transparent'};">
+      <input type="checkbox" value="${c.id}" ${existingLinks[c.id]?'checked':''} style="width:13px;height:13px;accent-color:${c.color};">
+      <span style="width:7px;height:7px;border-radius:50%;background:${c.color};"></span>
+      ${c.name}
+    </label>`).join(''):`<span style="font-size:12px;color:var(--text3);">Voeg eerst een opdrachtgever toe.</span>`;
+}
+
+async function openAddAcc(){
+  editId=null;
+  document.getElementById('m-acc-title').textContent='Account toevoegen';
+  ['f-name','f-sector','f-web','f-li','f-phone','f-kvk','f-addr','f-val','f-cf','f-cl','f-cr','f-cp','f-ce','f-note'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  document.getElementById('f-status').value='lead';
+  document.getElementById('f-seg').value='';
+  document.getElementById('f-pipe').value='Nieuw';
+  selOwner(CU,'asgn-acc');
+  // Refresh clients from Supabase so checkboxes are always up to date
+  try{
+    const fresh=await _sbGet('clients','?select=*&order=id.asc');
+    if(fresh&&fresh.length>0){
+      clients=fresh.map(_mapClient);
+      if(!clients.some(x=>x.name==='Intersect')){
+        clients.unshift({id:999999,name:'Intersect',sector:'Sales & Business Development',contact:'Mees & Julian',email:'mees@intersect-partners.com',color:'#c9a84c',note:'Onze eigen organisatie.'});
+      }
+    }
+  }catch(e){console.warn('Could not refresh clients:',e);}
+  renderClientCheckboxes({});
+  renderLijstenCheckboxes(null);
+  document.getElementById('m-acc').classList.add('on');
+}
+async function openEditAcc(id){
+  editId=id;const a=accs.find(x=>x.id===id);if(!a)return;
+  document.getElementById('m-acc-title').textContent='Account bewerken';
+  // Refresh clients
+  try{
+    const fresh=await _sbGet('clients','?select=*&order=id.asc');
+    if(fresh&&fresh.length>0){
+      clients=fresh.map(_mapClient);
+      if(!clients.some(x=>x.name==='Intersect')){
+        clients.unshift({id:999999,name:'Intersect',sector:'Sales & Business Development',contact:'Mees & Julian',email:'mees@intersect-partners.com',color:'#c9a84c',note:'Onze eigen organisatie.'});
+      }
+    }
+  }catch(e){}document.getElementById('f-name').value=a.name;document.getElementById('f-status').value=a.status;document.getElementById('f-sector').value=a.sector||'';document.getElementById('f-seg').value=a.seg||'';document.getElementById('f-web').value=a.web||'';document.getElementById('f-li').value=a.li||'';document.getElementById('f-phone').value=a.phone||'';document.getElementById('f-kvk').value=a.kvk||'';document.getElementById('f-addr').value=a.addr||'';document.getElementById('f-pipe').value=a.pipe||'Nieuw';document.getElementById('f-val').value=a.val||'';document.getElementById('f-cf').value=a.cf||'';document.getElementById('f-cl').value=a.cl||'';document.getElementById('f-cr').value=a.cr||'';document.getElementById('f-cp').value=a.cp||'';document.getElementById('f-ce').value=a.ce||'';document.getElementById('f-note').value=a.note||'';selOwner(a.owner||'MA','asgn-acc');renderClientCheckboxes(a.clientLinks||{});renderLijstenCheckboxes(a.id);document.getElementById('m-acc').classList.add('on');}
+function openAddTodo(){document.getElementById('t-title').value='';document.getElementById('t-prio').value='medium';document.getElementById('t-due').value='';const sel=document.getElementById('t-acc');sel.innerHTML='<option value="">— geen —</option>';accs.forEach(a=>sel.innerHTML+=`<option value="${a.id}">${a.name}</option>`);selOwner(CU,'asgn-todo');document.getElementById('m-todo').classList.add('on');}
+function openAddTodoForAcc(id){openAddTodo();document.getElementById('t-acc').value=id;}
+let chatBerichten = [];
+
+function onNoteTypeChange() {
+  const type = document.getElementById('n-type').value;
+  document.getElementById('n-type-actual').value = type;
+  const chatWrap = document.getElementById('n-chat-wrap');
+  const textWrap = document.getElementById('n-text-wrap');
+  const durRow = document.getElementById('n-dur-row');
+
+  // WhatsApp en Linkshot krijgen chat UI
+  if (type === 'whatsapp' || type === 'linkshot') {
+    chatWrap.style.display = '';
+    textWrap.style.display = 'none';
+    durRow.style.display = 'none';
+    if (chatBerichten.length === 0) {
+      chatBerichten = [];
+      voegChatBerichtToe();
+      voegChatBerichtToe();
+    }
+    renderChatBerichten();
+  } else {
+    chatWrap.style.display = 'none';
+    textWrap.style.display = '';
+    // Duur alleen bij telefoongesprek
+    durRow.style.display = type === 'gesprek' ? '' : 'none';
+    chatBerichten = [];
+  }
+}
+
+function voegChatBerichtToe() {
+  chatBerichten.push({ van: CU, tekst: '' });
+  renderChatBerichten();
+}
+
+function renderChatBerichten() {
+  const container = document.getElementById('n-chat-messages');
+  if (!container) return;
+  container.innerHTML = chatBerichten.map((b, i) => `
+    <div style="display:flex;gap:8px;align-items:flex-start;">
+      <select onchange="chatBerichten[${i}].van=this.value" style="font-size:12px;padding:4px 6px;width:90px;flex-shrink:0;">
+        <option value="MA" ${b.van==='MA'?'selected':''}>Mees</option>
+        <option value="JK" ${b.van==='JK'?'selected':''}>Julian</option>
+        ${curAcc&&curAcc.cf?`<option value="${[curAcc.cf,curAcc.cl].filter(Boolean).join(' ')}" ${b.van===[curAcc.cf,curAcc.cl].filter(Boolean).join(' ')?'selected':''}>${curAcc.cf}</option>`:''}
+      </select>
+      <textarea oninput="chatBerichten[${i}].tekst=this.value" style="flex:1;min-height:50px;font-size:13px;resize:vertical;" placeholder="Bericht...">${b.tekst}</textarea>
+      ${chatBerichten.length > 1 ? `<button type="button" class="btn xs ghost" onclick="chatBerichten.splice(${i},1);renderChatBerichten()" style="color:var(--red);flex-shrink:0;">✕</button>` : ''}
+    </div>
+  `).join('');
+}
+
+function vulContactDropdown() {
+  if (!curAcc) return;
+  const sel = document.getElementById('n-contact-sel');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— kies contactpersoon —</option>';
+  // Primaire contact
+  const primair = [curAcc.cf, curAcc.cl].filter(Boolean).join(' ');
+  if (primair) sel.innerHTML += `<option value="${primair}">${primair}${curAcc.cr?' ('+curAcc.cr+')':''}</option>`;
+  // Extra contacten
+  (curAcc.contacts||[]).forEach(ct => {
+    const naam = [ct.first, ct.last].filter(Boolean).join(' ');
+    if (naam) sel.innerHTML += `<option value="${naam}">${naam}${ct.role?' ('+ct.role+')':''}</option>`;
+  });
+}
+
+function minimaliseerNote() {
+  document.getElementById('m-note').classList.remove('on');
+  document.getElementById('note-bubble').style.display = 'block';
+}
+
+function herstelNote() {
+  document.getElementById('note-bubble').style.display = 'none';
+  document.getElementById('m-note').classList.add('on');
+}
+
+function openQuickNote(type){
+  if(!curAcc) return;
+  document.getElementById('n-text').value = '';
+  document.getElementById('n-dur').value = '';
+  document.getElementById('m-note').dataset.editId = '';
+  chatBerichten = [];
+  document.getElementById('n-chat-wrap').style.display = 'none';
+  document.getElementById('n-text-wrap').style.display = '';
+  vulContactDropdown();
+
+  // Reset alle rijen
+  document.getElementById('n-type-row').style.display = 'none';
+  document.getElementById('n-dur-row').style.display = 'none';
+  document.getElementById('n-voicemail-row').style.display = 'none';
+
+  if(type === 'voicemail'){
+    document.getElementById('m-note-title').textContent = 'Voicemail vastleggen';
+    document.getElementById('n-text-label').textContent = 'Boodschap / toelichting';
+    document.getElementById('n-text').placeholder = 'Waar ging de voicemail over…';
+    document.getElementById('n-type-actual').value = 'voicemail';document.getElementById('n-type').value = 'voicemail';
+    document.getElementById('n-type-row').style.display = 'none';
+    document.getElementById('n-dur-row').style.display = 'none';
+    document.getElementById('n-voicemail-row').style.display = '';
+    document.getElementById('n-chat-wrap').style.display = 'none';
+    document.getElementById('n-text-wrap').style.display = '';
+  } else if(type === 'mailshot'){
+    document.getElementById('m-note-title').textContent = 'Mailshot vastleggen';
+    document.getElementById('n-text-label').textContent = 'Onderwerp / inhoud';
+    document.getElementById('n-text').placeholder = 'Welke mail gestuurd, campagne, onderwerp…';
+    document.getElementById('n-type-actual').value = 'mailshot';document.getElementById('n-type').value = 'mailshot';
+    document.getElementById('n-type-row').style.display = 'none';
+    document.getElementById('n-dur-row').style.display = 'none';
+    document.getElementById('n-voicemail-row').style.display = 'none';
+    document.getElementById('n-chat-wrap').style.display = 'none';
+    document.getElementById('n-text-wrap').style.display = '';
+  } else if(type === 'opvolg_mailshot'){
+    document.getElementById('m-note-title').textContent = 'Opvolg Mailshot vastleggen';
+    document.getElementById('n-text-label').textContent = 'Onderwerp / inhoud opvolging';
+    document.getElementById('n-text').placeholder = 'Welke opvolg mail gestuurd…';
+    document.getElementById('n-type-actual').value = 'opvolg_mailshot';document.getElementById('n-type').value = 'opvolg_mailshot';
+    document.getElementById('n-type-row').style.display = 'none';
+    document.getElementById('n-dur-row').style.display = 'none';
+    document.getElementById('n-voicemail-row').style.display = 'none';
+    document.getElementById('n-chat-wrap').style.display = 'none';
+    document.getElementById('n-text-wrap').style.display = '';
+  } else if(type === 'linkshot'){
+    document.getElementById('m-note-title').textContent = 'LinkedIn bericht vastleggen';
+    document.getElementById('n-type-actual').value = 'linkshot';document.getElementById('n-type').value = 'linkshot';
+    document.getElementById('n-type-row').style.display = 'none';
+    document.getElementById('n-dur-row').style.display = 'none';
+    document.getElementById('n-voicemail-row').style.display = 'none';
+    document.getElementById('n-text-wrap').style.display = 'none';
+    document.getElementById('n-chat-wrap').style.display = '';
+    chatBerichten = [{van:CU,tekst:''},{van:[curAcc.cf,curAcc.cl].filter(Boolean).join(' ')||CU,tekst:''}];
+    renderChatBerichten();
+  } else if(type === 'whatsapp'){
+    document.getElementById('m-note-title').textContent = 'WhatsApp gesprek vastleggen';
+    document.getElementById('n-type-actual').value = 'whatsapp';document.getElementById('n-type').value = 'whatsapp';
+    document.getElementById('n-type-row').style.display = 'none';
+    document.getElementById('n-dur-row').style.display = 'none';
+    document.getElementById('n-voicemail-row').style.display = 'none';
+    document.getElementById('n-text-wrap').style.display = 'none';
+    document.getElementById('n-chat-wrap').style.display = '';
+    chatBerichten = [{van:CU,tekst:''},{van:[curAcc.cf,curAcc.cl].filter(Boolean).join(' ')||CU,tekst:''}];
+    renderChatBerichten();
+  } else {
+    document.getElementById('m-note-title').textContent = 'Activiteit loggen';
+    document.getElementById('n-text-label').textContent = 'Notitie';
+    document.getElementById('n-text').placeholder = 'Schrijf hier je notitie…';
+    document.getElementById('n-type-actual').value = 'notitie';document.getElementById('n-type').value = 'notitie';
+    document.getElementById('n-type-row').style.display = '';
+    document.getElementById('n-dur-row').style.display = 'none';
+    document.getElementById('n-voicemail-row').style.display = 'none';
+    document.getElementById('n-chat-wrap').style.display = 'none';
+    document.getElementById('n-text-wrap').style.display = '';
+  }
+  document.getElementById('m-note-sub').textContent = curAcc.name;
+  document.getElementById('m-note').classList.add('on');
+}
+function openAddContact(){
+  ['c-first','c-last','c-role','c-dept','c-email','c-email2','c-phone','c-phone2','c-li','c-connections','c-note'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('c-edit-id').value='';
+  document.getElementById('c-email2').style.display='none';
+  document.getElementById('c-phone2').style.display='none';
+  document.getElementById('c-email-add-btn').style.display='';
+  document.getElementById('c-phone-add-btn').style.display='';
+  document.getElementById('m-contact-title').textContent='Contactpersoon toevoegen';
+  document.getElementById('m-contact').classList.add('on');
+}
+
+function openEditContact(cId){
+  const ct=curAcc.contacts.find(c=>c.id===cId);
+  if(!ct)return;
+  document.getElementById('c-first').value=ct.first||'';
+  document.getElementById('c-last').value=ct.last||'';
+  document.getElementById('c-role').value=ct.role||'';
+  document.getElementById('c-dept').value=ct.dept||'';
+  document.getElementById('c-email').value=ct.email||'';
+  document.getElementById('c-email2').value=ct.email2||'';
+  document.getElementById('c-phone').value=ct.phone||'';
+  document.getElementById('c-phone2').value=ct.phone2||'';
+  document.getElementById('c-li').value=ct.li||'';
+  document.getElementById('c-connections').value=ct.connections||'';
+  document.getElementById('c-note').value=ct.note||'';
+  document.getElementById('c-edit-id').value=cId;
+  document.getElementById('c-email2').style.display=ct.email2?'':'none';
+  document.getElementById('c-phone2').style.display=ct.phone2?'':'none';
+  document.getElementById('c-email-add-btn').style.display=ct.email2?'none':'';
+  document.getElementById('c-phone-add-btn').style.display=ct.phone2?'none':'';
+  document.getElementById('m-contact-title').textContent='Contactpersoon bewerken';
+  document.getElementById('m-contact').classList.add('on');
+}
+
+function contactVoegEmailToe(){
+  document.getElementById('c-email2').style.display='';
+  document.getElementById('c-email-add-btn').style.display='none';
+  document.getElementById('c-email2').focus();
+}
+
+function contactVoegTelefoonToe(){
+  document.getElementById('c-phone2').style.display='';
+  document.getElementById('c-phone-add-btn').style.display='none';
+  document.getElementById('c-phone2').focus();
+}
+
+function openEditPrimaryContact(){
+  if(!curAcc)return;
+  document.getElementById('c-first').value=curAcc.cf||'';
+  document.getElementById('c-last').value=curAcc.cl||'';
+  document.getElementById('c-role').value=curAcc.cr||'';
+  document.getElementById('c-dept').value='';
+  document.getElementById('c-email').value=curAcc.ce||'';
+  document.getElementById('c-email2').value=curAcc.ce2||'';
+  document.getElementById('c-phone').value=curAcc.cp||'';
+  document.getElementById('c-phone2').value=curAcc.cp2||'';
+  document.getElementById('c-li').value=curAcc.cli||'';
+  document.getElementById('c-connections').value='';
+  document.getElementById('c-note').value='';
+  document.getElementById('c-edit-id').value='_primary';
+  document.getElementById('c-email2').style.display=curAcc.ce2?'':'none';
+  document.getElementById('c-phone2').style.display=curAcc.cp2?'':'none';
+  document.getElementById('c-email-add-btn').style.display=curAcc.ce2?'none':'';
+  document.getElementById('c-phone-add-btn').style.display=curAcc.cp2?'none':'';
+  document.getElementById('m-contact-title').textContent='Primaire contactpersoon bewerken';
+  document.getElementById('m-contact').classList.add('on');
+}
+function openAddDeal(){['d-name','d-val','d-prob','d-close','d-note'].forEach(id=>document.getElementById(id).value='');document.getElementById('d-stage').value='Verkenning';document.getElementById('m-deal').classList.add('on');}
+function openAddProposal(){['p-title','p-val','p-date','p-exp','p-desc'].forEach(id=>document.getElementById(id).value='');document.getElementById('p-stat').value='concept';document.getElementById('m-prop').classList.add('on');}
+function openAddTemplate(){['tpl-name','tpl-subj','tpl-body'].forEach(id=>document.getElementById(id).value='');document.getElementById('m-tpl').classList.add('on');}
+function openImport(){document.getElementById('import-preview').style.display='none';document.getElementById('import-btn').style.display='none';document.getElementById('m-import').classList.add('on');}
+
+function openDedup(){
+  const grps={};
+  accs.forEach(a=>{
+    const k=a.name.toLowerCase().trim();
+    if(!grps[k])grps[k]=[];
+    grps[k].push(a);
+  });
+  const dubbelen=Object.values(grps).filter(g=>g.length>1);
+  const list=document.getElementById('dedup-list');
+  const status=document.getElementById('dedup-status');
+  if(!dubbelen.length){
+    status.textContent='✓ Geen dubbele accounts gevonden!';
+    list.innerHTML='';
+    document.getElementById('dedup-del-btn').style.display='none';
+  } else {
+    status.textContent=`${dubbelen.length} groep(en) met dubbelen gevonden — vink aan welke je wil verwijderen:`;
+    list.innerHTML=dubbelen.map(grp=>`
+      <div style="margin-bottom:16px;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;">
+        <div style="background:var(--surface2);padding:8px 12px;font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;">${grp[0].name}</div>
+        ${grp.map((a,i)=>`
+          <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer;${i===0?'background:rgba(201,168,76,.08);':''}" onmouseenter="this.style.background='var(--surface2)'" onmouseleave="this.style.background='${i===0?'rgba(201,168,76,.08)':'transparent'}'">
+            <input type="checkbox" class="dedup-cb" data-id="${a.id}" ${i===0?'disabled title="Primaire — kan niet worden verwijderd"':''} style="width:16px;height:16px;accent-color:var(--red);">
+            <div style="flex:1;">
+              <div style="font-size:13px;font-weight:500;">${a.name} ${i===0?'<span style="font-size:11px;color:var(--gold);font-weight:600;">★ primair</span>':''}</div>
+              <div style="font-size:11px;color:var(--text3);">ID: ${a.id} · ${a.ce||'geen e-mail'} · toegevoegd: ${a.added||'?'}</div>
+            </div>
+          </label>`).join('')}
+      </div>`).join('');
+    document.getElementById('dedup-del-btn').style.display='inline-flex';
+  }
+  document.getElementById('m-dedup').classList.add('on');
+  updateDedupBtn();
+  list.querySelectorAll('.dedup-cb').forEach(cb=>cb.addEventListener('change',updateDedupBtn));
+}
+
+function updateDedupBtn(){
+  const n=document.querySelectorAll('.dedup-cb:checked').length;
+  const btn=document.getElementById('dedup-del-btn');
+  btn.textContent=n?`Verwijder ${n} geselecteerde`:'Verwijder geselecteerde';
+  btn.style.display=n?'inline-flex':'none';
+}
+
+function dedupSelectAll(){
+  document.querySelectorAll('.dedup-cb:not(:disabled)').forEach(cb=>{cb.checked=true;});
+  updateDedupBtn();
+}
+
+async function dedupVerwijder(){
+  const ids=[...document.querySelectorAll('.dedup-cb:checked')].map(cb=>parseInt(cb.dataset.id));
+  if(!ids.length)return;
+  if(!confirm(`Weet je zeker dat je ${ids.length} account(s) wil verwijderen? Dit kan niet ongedaan worden.`))return;
+  let ok=0;
+  for(const id of ids){
+    try{
+      await fetch(`${SB_URL}/rest/v1/accounts?id=eq.${id}`,{method:'DELETE',headers:_sbH});
+      accs=accs.filter(a=>a.id!==id);
+      ok++;
+    }catch(e){console.warn('Delete fout:',id,e);}
+  }
+  ss('ix_accs',accs);
+  alert(`✓ ${ok} account(s) verwijderd.`);
+  closeM('m-dedup');
+  nav('accounts');
+}
+function closeM(id){
+  document.getElementById(id)?.classList.remove('on');
+  // Reset event modal knoppen na sluiten
+  if(id==='m-event'){
+    const saveBtn=document.getElementById('m-event-save');
+    const saveIcsBtn=document.getElementById('m-event-save-ics');
+    if(saveBtn){saveBtn.textContent='Opslaan';saveBtn.onclick=saveEvent;}
+    if(saveIcsBtn)saveIcsBtn.style.display='';
+  }
+}
+
+// ══════════════ MAIL ══════════════
+function applyTemplate(id){
+  const tpl=templates.find(t=>t.id===id);if(!tpl)return;
+  document.getElementById('mail-subj').value=tpl.subj;
+  document.getElementById('mail-body').value=tpl.body;
+}
+function sendMail(){
+  const to=document.getElementById('mail-to').value;
+  const subj=encodeURIComponent(document.getElementById('mail-subj').value);
+  const body=encodeURIComponent(document.getElementById('mail-body').value);
+  window.open(`mailto:${to}?subject=${subj}&body=${body}`);
+}
+function loadTemplate(){applyTemplate(templates[0]?.id);}
+function loadDetTemplate(){
+  const sel=document.getElementById('det-tpl-sel');
+  const id=parseInt(sel.value);if(!id)return;
+  const tpl=templates.find(t=>t.id===id);
+  if(!tpl||!curAcc)return;
+  const voornaam=curAcc.cf||[curAcc.cf,curAcc.cl].filter(Boolean).join(' ')||curAcc.name;
+  document.getElementById('det-mail-subj').value=tpl.subj.replace(/\[bedrijf\]/g,curAcc.name).replace(/\[naam\]/g,voornaam);
+  document.getElementById('det-mail-body').value=tpl.body.replace(/\[bedrijf\]/g,curAcc.name).replace(/\[naam\]/g,voornaam);
+}
+function sendDetMail(){
+  const to=document.getElementById('det-mail-to').value;
+  const subj=encodeURIComponent(document.getElementById('det-mail-subj').value);
+  const body=encodeURIComponent(document.getElementById('det-mail-body').value);
+  window.open(`mailto:${to}?subject=${subj}&body=${body}`);
+}
+function quickMail(id){
+  const a=accs.find(x=>x.id===id);if(!a)return;
+  curTab='outreach';openDetail(id);
+}
+// selectAllBulk en bulkMail vervangen door renderBulkLijst / bulkVerstuur
+
+// ══════════════ CSV IMPORT ══════════════
+function cleanCompanyName(name){
+  if(!name)return name;
+  const suffixes=[/\bB\.?V\.?\b/gi,/\bN\.?V\.?\b/gi,/\bV\.?O\.?F\.?\b/gi,/\bC\.?V\.?\b/gi,/\bLtd\.?\b/gi,/\bLLC\b/gi,/\bGmbH\b/gi,/\bInc\.?\b/gi,/\bS\.?A\.?\b/gi,/\bA\.?G\.?\b/gi];
+  let r=name;
+  suffixes.forEach(s=>r=r.replace(s,''));
+  r=r.replace(/\s*[-–|]+\s*$/,'').replace(/^\s*[-–|]+\s*/,'').replace(/\s{2,}/g,' ').replace(/^[\s.\-,|]+|[\s.\-,|]+$/g,'');
+  return r.trim()||name.trim();
+}
+
+function parseCSVLine(line){
+  const vals=[];let cur='';let inQ=false;
+  for(let i=0;i<line.length;i++){
+    const ch=line[i];
+    if(ch==='"'){if(inQ&&line[i+1]==='"'){cur+='"';i++;}else{inQ=!inQ;}}
+    else if(ch===','&&!inQ){vals.push(cur.trim());cur='';}
+    else{cur+=ch;}
+  }
+  vals.push(cur.trim());
+  return vals;
+}
+function handleCSV(input){
+  const file=input.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const lines=e.target.result.split('\n').filter(l=>l.trim());
+    if(lines.length<2){alert('Bestand lijkt leeg of heeft geen headers.');return;}
+    const headers=parseCSVLine(lines[0]).map(h=>h.toLowerCase());
+    csvRows=lines.slice(1).map(l=>{
+      const vals=parseCSVLine(l);
+      const obj={};headers.forEach((h,i)=>obj[h]=vals[i]||'');
+      return obj;
+    }).filter(r=>r[headers[0]]);
+    document.getElementById('import-count').textContent=`${csvRows.length} rijen gevonden. Kolommen: ${headers.join(', ')}`;
+    const table=document.getElementById('import-table');
+    table.innerHTML=`<div class="import-row hd">${headers.slice(0,5).map(h=>`<span style="flex:1;">${h}</span>`).join('')}</div>`+
+      csvRows.slice(0,6).map(r=>`<div class="import-row">${headers.slice(0,5).map(h=>`<span style="flex:1;">${r[h]||'—'}</span>`).join('')}</div>`).join('');
+    document.getElementById('import-preview').style.display='block';
+    document.getElementById('import-btn').style.display='inline-flex';
+  };
+  reader.readAsText(file);
+}
+async function doImport(){
+  let added=0;let fouten=[];
+  const nieuweAccs=[];
+  const secundaireContacten=[];
+  const bestaandeNamen=new Set(accs.map(a=>a.name.toLowerCase().trim()));
+  csvRows.forEach(r=>{
+    const name=cleanCompanyName(r['naam']||r['name']||r['bedrijf']||r['company']||Object.values(r)[0]);
+    if(!name)return;
+    if(bestaandeNamen.has(name.toLowerCase().trim())){return;}// sla over als al bestaat
+    bestaandeNamen.add(name.toLowerCase().trim());
+    const contactNaam=(r['contactpersoon']||r['contact']||'').trim();
+    const naamDelen=contactNaam.split(' ');
+    const cf=naamDelen[0]||'';
+    const cl=naamDelen.slice(1).join(' ')||'';
+    const a={id:Date.now()+Math.floor(Math.random()*10000)+added,name,status:(r['status']||'lead').toLowerCase(),sector:r['sector']||r['branche']||'',seg:r['segment']||'',web:r['website']||r['web']||'',li:r['linkedin']||'',phone:r['telefoon']||r['phone']||'',kvk:'',addr:r['adres']||r['address']||'',addrUrl:'',pipe:'Nieuw',val:r['waarde']||r['value']||'',cf,cl,cr:r['functie']||r['role']||'',cp:'',ce:r['email']||r['e-mail']||'',note:'',owner:CU,added:localISO(),color:accs.length%CLRS.length,contacts:[],deals:[],proposals:[],notes:[],docs:[],clientLinks:{}};
+    const naam2=(r['contactpersoon_2']||'').trim();
+    if(naam2){
+      const delen2=naam2.split(' ');
+      secundaireContacten.push({accRef:a,first:delen2[0]||'',last:delen2.slice(1).join(' ')||'',role:r['functie_2']||'',email:r['email_2']||'',phone:'',dept:'',email2:'',phone2:'',li:'',note:''});
+    }
+    accs.push(a);
+    nieuweAccs.push(a);
+    added++;
+  });
+  ss('ix_accs',accs);
+  for(const a of nieuweAccs){
+    try{
+      await _saveAcc(a);
+      const sc=secundaireContacten.filter(c=>c.accRef===a);
+      for(const c of sc){
+        const nieuwContact={...c,id:Date.now()+Math.floor(Math.random()*9999)};
+        delete nieuwContact.accRef;
+        a.contacts.push(nieuwContact);
+        await _saveContact(a.id,nieuwContact);
+      }
+    }catch(e){
+      fouten.push(`${a.name}: ${e.message}`);
+      console.error('Import fout:',a.name,e);
+    }
+  }
+  ss('ix_accs',accs);
+  addActivity(`<strong>${CU==='MA'?'Mees':'Julian'}</strong> importeerde ${added} accounts via CSV`,'↑','#e8f0fb');
+  closeM('m-import');nav('accounts');
+  if(fouten.length){
+    alert(`⚠️ ${added-fouten.length} van ${added} geïmporteerd.\n\nFouten:\n${fouten.slice(0,5).join('\n')}`);
+  } else {
+    alert(`✓ ${added} accounts geïmporteerd!`);
+  }
+}
+
+// ══════════════ HELPERS ══════════════
+function toggleTodo(id){const t=todos.find(x=>x.id===id);if(t){t.done=!t.done;if(t.done)t.doneDate=localISO();if(t.auto&&t.done&&t.ruleId&&t.acc){const a=accs.find(x=>x.id===t.acc);if(a)recordLearnTrigger(t.ruleId,daysSince(lastActivityDate(a)));ss('ix_wflearn',wfLearning);}ss('ix_todos',todos);_saveTodo(t).catch(e=>console.warn('todo:',e));updateBadge();updateWfBadge();if(document.getElementById('p-todos').classList.contains('on'))renderTodos();if(document.getElementById('p-dashboard').classList.contains('on')){renderDash();}if(curAcc&&document.getElementById('p-detail').classList.contains('on'))renderTab(curTab);}}
+function updateBadge(){updateActieBadge();}
+function addActivity(text,ico,bg,clientId=null){activity.unshift({text,time:'Zojuist',ico,bg,clientId});if(activity.length>50)activity.pop();ss('ix_act',activity);}
+function updateCounts(){const base=clientAccs();['all','lead','qualified','prospect','klant','opdrachtgever','inactief'].forEach(f=>{const el=document.getElementById('fc-'+f);if(el)el.textContent=f==='all'?`(${base.length})`:`(${base.filter(a=>accClientStatus(a)===f).length})`;});}
+function setFilter(f){curFilter=f;document.querySelectorAll('.fchip').forEach(c=>c.classList.toggle('on',c.dataset.f===f));renderAccList();}
+function selOwner(u,containerId){document.querySelectorAll(`#${containerId} .asgn-opt`).forEach(el=>el.classList.toggle('on',el.dataset.u===u));}
+function toggleUser(){
+  if(confirm('Wil je uitloggen?')){
+    _sbLogout();
+  }
+}
+function handleSearch(v){
+  if(document.getElementById('p-accounts').classList.contains('on'))renderAccList();
+}
+
+function globalSearch(q) {
+  if(!q||q.trim().length<2) return;
+  const zoek = q.trim().toLowerCase();
+  history.pushState(null,'','#zoek');
+  document.querySelectorAll('.page,.acc-detail').forEach(p=>p.classList.remove('on'));
+  document.getElementById('p-zoek').classList.add('on');
+  document.getElementById('topbar-title').innerHTML=`Zoekresultaten voor "<strong>${q}</strong>"`;
+
+  // Zoek in accounts (naam, sector)
+  const accResults = accs.filter(a =>
+    a.name.toLowerCase().includes(zoek) ||
+    (a.sector||'').toLowerCase().includes(zoek)
+  );
+
+  // Zoek in contactpersonen
+  const contactResults = [];
+  accs.forEach(a => {
+    // Primaire contactpersoon
+    const primair = [a.cf,a.cl].filter(Boolean).join(' ');
+    if(primair.toLowerCase().includes(zoek)) {
+      contactResults.push({naam:primair, role:a.cr, email:a.ce, acc:a, primair:true});
+    }
+    // Extra contactpersonen
+    (a.contacts||[]).forEach(ct => {
+      const naam = [ct.first,ct.last].filter(Boolean).join(' ');
+      if(naam.toLowerCase().includes(zoek) || (ct.role||'').toLowerCase().includes(zoek)) {
+        contactResults.push({naam, role:ct.role, email:ct.email, acc:a});
+      }
+    });
+  });
+
+  const el = document.getElementById('p-zoek');
+  const totaal = accResults.length + contactResults.length;
+
+  el.innerHTML = `
+  <div style="max-width:700px;">
+
+    ${accResults.length>0?`
+    <div style="margin-bottom:24px;">
+      <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--navy);display:flex;align-items:center;gap:7px;margin-bottom:10px;">
+        <span style="display:block;width:3px;height:13px;background:var(--gold);border-radius:2px;"></span>Accounts <span style="font-size:11px;font-weight:400;color:var(--text3);">${accResults.length} resultaten</span>
+      </div>
+      ${accResults.map(a=>{
+        const [bg,fg]=CLRS[a.color%CLRS.length];
+        return`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:12px 16px;margin-bottom:6px;display:flex;align-items:center;gap:12px;cursor:pointer;" onclick="openDetail(${a.id})" onmouseenter="this.style.borderColor='var(--navy)'" onmouseleave="this.style.borderColor='var(--border)'">
+          <div style="width:34px;height:34px;border-radius:8px;background:${bg};color:${fg};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;font-family:'Syne',sans-serif;">${initials(a.name)}</div>
+          <div style="flex:1;">
+            <div style="font-size:14px;font-weight:600;color:var(--text);">${a.name}</div>
+            <div style="font-size:12px;color:var(--text3);">${[a.sector,a.seg].filter(Boolean).join(' · ')}</div>
+          </div>
+          <span class="badge ${a.status}">${slbl(a.status)}</span>
+        </div>`;
+      }).join('')}
+    </div>`:''}
+
+    ${contactResults.length>0?`
+    <div style="margin-bottom:24px;">
+      <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--navy);display:flex;align-items:center;gap:7px;margin-bottom:10px;">
+        <span style="display:block;width:3px;height:13px;background:#1a5fb4;border-radius:2px;"></span>Contactpersonen <span style="font-size:11px;font-weight:400;color:var(--text3);">${contactResults.length} resultaten</span>
+      </div>
+      ${contactResults.map(r=>`
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:12px 16px;margin-bottom:6px;display:flex;align-items:center;gap:12px;cursor:pointer;" onclick="openDetail(${r.acc.id});setTimeout(()=>switchTab('contacts'),200)" onmouseenter="this.style.borderColor='var(--navy)'" onmouseleave="this.style.borderColor='var(--border)'">
+          <div style="width:34px;height:34px;border-radius:50%;background:#eaf1fd;color:#1a5fb4;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;">${initials(r.naam)}</div>
+          <div style="flex:1;">
+            <div style="font-size:14px;font-weight:600;color:var(--text);">${r.naam}</div>
+            <div style="font-size:12px;color:var(--text3);">${[r.role,r.acc.name].filter(Boolean).join(' · ')}</div>
+          </div>
+          ${r.email?`<span style="font-size:12px;color:var(--blue);">${r.email}</span>`:''}
+        </div>`).join('')}
+    </div>`:''}
+
+    ${totaal===0?`
+      <div style="text-align:center;padding:48px 20px;">
+        <div style="font-size:14px;color:var(--text3);">Geen resultaten voor "<strong style="color:var(--text);">${q}</strong>"</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:6px;">Probeer een andere naam of bedrijfsnaam</div>
+      </div>`:''}
+  </div>`;
+}
+function initials(s){return(s||'').split(' ').map(w=>w[0]).filter(Boolean).slice(0,2).join('').toUpperCase()||'?';}
+function slbl(s){return{lead:'Lead',qualified:'Qualified',prospect:'Prospect',klant:'Klant',inactief:'Inactief',opdrachtgever:'Opdrachtgever'}[s]||s;}
+function fmtDate(d){if(!d)return'—';return new Date(d).toLocaleDateString('nl-NL',{day:'numeric',month:'short'});}
+
+// ══════════════ EVENTS / AGENDA ══════════════
+function updateDateLabel(val){
+  if(!val)return;
+  const d=new Date(val+'T12:00');
+  const label=d.toLocaleDateString('nl-NL',{weekday:'long',day:'numeric',month:'long'});
+  const el=document.getElementById('ev-date-label');
+  if(el)el.textContent=label.charAt(0).toUpperCase()+label.slice(1);
+}
+
+function selectEvType(btn,type){
+  document.getElementById('ev-type').value=type;
+  document.querySelectorAll('#ev-type-btns button').forEach(b=>{
+    const on=b.dataset.type===type;
+    b.style.borderBottom=on?'2px solid var(--navy)':'2px solid transparent';
+    b.style.background=on?'var(--navy-fade)':'none';
+    b.style.color=on?'var(--navy)':'var(--text2)';
+    b.style.fontWeight=on?'700':'600';
+  });
+  const titleEl=document.getElementById('ev-title');
+  const accId=parseInt(document.getElementById('ev-acc-id').value);
+  const accName=accId?accs.find(a=>a.id===accId)?.name:'';
+  const types=['Kennismaking','Follow-up','Presentatie','Voorstel bespreken','Evaluatie','Intern'];
+  if(!titleEl.value||types.some(t=>titleEl.value===t)||types.some(t=>accName&&titleEl.value===t+' '+accName)){
+    titleEl.value=accName?`${type} ${accName}`:type;
+  }
+}
+
+function filterEvAccounts(q){
+  const res=document.getElementById('ev-acc-results');
+  if(!q.trim()){res.style.display='none';return;}
+  const matches=accs.filter(a=>a.name.toLowerCase().includes(q.toLowerCase())||(a.sector||'').toLowerCase().includes(q.toLowerCase())).slice(0,8);
+  if(!matches.length){res.style.display='none';return;}
+  res.style.display='block';
+  res.innerHTML=matches.map(a=>{
+    const[bg,fg]=CLRS[a.color%CLRS.length];
+    return`<div onclick="selectEvAcc(${a.id})" style="display:flex;align-items:center;gap:9px;padding:8px 10px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .1s;" onmouseover="this.style.background='var(--navy-fade)'" onmouseout="this.style.background=''">
+      <div style="width:26px;height:26px;border-radius:6px;background:${bg};color:${fg};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0;">${initials(a.name)}</div>
+      <div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:500;">${a.name}</div><div style="font-size:11px;color:var(--text3);">${a.sector||''}${a.seg?' · '+a.seg:''}</div></div>
+      <span class="badge ${a.status}" style="font-size:10px;">${slbl(a.status)}</span>
+    </div>`;
+  }).join('');
+}
+
+function selectEvAcc(id){
+  const a=accs.find(x=>x.id===id);if(!a)return;
+  document.getElementById('ev-acc-id').value=id;
+  document.getElementById('ev-acc-search').value='';
+  document.getElementById('ev-acc-results').style.display='none';
+  const[bg,fg]=CLRS[a.color%CLRS.length];
+  const selEl=document.getElementById('ev-acc-selected');
+  selEl.style.display='block';
+  selEl.innerHTML=`<div style="display:flex;align-items:center;gap:9px;padding:8px 12px;background:var(--navy-fade);border:1px solid var(--border);border-radius:var(--r);">
+    <div style="width:26px;height:26px;border-radius:6px;background:${bg};color:${fg};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0;">${initials(a.name)}</div>
+    <div style="flex:1;font-size:13px;font-weight:500;">${a.name}</div>
+    <button onclick="clearEvAcc()" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:14px;line-height:1;">✕</button>
+  </div>`;
+  const type=document.getElementById('ev-type').value||'Kennismaking';
+  const titleEl=document.getElementById('ev-title');
+  if(!titleEl.value||['Kennismaking','Follow-up','Presentatie','Voorstel bespreken','Evaluatie','Intern'].some(t=>titleEl.value===t)){
+    titleEl.value=`${type} ${a.name}`;
+  }
+  // Build contact list
+  const allC=[...(a.cf?[{id:'primary',name:[a.cf,a.cl].filter(Boolean).join(' '),role:a.cr,email:a.ce,primary:true}]:[]),...(a.contacts||[]).map(c=>({id:c.id,name:[c.first,c.last].filter(Boolean).join(' '),role:c.role,email:c.email}))];
+  const sect=document.getElementById('ev-contact-section');
+  if(allC.length){
+    sect.style.display='block';
+    document.getElementById('ev-contact-list').innerHTML=allC.map((c,i)=>`
+      <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;padding:5px 0;${i<allC.length-1?'border-bottom:1px solid var(--border);':''}">
+        <input type="radio" name="ev-contact" value="${c.id}" data-name="${c.name}" data-email="${c.email||''}" onchange="pickEvContact(this)" ${i===0?'checked':''} style="margin-top:3px;accent-color:var(--navy);">
+        <div><div style="font-size:13px;font-weight:500;">${c.name}${c.primary?' <span style="font-size:10px;color:var(--text3);font-weight:400;">(primair)</span>':''}</div>
+        <div style="font-size:11.5px;color:var(--text2);">${c.role||''}${c.email?' · <a href="mailto:${c.email}" style="color:var(--blue-t);">${c.email}</a>':''}</div></div>
+      </label>`).join('');
+    if(allC[0].email){document.getElementById('ev-contact-name').value=allC[0].name;document.getElementById('ev-contact-email').value=allC[0].email;document.getElementById('ev-conf-to').value=allC[0].email;}
+  } else {
+    sect.style.display='none';
+    if(a.ce)document.getElementById('ev-conf-to').value=a.ce;
+  }
+}
+
+function pickEvContact(radio){
+  document.getElementById('ev-contact-name').value=radio.dataset.name||'';
+  const email=radio.dataset.email||'';
+  document.getElementById('ev-contact-email').value=email;
+  if(email)document.getElementById('ev-conf-to').value=email;
+}
+
+function clearEvAcc(){
+  document.getElementById('ev-acc-id').value='';
+  document.getElementById('ev-acc-selected').style.display='none';
+  document.getElementById('ev-contact-section').style.display='none';
+  document.getElementById('ev-contact-name').value='';document.getElementById('ev-contact-email').value='';
+}
+
+function setConfirm(yes){
+  sendConfirm=yes;
+  const cy=document.getElementById('conf-yes'),cn=document.getElementById('conf-no');
+  if(!cy||!cn)return;
+  cy.style.background=yes?'var(--navy)':'transparent';cy.style.color=yes?'#fff':'var(--text2)';cy.style.borderColor=yes?'var(--navy)':'var(--border2)';
+  cn.style.background=!yes?'var(--navy)':'transparent';cn.style.color=!yes?'#fff':'var(--text2)';cn.style.borderColor=!yes?'var(--navy)':'var(--border2)';
+  document.getElementById('conf-mail-fields').style.display=yes?'flex':'none';
+}
+
+function trySetConfirmYes(){
+  // Haal contactemail op van geselecteerde account
+  const accId=parseInt(document.getElementById('ev-acc-id').value)||null;
+  const contactEmail=document.getElementById('ev-contact-email').value.trim();
+  const a=accId?accs.find(x=>x.id===accId):null;
+  const email=contactEmail||(a?a.ce:'')||'';
+  if(!email){
+    // Geen email beschikbaar — Ja niet toegestaan
+    const cy=document.getElementById('conf-yes');
+    if(cy){
+      cy.style.opacity='0.35';cy.style.cursor='not-allowed';cy.title='Voeg eerst een e-mailadres toe aan de contactpersoon';
+    }
+    // Toast tonen
+    showConfToast('Geen e-mailadres bekend bij contactpersoon — voeg dit eerst toe.');
+    return;
+  }
+  document.getElementById('ev-conf-to').value=email;
+  setConfirm(true);
+}
+
+function showConfToast(msg){
+  let t=document.getElementById('conf-toast');
+  if(!t){t=document.createElement('div');t.id='conf-toast';t.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--red-bg);color:var(--red-t);border:1px solid rgba(192,57,43,.25);border-radius:8px;padding:9px 16px;font-size:13px;font-weight:500;z-index:9999;';document.body.appendChild(t);}
+  t.textContent=msg;t.style.display='block';
+  clearTimeout(t._to);t._to=setTimeout(()=>{t.style.display='none';},3000);
+}
+
+function openAddEvent(prefillAccId){
+  document.querySelectorAll('#ev-type-btns button').forEach((b,i)=>{
+    b.style.borderBottom=i===0?'2px solid var(--navy)':'2px solid transparent';
+    b.style.background=i===0?'var(--navy-fade)':'none';
+    b.style.color=i===0?'var(--navy)':'var(--text2)';
+    b.style.fontWeight=i===0?'700':'600';
+  });
+  document.getElementById('ev-type').value='Kennismaking';
+  ['ev-title','ev-loc','ev-note','ev-conf-to'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const _td=new Date();
+  const _tds=`${_td.getFullYear()}-${String(_td.getMonth()+1).padStart(2,'0')}-${String(_td.getDate()).padStart(2,'0')}`;
+  document.getElementById('ev-date').value=_tds;
+  updateDateLabel(_tds);
+  document.getElementById('ev-time').value='09:00';
+  document.getElementById('ev-dur').value='60';
+  document.getElementById('ev-acc-search').value='';
+  document.getElementById('ev-acc-results').style.display='none';
+  document.getElementById('ev-acc-selected').style.display='none';
+  document.getElementById('ev-contact-section').style.display='none';
+  document.getElementById('ev-acc-id').value='';
+  document.getElementById('ev-contact-name').value='';
+  document.getElementById('ev-contact-email').value='';
+  selOwner(CU,'asgn-event');
+  sendConfirm=false;
+  setConfirm(false);
+  if(prefillAccId)setTimeout(()=>selectEvAcc(prefillAccId),50);
+  document.getElementById('m-event').classList.add('on');
+}
+
+function saveEvent(){
+  const type=document.getElementById('ev-type').value||'Afspraak';
+  const title=document.getElementById('ev-title').value.trim()||type;
+  const owner=document.querySelector('#asgn-event .asgn-opt.on')?.dataset.u||CU;
+  const accId=parseInt(document.getElementById('ev-acc-id').value)||null;
+  const contactName=document.getElementById('ev-contact-name').value;
+  // Reminders
+  const reminders=[];
+  if(document.getElementById('ev-rem-30')?.checked)reminders.push(30);
+  if(document.getElementById('ev-rem-15')?.checked)reminders.push(15);
+  if(document.getElementById('ev-rem-5')?.checked)reminders.push(5);
+  if(document.getElementById('ev-rem-0')?.checked)reminders.push(0);
+  const ev={id:Date.now(),title,type,date:document.getElementById('ev-date').value,time:document.getElementById('ev-time').value,dur:parseInt(document.getElementById('ev-dur').value)||60,loc:document.getElementById('ev-loc').value.trim(),acc:accId,owner,note:document.getElementById('ev-note').value.trim(),contactName,reminders};
+  calEvents.push(ev);ss('ix_events',calEvents);_saveEvent(ev).catch(e=>console.warn('event:',e));
+  const acc=accs.find(a=>a.id===accId);
+  addActivity(`<strong>${CU==='MA'?'Mees':'Julian'}</strong> pland afspraak: <strong>${title}</strong>${acc?' · '+acc.name:''}`,'◈','#e8f0fb');
+  if(sendConfirm){
+    const to=document.getElementById('ev-conf-to').value.trim();
+    if(to){
+      const d=new Date(ev.date+'T12:00').toLocaleDateString('nl-NL',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+      const body=`Beste${contactName?' '+contactName.split(' ')[0]:''},\n\nHierbij bevestig ik onze afspraak:\n\nType: ${type}\nDatum: ${d}\nTijd: ${ev.time}\nDuur: ${ev.dur} minuten\n${ev.loc?'Locatie: '+ev.loc+'\n':''}\n${ev.note?'Gespreksonderwerpen:\n'+ev.note+'\n':''}\nMet vriendelijke groet,\n${CU==='MA'?'Mees Arentsen':'Julian Kanhai'}\nIntersect`;
+      window.open(`mailto:${to}?subject=${encodeURIComponent('Bevestiging: '+title)}&body=${encodeURIComponent(body)}`);
+    }
+  }
+  closeM('m-event');
+  if(document.getElementById('p-dashboard').classList.contains('on'))renderDash();
+  if(document.getElementById('p-agenda').classList.contains('on'))renderAgenda();
+}
+
+function saveEventAndExport(){
+  saveEvent();
+  exportICS();
+}
+
+function exportICS(){
+  // Export all upcoming events as .ics for Apple/Google Calendar
+  const now=localISO();
+  const upcoming=calEvents.filter(e=>e.date>=now);
+  if(!upcoming.length){alert('Geen aankomende afspraken om te exporteren.');return;}
+  let ics='BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Intersect CRM//NL\r\nCALNAME:Intersect CRM\r\n';
+  upcoming.forEach(ev=>{
+    const [y,m,d]=ev.date.split('-');
+    const [h,min]=(ev.time||'09:00').split(':');
+    const dtStart=`${y}${m}${d}T${(h||'09').padStart(2,'0')}${(min||'00').padStart(2,'0')}00`;
+    const endM=parseInt(min||0)+(ev.dur||60);
+    const endH=parseInt(h||9)+Math.floor(endM/60);
+    const endMin=endM%60;
+    const dtEnd=`${y}${m}${d}T${String(endH).padStart(2,'0')}${String(endMin).padStart(2,'0')}00`;
+    const acc=accs.find(a=>a.id===ev.acc);
+    const desc=[(acc?'Account: '+acc.name:''),(ev.note||'')].filter(Boolean).join('\\n');
+    ics+=`BEGIN:VEVENT\r\nUID:${ev.id}@intersect-crm\r\nSUMMARY:${ev.title}\r\nDTSTART:${dtStart}\r\nDTEND:${dtEnd}\r\n${ev.loc?'LOCATION:'+ev.loc+'\r\n':''}${desc?'DESCRIPTION:'+desc+'\r\n':''}END:VEVENT\r\n`;
+  });
+  ics+='END:VCALENDAR';
+  const blob=new Blob([ics],{type:'text/calendar'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download='intersect-agenda.ics';a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ══════════════ CLIENT (OPDRACHTGEVER) SYSTEM ══════════════
+
+function renderClientBar(){
+  const inner=document.getElementById('client-tabs-inner');
+  inner.innerHTML=clients.map(c=>`
+    <button class="client-tab${curClient===c.id?' on':''}" data-cid="${c.id}" onclick="setClient(${c.id})" style="${curClient===c.id?'border-bottom-color:'+c.color+';color:#fff;':''}" title="${c.name}">
+      <span class="client-dot" style="background:${c.color};width:10px;height:10px;border-radius:50%;flex-shrink:0;"></span>${c.name}
+    </button>`).join('');
+  document.querySelector('.client-all').classList.toggle('on', curClient==='all');
+}
+
+function setClient(id){
+  curClient=id;
+  renderClientBar();
+  const active=document.querySelector('.page.on, .acc-detail.on');
+  if(active){
+    const pid=active.id.replace('p-','');
+    if(pid==='dashboard')renderDash();
+    else if(pid==='accounts')renderAccList();
+    else if(pid==='pipeline')renderPipeline();
+    else if(pid==='todos')renderTodos();
+    else if(pid==='rapport')renderRapport();
+  }
+}
+
+// Filter accounts by active client context
+function clientAccs(){
+  if(curClient==='all')return accs;
+  return accs.filter(a=>a.clientLinks&&a.clientLinks[curClient]);
+}
+
+// Get client-specific status/pipe for an account (falls back to global)
+function accClientStatus(a){
+  if(curClient!=='all'&&a.clientLinks&&a.clientLinks[curClient]){
+    return a.clientLinks[curClient].status||a.status;
+  }
+  return a.status;
+}
+function accClientPipe(a){
+  if(curClient!=='all'&&a.clientLinks&&a.clientLinks[curClient]){
+    return a.clientLinks[curClient].pipe||a.pipe;
+  }
+  return a.pipe;
+}
+function accClientVal(a){
+  if(curClient!=='all'&&a.clientLinks&&a.clientLinks[curClient]){
+    return a.clientLinks[curClient].val||a.val;
+  }
+  return a.val;
+}
+function accClientNote(a){
+  if(curClient!=='all'&&a.clientLinks&&a.clientLinks[curClient]){
+    return a.clientLinks[curClient].note||'';
+  }
+  return '';
+}
+
+function openAddClient(){
+  document.getElementById('m-client-title').textContent='Opdrachtgever toevoegen';
+  document.getElementById('cl-acc-search').value='';
+  document.getElementById('cl-acc-results').style.display='none';
+  document.getElementById('cl-acc-selected').style.display='none';
+  document.getElementById('cl-acc-id').value='';
+  document.getElementById('cl-note').value='';
+  selClientColor='#0d1f3c';
+  document.querySelectorAll('#cl-color-picker div').forEach((d,i)=>{d.style.border=i===0?'3px solid var(--gold)':'2px solid transparent';});
+  document.getElementById('m-client').classList.add('on');
+}
+
+function filterClientAccSearch(q){
+  const res=document.getElementById('cl-acc-results');
+  // Only show accounts that are klant status
+  const eligible=accs.filter(a=>a.status==='klant'&&!clients.some(c=>c.id===a.id));
+  const matches=q.trim()?eligible.filter(a=>a.name.toLowerCase().includes(q.toLowerCase())):eligible;
+  if(!matches.length){res.style.display='none';return;}
+  res.style.display='block';
+  res.innerHTML=matches.map(a=>{
+    const[bg,fg]=CLRS[a.color%CLRS.length];
+    return`<div onclick="selectClientAcc(${a.id})" style="display:flex;align-items:center;gap:9px;padding:9px 11px;cursor:pointer;border-bottom:1px solid var(--border);" onmouseover="this.style.background='var(--navy-fade)'" onmouseout="this.style.background=''">
+      <div style="width:26px;height:26px;border-radius:6px;background:${bg};color:${fg};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;">${initials(a.name)}</div>
+      <div><div style="font-size:13px;font-weight:500;">${a.name}</div><div style="font-size:11px;color:var(--text3);">${a.sector||''}</div></div>
+    </div>`;
+  }).join('');
+}
+
+function selectClientAcc(id){
+  const a=accs.find(x=>x.id===id);if(!a)return;
+  document.getElementById('cl-acc-id').value=id;
+  document.getElementById('cl-acc-search').value='';
+  document.getElementById('cl-acc-results').style.display='none';
+  const[bg,fg]=CLRS[a.color%CLRS.length];
+  const sel=document.getElementById('cl-acc-selected');
+  sel.style.display='block';
+  sel.innerHTML=`<div style="display:flex;align-items:center;gap:9px;padding:8px 12px;background:var(--navy-fade);border:1px solid var(--border);border-radius:var(--r);">
+    <div style="width:26px;height:26px;border-radius:6px;background:${bg};color:${fg};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;">${initials(a.name)}</div>
+    <div style="flex:1;font-size:13px;font-weight:500;">${a.name}</div>
+    <button onclick="document.getElementById('cl-acc-id').value='';document.getElementById('cl-acc-selected').style.display='none';" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:14px;">✕</button>
+  </div>`;
+}
+
+function selectClientColor(c){
+  selClientColor=c;
+  document.querySelectorAll('#cl-color-picker div').forEach(d=>{
+    d.style.borderColor=d.dataset.col===c?'var(--gold)':'transparent';
+    d.style.transform=d.dataset.col===c?'scale(1.2)':'scale(1)';
+  });
+}
+
+async function saveClient(){
+  const accId=parseInt(document.getElementById('cl-acc-id').value);
+  if(!accId){alert('Selecteer eerst een klant-account.');return;}
+  const a=accs.find(x=>x.id===accId);if(!a)return;
+  if(clients.some(x=>x.name===a.name)){alert('Dit account is al een opdrachtgever.');return;}
+  // id will be assigned by Supabase after insert - use temp id for now
+  const c={id:Date.now(),name:a.name,sector:a.sector||'',contact:[a.cf,a.cl].filter(Boolean).join(' '),email:a.ce||'',color:selClientColor,note:document.getElementById('cl-note').value.trim(),accRef:accId};
+  // Add locally first so UI updates immediately
+  clients.push(c);
+  renderClientBar();
+  renderClientCheckboxes({});
+  closeM('m-client');
+  // Save to Supabase and reload fresh from DB
+  try{
+    await _saveClient(c);
+    // Reload clients from Supabase to get correct IDs
+    const fresh=await _sbGet('clients','?select=*&order=id.asc');
+    if(fresh&&fresh.length>0){
+      clients=fresh.map(_mapClient);
+      // Re-ensure Intersect
+      if(!clients.some(x=>x.name==='Intersect')){
+        clients.unshift({id:999999,name:'Intersect',sector:'Sales & Business Development',contact:'Mees & Julian',email:'mees@intersect-partners.com',color:'#c9a84c',note:'Onze eigen organisatie.'});
+      }
+      ss('ix_clients',clients);
+      renderClientBar();
+      renderClientCheckboxes({});
+    }
+  }catch(e){
+    console.error('Save client error:',e);
+    ss('ix_clients',clients);
+  }
+  addActivity(`<strong>${CU==='MA'?'Mees':'Julian'}</strong> heeft <strong>${a.name}</strong> als opdrachtgever toegevoegd`,'◈','#e8f0fb',null);
+}
+
+async function openLinkModal(accId){
+  // Refresh clients from Supabase to ensure up-to-date
+  try{const r=await _sbGet('clients','?select=*&order=id.asc');if(r&&r.length>=0)clients=r.map(_mapClient);}catch(e){}
+  const a=accs.find(x=>x.id===accId);if(!a)return;
+  curAcc=a;
+  document.getElementById('link-acc-name').textContent=a.name;
+  const list=document.getElementById('link-clients-list');
+  list.innerHTML=clients.map(c=>{
+    const linked=a.clientLinks&&a.clientLinks[c.id];
+    return`<div style="border:1px solid var(--border);border-radius:var(--r-lg);padding:14px;margin-bottom:8px;${linked?'border-left:3px solid '+c.color:''}">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:${linked?'10':'0'}px;">
+        <span style="width:10px;height:10px;border-radius:50%;background:${c.color};flex-shrink:0;display:block;"></span>
+        <span style="font-weight:600;font-size:13.5px;flex:1;">${c.name}</span>
+        <button class="btn sm ${linked?'ghost':'pri'}" onclick="toggleLink(${a.id},${c.id})">${linked?'Ontkoppelen':'Koppelen'}</button>
+      </div>
+      ${linked?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
+        <div class="fg"><label class="fl" style="font-size:11px;">Status voor ${c.name}</label>
+          <select onchange="updateLink(${a.id},${c.id},'status',this.value)" style="font-size:12px;padding:5px 8px;">
+            ${['lead','qualified','prospect','klant','inactief'].map(s=>`<option value="${s}"${linked.status===s?' selected':''}>${slbl(s)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="fg"><label class="fl" style="font-size:11px;">Pipeline fase</label>
+          <select onchange="updateLink(${a.id},${c.id},'pipe',this.value)" style="font-size:12px;padding:5px 8px;">
+            ${PSTAGES.map(s=>`<option value="${s}"${linked.pipe===s?' selected':''}>${s}</option>`).join('')}
+          </select>
+        </div>
+        <div class="fg"><label class="fl" style="font-size:11px;">Verwachte waarde (€)</label>
+          <input type="text" value="${linked.val||''}" onchange="updateLink(${a.id},${c.id},'val',this.value)" style="font-size:12px;padding:5px 8px;">
+        </div>
+        <div class="fg"></div>
+        <div class="fg" style="grid-column:1/-1"><label class="fl" style="font-size:11px;">Notitie voor ${c.name}</label>
+          <textarea onchange="updateLink(${a.id},${c.id},'note',this.value)" style="min-height:50px;font-size:12px;padding:5px 8px;">${linked.note||''}</textarea>
+        </div>
+      </div>`:''}
+    </div>`;
+  }).join('');
+  document.getElementById('m-link').classList.add('on');
+}
+
+function toggleLink(accId,clientId){
+  const a=accs.find(x=>x.id===accId);if(!a)return;
+  if(!a.clientLinks)a.clientLinks={};
+  if(a.clientLinks[clientId]){
+    delete a.clientLinks[clientId];
+  } else {
+    a.clientLinks[clientId]={status:'lead',pipe:'Nieuw',val:'',note:''};
+  }
+  const idx=accs.findIndex(x=>x.id===accId);
+  accs[idx]=a;ss('ix_accs',accs);
+  _saveContact(a.id,a.contacts[a.contacts.length-1]).catch(e=>console.warn('contact:',e));
+  openLinkModal(accId);
+}
+
+function updateLink(accId,clientId,field,val){
+  const a=accs.find(x=>x.id===accId);if(!a||!a.clientLinks||!a.clientLinks[clientId])return;
+  a.clientLinks[clientId][field]=val;
+  const idx=accs.findIndex(x=>x.id===accId);
+  accs[idx]=a;ss('ix_accs',accs);_sbUpsert('account_client_links',{account_id:a.id,client_id:parseInt(clientId),status:a.clientLinks[clientId].status||'lead',pipeline_stage:a.clientLinks[clientId].pipe||'Nieuw',value:parseFloat(a.clientLinks[clientId].val)||null,note:a.clientLinks[clientId].note||''},'account_id,client_id').catch(()=>{});
+}
+
+// ── Client badges for account rows ──
+function clientBadges(a){
+  if(!a.clientLinks)return'';
+  return Object.keys(a.clientLinks).map(cid=>{
+    const c=clients.find(x=>x.id===parseInt(cid));
+    if(!c)return'';
+    return`<span class="cbadge" style="background:${c.color}18;color:${c.color};border-color:${c.color}30;">${c.name}</span>`;
+  }).join('');
+}
+
+// ── RAPPORT ──
+function renderRapport(){
+  document.getElementById('topbar-title').textContent='Klantrapport';
+  const el=document.getElementById('rapport-content');
+  const showClients=curClient==='all'?clients:clients.filter(c=>c.id===curClient);
+
+  if(!showClients.length){
+    el.innerHTML=`<div class="empty"><p>Geen opdrachtgevers. Voeg er een toe via de + knop in de balk bovenaan.</p></div>`;
+    return;
+  }
+
+  el.innerHTML=showClients.map(c=>{
+    const linked=accs.filter(a=>a.clientLinks&&a.clientLinks[c.id]);
+    const byStatus={lead:0,qualified:0,prospect:0,klant:0,inactief:0};
+    linked.forEach(a=>{const s=a.clientLinks[c.id].status||'lead';if(byStatus[s]!==undefined)byStatus[s]++;});
+    const totalVal=linked.reduce((s,a)=>s+(parseFloat(a.clientLinks[c.id].val)||0),0);
+    const wonAccs=linked.filter(a=>a.clientLinks[c.id].pipe==='Gewonnen');
+    const activeAccs=linked.filter(a=>!['Gewonnen','Verloren'].includes(a.clientLinks[c.id].pipe));
+
+    return`
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);overflow:hidden;margin-bottom:20px;">
+      <!-- Header -->
+      <div style="background:${c.color};padding:20px 24px;display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:700;color:#fff;margin-bottom:3px;">${c.name}</div>
+          <div style="font-size:12.5px;color:rgba(255,255,255,.6);">${c.sector||''}${c.contact?' · Contact: '+c.contact:''}</div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <button class="btn sm" style="background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.2);color:#fff;" onclick="exportRapport(${c.id})">Exporteer rapport ↗</button>
+          <button class="btn sm" style="background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.2);color:#fff;" onclick="setClient(${c.id});nav('pipeline')">Bekijk pipeline →</button>
+        </div>
+      </div>
+      <!-- KPIs -->
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);border-bottom:1px solid var(--border);">
+        ${[['Totaal accounts',linked.length,''],['Leads',byStatus.lead,'color:var(--amber-t)'],['Prospects',(byStatus.prospect+byStatus.qualified),'color:var(--blue-t)'],['Gewonnen',wonAccs.length,'color:var(--green-t)'],['Pipeline waarde','€ '+totalVal.toLocaleString('nl-NL'),'color:var(--navy);font-size:17px;']].map(([l,v,s])=>`
+          <div style="padding:14px 18px;border-right:1px solid var(--border);">
+            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px;">${l}</div>
+            <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:700;${s}">${v}</div>
+          </div>`).join('')}
+      </div>
+      <!-- Accounts tabel -->
+      <div style="padding:0;">
+        ${linked.length?`
+        <table style="width:100%;border-collapse:collapse;">
+          <thead><tr>
+            <th style="padding:8px 16px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;border-bottom:1px solid var(--border);text-align:left;background:var(--surface2);">Account</th>
+            <th style="padding:8px 12px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;border-bottom:1px solid var(--border);text-align:left;background:var(--surface2);">Status</th>
+            <th style="padding:8px 12px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;border-bottom:1px solid var(--border);text-align:left;background:var(--surface2);">Pipeline fase</th>
+            <th style="padding:8px 12px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;border-bottom:1px solid var(--border);text-align:left;background:var(--surface2);">Waarde</th>
+            <th style="padding:8px 12px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;border-bottom:1px solid var(--border);text-align:left;background:var(--surface2);">Contactpersoon</th>
+            <th style="padding:8px 12px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;border-bottom:1px solid var(--border);text-align:left;background:var(--surface2);">Notitie</th>
+          </tr></thead>
+          <tbody>
+          ${linked.map(a=>{
+            const lnk=a.clientLinks[c.id];
+            const [bg,fg]=CLRS[a.color%CLRS.length];
+            return`<tr style="border-bottom:1px solid var(--border);cursor:pointer;" onclick="openDetail(${a.id})">
+              <td style="padding:10px 16px;">
+                <div style="display:flex;align-items:center;gap:9px;">
+                  <div style="width:28px;height:28px;border-radius:7px;background:${bg};color:${fg};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;">${initials(a.name)}</div>
+                  <div><div style="font-size:13px;font-weight:500;">${a.name}</div><div style="font-size:11px;color:var(--text3);">${a.sector||''}</div></div>
+                </div>
+              </td>
+              <td style="padding:10px 12px;"><span class="badge ${lnk.status||a.status}">${slbl(lnk.status||a.status)}</span></td>
+              <td style="padding:10px 12px;font-size:12.5px;color:var(--text2);">${lnk.pipe||a.pipe||'—'}</td>
+              <td style="padding:10px 12px;font-size:13px;font-weight:600;color:var(--green-t);">${lnk.val?'€ '+parseInt(lnk.val).toLocaleString('nl-NL'):'—'}</td>
+              <td style="padding:10px 12px;font-size:12.5px;color:var(--text2);">${[a.cf,a.cl].filter(Boolean).join(' ')||'—'}</td>
+              <td style="padding:10px 12px;font-size:12px;color:var(--text3);max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${lnk.note||'—'}</td>
+            </tr>`;
+          }).join('')}
+          </tbody>
+        </table>`:`<div class="empty"><p>Nog geen accounts gekoppeld aan ${c.name}.</p><button class="btn pri sm" style="margin-top:10px;" onclick="nav('accounts');setClient(${c.id})">Accounts koppelen →</button></div>`}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function exportRapport(clientId){
+  const c=clients.find(x=>x.id===clientId);if(!c)return;
+  const linked=accs.filter(a=>a.clientLinks&&a.clientLinks[clientId]);
+  const date=new Date().toLocaleDateString('nl-NL',{day:'numeric',month:'long',year:'numeric'});
+  let csv=`Klantrapport Intersect — ${c.name}\nGegenereerd: ${date}\n\n`;
+  csv+=`Account,Status,Pipeline fase,Waarde,Contactpersoon,E-mail,Notitie\n`;
+  linked.forEach(a=>{
+    const lnk=a.clientLinks[clientId];
+    csv+=`"${a.name}","${slbl(lnk.status||a.status)}","${lnk.pipe||a.pipe||''}","${lnk.val?'€'+parseInt(lnk.val):''}","${[a.cf,a.cl].filter(Boolean).join(' ')}","${a.ce||''}","${(lnk.note||'').replace(/"/g,"'")}"\n`;
+  });
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const el=document.createElement('a');
+  el.href=url;el.download=`rapport-${c.name.replace(/\s/g,'-').toLowerCase()}-${localISO()}.csv`;
+  el.click();URL.revokeObjectURL(url);
+}
+
+// ══════════════ WORKFLOW ENGINE ══════════════
+
+// Default workflow rules
+const DEFAULT_RULES=[
+  {id:'r1',name:'Nieuw zonder contact',desc:'Account staat al 3 dagen op "Nieuw" zonder notitie of taak',trigger:'no_contact',phase:'Nieuw',days:3,action:'task',taskTitle:'Eerste contact leggen met [naam]',priority:'hoog',active:true,icon:'📬'},
+  {id:'r2',name:'Contact gelegd — follow-up',desc:'Na "Contact gelegd" meer dan 7 dagen geen activiteit',trigger:'no_contact',phase:'Contact gelegd',days:7,action:'task',taskTitle:'Follow-up plannen met [naam]',priority:'hoog',active:true,icon:'📞'},
+  {id:'r3',name:'Na kennismaking — voorstel',desc:'Kennismaking gehad maar na 5 dagen nog geen voorstel-notitie',trigger:'no_contact',phase:'Kennismaking',days:5,action:'task',taskTitle:'Voorstel opstellen voor [naam]',priority:'hoog',active:true,icon:'📝'},
+  {id:'r4',name:'Voorstel verstuurd — follow-up',desc:'Voorstel staat al 7 dagen uit zonder reactie',trigger:'no_contact',phase:'Voorstel verstuurd',days:7,action:'task_and_email',taskTitle:'Follow-up voorstel [naam]',priority:'hoog',active:true,icon:'📨'},
+  {id:'r5',name:'Onderhandeling stagneert',desc:'Geen activiteit in onderhandelingsfase na 5 dagen',trigger:'no_contact',phase:'Onderhandeling',days:5,action:'task',taskTitle:'Status check onderhandeling [naam]',priority:'medium',active:true,icon:'⚖️'},
+  {id:'r6',name:'Klant check-in',desc:'Actieve klant heeft al 30 dagen geen contact gehad',trigger:'no_contact',phase:null,statusFilter:'klant',days:30,action:'task',taskTitle:'Check-in [naam] — relatiebeheer',priority:'medium',active:true,icon:'🤝'},
+  {id:'r7',name:'Fase staat te lang stil',desc:'Account al meer dan 14 dagen in dezelfde fase',trigger:'stuck_phase',days:14,action:'signal',priority:'medium',active:true,icon:'⏰'},
+  {id:'r8',name:'Lead te lang inactief',desc:'Lead zonder activiteit na 10 dagen — warm houden of archiveren',trigger:'no_contact',phase:'Nieuw',statusFilter:'lead',days:10,action:'signal',priority:'laag',active:true,icon:'🌡️'},
+];
+
+let wfRules=ls('ix_wfrules')||null;
+if(!wfRules){wfRules=DEFAULT_RULES;ss('ix_wfrules',wfRules);}
+
+let wfLog=ls('ix_wflog')||[];
+let wfSignals=ls('ix_wfsignals')||[];
+// Learning data: {ruleId, avgDays, samples, lastSuggested}
+let wfLearning=ls('ix_wflearn')||{};
+
+function daysSince(dateStr){
+  if(!dateStr)return 999;
+  const d=new Date(dateStr+'T12:00');
+  return Math.floor((new Date()-d)/86400000);
+}
+
+function lastActivityDate(a){
+  // Find most recent: note, event, or todo completion
+  const dates=[];
+  (a.notes||[]).forEach(n=>{
+    // Try to parse note time
+    const parts=n.time?.split(' ');
+    if(parts&&parts.length>=3){
+      const months={jan:0,feb:1,mrt:2,apr:3,mei:4,jun:5,jul:6,aug:7,sep:8,okt:9,nov:10,dec:11};
+      const day=parseInt(parts[0]);const m=months[parts[1]?.toLowerCase()];const y=parseInt(parts[2]);
+      if(!isNaN(day)&&m!==undefined&&!isNaN(y))dates.push(new Date(y,m,day));
+    }
+  });
+  calEvents.filter(e=>e.acc===a.id).forEach(e=>{if(e.date)dates.push(new Date(e.date+'T12:00'));});
+  todos.filter(t=>t.acc===a.id&&t.done).forEach(t=>{if(t.doneDate)dates.push(new Date(t.doneDate+'T12:00'));});
+  if(!dates.length)return a.added||null;
+  return dates.sort((x,y)=>y-x)[0].toISOString().split('T')[0];
+}
+
+function runWorkflowEngine(manual=false){
+  const now=new Date();
+  const todayStr=localISO();
+  const newTasks=[];
+  const newSignals=[];
+  const newLog=[];
+  const existingAutoTitles=new Set(todos.filter(t=>t.auto&&!t.done).map(t=>t.title+':'+t.acc));
+
+  accs.forEach(a=>{
+    const lastAct=lastActivityDate(a);
+    const daysSinceAct=daysSince(lastAct);
+    const addedDays=daysSince(a.added);
+
+    wfRules.filter(r=>r.active).forEach(r=>{
+      // Check phase match
+      if(r.phase&&a.pipe!==r.phase)return;
+      if(r.statusFilter&&a.status!==r.statusFilter)return;
+
+      const threshold=getLearnedThreshold(r.id,r.days);
+
+      if(r.trigger==='no_contact'){
+        if(daysSinceAct<threshold)return;
+        // Check if we already have an auto task for this
+        const taskTitle=(r.taskTitle||'Actie vereist').replace('[naam]',a.name);
+        const key=taskTitle+':'+a.id;
+        if(existingAutoTitles.has(key))return;
+
+        if(r.action==='task'||r.action==='task_and_email'){
+          const task={id:Date.now()+Math.random(),title:taskTitle,done:false,prio:r.priority,due:'Vandaag',acc:a.id,owner:a.owner==='BOTH'?CU:a.owner,auto:true,ruleId:r.id,clientId:null};
+          newTasks.push(task);
+          newLog.push({time:todayStr,text:`⚡ Taak aangemaakt: "${taskTitle}" (${r.name})`,acc:a.id});
+          recordLearnTrigger(r.id,daysSinceAct);
+        }
+        if(r.action==='signal'||r.action==='task'){
+          newSignals.push({id:Date.now()+Math.random(),accId:a.id,ruleId:r.id,ruleName:r.name,icon:r.icon,urgency:r.priority,days:daysSinceAct,phase:a.pipe,created:todayStr});
+        }
+      }
+
+      if(r.trigger==='stuck_phase'){
+        // Days in current phase = days since last phase change
+        // Approximation: days since last note or added date
+        if(daysSinceAct<threshold)return;
+        // Check for existing signal
+        const exists=wfSignals.some(s=>s.accId===a.id&&s.ruleId===r.id&&daysSince(s.created)<2);
+        if(!exists){
+          newSignals.push({id:Date.now()+Math.random(),accId:a.id,ruleId:r.id,ruleName:r.name,icon:r.icon,urgency:r.priority,days:daysSinceAct,phase:a.pipe,created:todayStr});
+          newLog.push({time:todayStr,text:`⏰ Signaal: ${a.name} staat al ${daysSinceAct} dagen in "${a.pipe}"`,acc:a.id});
+        }
+      }
+    });
+  });
+
+  // Merge new tasks (avoid duplicates)
+  newTasks.forEach(t=>{
+    if(!todos.some(x=>x.title===t.title&&x.acc===t.acc&&!x.done)){
+      todos.unshift(t);
+    }
+  });
+  // Update signals (keep recent ones + add new)
+  const keepSignals=wfSignals.filter(s=>daysSince(s.created)<7);
+  wfSignals=[...newSignals,...keepSignals.filter(s=>!newSignals.some(n=>n.accId===s.accId&&n.ruleId===s.ruleId))];
+  // Merge log
+  wfLog=[...newLog,...wfLog].slice(0,50);
+
+  ss('ix_todos',todos);
+  ss('ix_wfsignals',wfSignals);
+  ss('ix_wflog',wfLog);
+  ss('ix_wflearn',wfLearning);
+
+  updateBadge();
+  updateWfBadge();
+
+  if(manual){
+    const n=newTasks.length;const s=newSignals.length;
+    alert(`Workflow uitgevoerd:\n✓ ${n} nieuwe taak${n!==1?'en':''} aangemaakt\n✓ ${s} signaal${s!==1?'en':''} bijgewerkt`);
+    if(document.getElementById('p-workflows').classList.contains('on'))renderWorkflows();
+    if(document.getElementById('p-dashboard').classList.contains('on'))renderDash();
+  }
+}
+
+function getLearnedThreshold(ruleId,defaultDays){
+  const l=wfLearning[ruleId];
+  if(!l||l.samples<3)return defaultDays;
+  return Math.round(l.avgDays*0.8); // trigger slightly before avg
+}
+
+function recordLearnTrigger(ruleId,actualDays){
+  if(!wfLearning[ruleId])wfLearning[ruleId]={avgDays:actualDays,samples:1,lastSuggested:null};
+  else{
+    const l=wfLearning[ruleId];
+    l.avgDays=Math.round((l.avgDays*l.samples+actualDays)/(l.samples+1));
+    l.samples++;
+  }
+}
+
+function checkLearningSuggestions(){
+  const suggestions=[];
+  wfRules.forEach(r=>{
+    const l=wfLearning[r.id];
+    if(!l||l.samples<3)return;
+    const learnedDays=Math.round(l.avgDays*0.8);
+    if(Math.abs(learnedDays-r.days)>=2&&(!l.lastSuggested||daysSince(l.lastSuggested)>14)){
+      suggestions.push({ruleId:r.id,ruleName:r.name,currentDays:r.days,suggestedDays:learnedDays,samples:l.samples});
+    }
+  });
+  return suggestions;
+}
+
+function acceptLearnSuggestion(ruleId,newDays){
+  const r=wfRules.find(x=>x.id===ruleId);
+  if(r){r.days=newDays;ss('ix_wfrules',wfRules);}
+  if(wfLearning[ruleId])wfLearning[ruleId].lastSuggested=localISO();
+  ss('ix_wflearn',wfLearning);
+  renderWorkflows();
+}
+
+function dismissLearnSuggestion(ruleId){
+  if(wfLearning[ruleId])wfLearning[ruleId].lastSuggested=localISO();
+  ss('ix_wflearn',wfLearning);
+  renderWorkflows();
+}
+
+function updateWfBadge(){
+  const n=todos.filter(t=>t.auto&&!t.done).length+wfSignals.filter(s=>s.urgency==='hoog').length;
+  const b=document.getElementById('wf-badge');
+  if(b){b.textContent=n;b.style.display=n>0?'inline':'none';}
+  // Update dash count
+  const dc=document.getElementById('dash-wf-count');
+  const total=todos.filter(t=>t.auto&&!t.done).length+wfSignals.length;
+  if(dc)dc.textContent=total>0?total+' items':'';
+}
+
+function renderWorkflows(){
+  // Suggestions
+  const sugg=checkLearningSuggestions();
+  const suggEl=document.getElementById('wf-suggestions');
+  if(sugg.length&&suggEl){
+    suggEl.innerHTML=sugg.map(s=>`
+      <div class="wf-learn" style="margin-bottom:12px;">
+        <div style="display:flex;align-items:flex-start;gap:10px;">
+          <div style="font-size:22px;">🧠</div>
+          <div style="flex:1;">
+            <div style="font-size:13.5px;font-weight:600;color:var(--amber-t);margin-bottom:3px;">Intersect leert</div>
+            <div style="font-size:12.5px;color:var(--text2);">Bij "<strong>${s.ruleName}</strong>" pakken jullie taken gemiddeld op na <strong>${s.suggestedDays} dagen</strong> in plaats van ${s.currentDays} dagen (op basis van ${s.samples} keer). Wil je de standaard aanpassen?</div>
+            <div style="display:flex;gap:8px;margin-top:10px;">
+              <button class="btn sm pri" onclick="acceptLearnSuggestion('${s.ruleId}',${s.suggestedDays})">Ja, aanpassen naar ${s.suggestedDays} dagen</button>
+              <button class="btn sm ghost" onclick="dismissLearnSuggestion('${s.ruleId}')">Nee, laat maar</button>
+            </div>
+          </div>
+        </div>
+      </div>`).join('');
+  } else if(suggEl) suggEl.innerHTML='';
+
+  // Rules list
+  const rulesEl=document.getElementById('wf-rules-list');
+  if(rulesEl) rulesEl.innerHTML=wfRules.map(r=>`
+    <div class="wf-rule${r.active?'':' inactive'}">
+      <div class="wf-toggle${r.active?' on':''}" onclick="toggleWfRule('${r.id}')"></div>
+      <div class="wf-body">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:16px;">${r.icon}</span>
+          <div class="wf-name">${r.name}</div>
+        </div>
+        <div class="wf-desc">${r.desc}</div>
+        <div class="wf-meta">
+          <span class="wf-chip trigger">Als: ${r.trigger==='no_contact'?'geen contact':'fase stagneert'}</span>
+          <span class="wf-chip timing">Na: ${r.days} dag${r.days!==1?'en':''}</span>
+          <span class="wf-chip action">${r.action==='task'?'Taak aanmaken':r.action==='task_and_email'?'Taak + e-mail':r.action==='signal'?'Signaal':'Actie'}</span>
+          ${wfLearning[r.id]?.samples>0?`<span class="wf-chip" style="background:var(--purple-bg);color:var(--purple-t);">📊 ${wfLearning[r.id].samples}x geleerd</span>`:''}
+        </div>
+      </div>
+      <button class="btn xs ghost" onclick="editWfRule('${r.id}')">Bewerk</button>
+    </div>`).join('');
+
+  // Signals
+  const sigEl=document.getElementById('wf-signals-list');
+  const cntEl=document.getElementById('wf-signal-count');
+  const activeSignals=wfSignals.filter(s=>daysSince(s.created)<7);
+  if(cntEl)cntEl.textContent=activeSignals.length+' actief';
+  if(sigEl) sigEl.innerHTML=activeSignals.length?activeSignals.slice(0,8).map(s=>{
+    const a=accs.find(x=>x.id===s.accId);if(!a)return'';
+    const urgClass=s.urgency==='hoog'?'signal-urgent':s.urgency==='medium'?'signal-warn':'signal-info';
+    return`<div class="signal-card" onclick="openDetail(${a.id})">
+      <div class="signal-dot ${urgClass}"></div>
+      <div style="flex:1;">
+        <div style="font-size:13px;font-weight:500;">${s.icon} ${a.name}</div>
+        <div style="font-size:11.5px;color:var(--text2);">${s.ruleName} · ${s.days} dagen geleden</div>
+        <div style="font-size:11px;color:var(--text3);">Fase: ${s.phase}</div>
+      </div>
+      <button class="btn xs ghost" onclick="event.stopPropagation();dismissSignal('${s.id}')">✕</button>
+    </div>`;
+  }).join(''):`<div style="color:var(--text3);font-size:12.5px;padding:8px 0;">Geen actieve signalen ✓</div>`;
+
+  // Log
+  const logEl=document.getElementById('wf-log-list');
+  if(logEl) logEl.innerHTML=wfLog.slice(0,10).map(l=>{
+    const a=accs.find(x=>x.id===l.acc);
+    return`<div style="display:flex;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);align-items:flex-start;">
+      <div style="font-size:11px;color:var(--text3);flex-shrink:0;min-width:70px;">${l.time}</div>
+      <div style="font-size:12px;color:var(--text2);">${l.text}</div>
+    </div>`;
+  }).join('')||'<div style="color:var(--text3);font-size:12.5px;">Nog geen activiteit</div>';
+}
+
+function renderWatNu(){
+  // Build prioritized list of accounts needing attention
+  const signals=wfSignals.filter(s=>daysSince(s.created)<7);
+  const autoTasks=todos.filter(t=>t.auto&&!t.done);
+  // Combine by account
+  const accMap={};
+  signals.forEach(s=>{
+    if(!accMap[s.accId])accMap[s.accId]={signals:[],tasks:[],maxUrgency:'laag'};
+    accMap[s.accId].signals.push(s);
+    if(s.urgency==='hoog'||(s.urgency==='medium'&&accMap[s.accId].maxUrgency==='laag'))accMap[s.accId].maxUrgency=s.urgency;
+  });
+  autoTasks.forEach(t=>{
+    if(!t.acc)return;
+    if(!accMap[t.acc])accMap[t.acc]={signals:[],tasks:[],maxUrgency:'laag'};
+    accMap[t.acc].tasks.push(t);
+    if(t.prio==='hoog')accMap[t.acc].maxUrgency='hoog';
+    else if(t.prio==='medium'&&accMap[t.acc].maxUrgency==='laag')accMap[t.acc].maxUrgency='medium';
+  });
+
+  const sorted=Object.entries(accMap).sort(([,a],[,b])=>{
+    const order={hoog:0,medium:1,laag:2};
+    return(order[a.maxUrgency]||2)-(order[b.maxUrgency]||2);
+  });
+
+  const el=document.getElementById('dash-wat-nu');
+  if(!el)return;
+
+  if(!sorted.length){
+    el.innerHTML=`<div style="padding:16px 18px;color:rgba(255,255,255,.35);font-size:13px;">Alles op orde — geen accounts vragen nu actie</div>`;
+    return;
+  }
+
+  // Group by urgency
+  const high=sorted.filter(([,v])=>v.maxUrgency==='hoog');
+  const med=sorted.filter(([,v])=>v.maxUrgency==='medium');
+  const low=sorted.filter(([,v])=>v.maxUrgency==='laag');
+  const groups=[{label:'Urgent',items:high,color:'var(--red)',bg:'rgba(192,57,43,.08)'},{label:'Let op',items:med,color:'var(--amber)',bg:'rgba(138,98,0,.06)'},{label:'Aandacht',items:low,color:'var(--blue)',bg:'rgba(26,95,180,.05)'}];
+
+  el.innerHTML=groups.filter(g=>g.items.length).map(g=>`
+    <div style="border-top:1px solid rgba(255,255,255,.06);">
+      <div style="padding:6px 18px 2px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:rgba(255,255,255,.3);">${g.label}</div>
+      ${g.items.slice(0,4).map(([accId,data])=>{
+        const a=accs.find(x=>x.id===parseInt(accId));if(!a)return'';
+        const [bg,fg]=CLRS[a.color%CLRS.length];
+        const task=data.tasks[0];
+        const signal=data.signals[0];
+        const msg=task?task.title:signal?`${signal.icon} ${signal.ruleName}`:'Actie vereist';
+        return`<div onclick="openDetail(${a.id})" style="display:flex;align-items:center;gap:10px;padding:9px 18px;cursor:pointer;transition:background .1s;border-bottom:1px solid rgba(255,255,255,.05);" onmouseover="this.style.background='rgba(255,255,255,.04)'" onmouseout="this.style.background=''">
+          <div style="width:8px;height:8px;border-radius:50%;background:${g.color};flex-shrink:0;"></div>
+          <div style="width:26px;height:26px;border-radius:6px;background:${bg};color:${fg};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0;">${initials(a.name)}</div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:12.5px;font-weight:500;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${a.name}</div>
+            <div style="font-size:11px;color:rgba(255,255,255,.4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${msg}</div>
+          </div>
+          ${task?`<button onclick="event.stopPropagation();quickDoneTask(${task.id})" style="background:none;border:1px solid rgba(255,255,255,.15);border-radius:4px;color:rgba(255,255,255,.4);font-size:10px;padding:2px 7px;cursor:pointer;white-space:nowrap;font-family:'DM Sans',sans-serif;" title="Afvinken">✓ Gedaan</button>`:''}
+        </div>`;
+      }).join('')}
+    </div>`).join('');
+
+  // Update count badge
+  const total=sorted.length;
+  const dc=document.getElementById('dash-wf-count');
+  if(dc)dc.textContent=total>0?total+' items':'';
+}
+
+function quickDoneTask(id){
+  const t=todos.find(x=>x.id===id);
+  if(t){t.done=true;t.doneDate=localISO();ss('ix_todos',todos);_saveTodo(t).catch(()=>{});updateBadge();updateWfBadge();renderWatNu();
+  // Record learning
+  if(t.ruleId&&t.acc){
+    const a=accs.find(x=>x.id===t.acc);
+    if(a)recordLearnTrigger(t.ruleId,daysSince(lastActivityDate(a)));
+    ss('ix_wflearn',wfLearning);
+  }}
+}
+
+function toggleWfRule(id){
+  const r=wfRules.find(x=>x.id===id);if(r)r.active=!r.active;
+  ss('ix_wfrules',wfRules);renderWorkflows();
+}
+
+function dismissSignal(id){
+  wfSignals=wfSignals.filter(s=>String(s.id)!==String(id));
+  ss('ix_wfsignals',wfSignals);renderWorkflows();updateWfBadge();
+}
+
+function editWfRule(id){
+  const r=wfRules.find(x=>x.id===id);if(!r)return;
+  const newDays=prompt('Hoeveel dagen voor "'+r.name+'"?\nHuidige waarde: '+r.days+' dagen',r.days);
+  if(newDays&&!isNaN(parseInt(newDays))){r.days=parseInt(newDays);ss('ix_wfrules',wfRules);renderWorkflows();}
+}
+
+function renderDashOmzet(){
+  const wrap = document.getElementById('dash-omzet-wrap');
+  if(!wrap) return;
+
+  // Only show when there are clients with omzet config or won deals
+  if(!clients.length){
+    wrap.innerHTML = '';
+    return;
+  }
+
+  const fmt = n => new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(n);
+  const fmtP = n => (n%1===0?n:n.toFixed(1))+'%';
+  const now = new Date();
+
+  // Build rows per client
+  const rows = clients.map(c => {
+    const linked = accs.filter(a => a.clientLinks && a.clientLinks[c.id]);
+
+    // Calculate per-account using omzetCfg
+    let totalIntersectOmzet = 0, totalEigenOmzet = 0, totalVergoeding = 0;
+    let hasConfig = false;
+
+    linked.forEach(a => {
+      const cfg = a.omzetCfg || null;
+      const wonDeals = (a.deals||[]).filter(d =>
+        d.stage==='Gewonnen' || d.stage==='Gesloten' || d.stage==='Won'
+      );
+      if(!wonDeals.length && !cfg) return;
+      hasConfig = true;
+
+      const effectiveCfg = cfg || {
+        vorm: 'staffel',
+        eigenLeadPct: 10,
+        staffelTiers:[
+          {max:50000,  rate:17.5},
+          {max:100000, rate:20},
+          {max:Infinity,rate:22.5}
+        ]
+      };
+
+      wonDeals.forEach(d => {
+        const v = parseFloat(d.val)||0;
+        if(d.isEigenLead) totalEigenOmzet += v;
+        else totalIntersectOmzet += v;
       });
 
-      if (!error) {
-        opgeslagenDezeRun++;
-        bekendeNamen.add(naam);
-        if (domein) bekendeWebsites.add(domein);
-        const totaal = job.gevonden + opgeslagenDezeRun;
-        console.log(`[+] ${bedrijf.naam} | ${bedrijf.score} | ${bedrijf.sector || '?'} (${totaal}/${job.target})`);
+      // Vergoeding berekening
+      const vorm = effectiveCfg.vorm || 'staffel';
+      if(vorm === 'staffel'){
+        const tiers = effectiveCfg.staffelTiers || [{max:50000,rate:17.5},{max:100000,rate:20},{max:Infinity,rate:22.5}];
+        let tier = tiers[tiers.length-1];
+        for(const tx of tiers){ if(totalIntersectOmzet <= tx.max){tier=tx;break;} }
+        totalVergoeding += totalIntersectOmzet * tier.rate / 100;
+        totalVergoeding += totalEigenOmzet * (effectiveCfg.eigenLeadPct||10) / 100;
+      } else if(vorm === 'vaste_fee'){
+        totalVergoeding += effectiveCfg.vasteFee || 0;
+      } else if(vorm === 'retainer'){
+        if(effectiveCfg.startDate){
+          const ms = now - new Date(effectiveCfg.startDate+'T12:00');
+          const maanden = Math.max(0, Math.round(ms/2629800000));
+          totalVergoeding += (effectiveCfg.retainerPerMaand||0) * maanden;
+        }
+      } else if(vorm === 'achteraf'){
+        totalVergoeding += (totalIntersectOmzet+totalEigenOmzet) * (effectiveCfg.achterafPct||0)/100;
+      }
+    });
+
+    // Looptijd
+    let looptijdHtml = '<span style="color:var(--text3);font-size:12px;">—</span>';
+    // Use first linked account with omzetCfg
+    const cfgAcc = linked.find(a => a.omzetCfg && a.omzetCfg.startDate);
+    if(cfgAcc && cfgAcc.omzetCfg.startDate){
+      const s = new Date(cfgAcc.omzetCfg.startDate+'T12:00');
+      const e = new Date(s); e.setMonth(e.getMonth()+(cfgAcc.omzetCfg.durationMonths||12));
+      const daysLeft = Math.max(0, Math.round((e-now)/86400000));
+      const expired = now > e;
+      if(expired){
+        looptijdHtml = '<span style="color:var(--red-t);font-size:11.5px;font-weight:600;">Verlopen</span>';
+      } else {
+        const pct = Math.min(100,Math.max(0,((now-s)/(e-s))*100));
+        const barColor = pct>80?'var(--red)':pct>60?'var(--amber)':'var(--navy)';
+        looptijdHtml = `<div style="display:flex;flex-direction:column;gap:3px;min-width:80px;">
+          <div style="font-size:12px;color:${pct>80?'var(--red-t)':'var(--text2)'};">${daysLeft} dgn</div>
+          <div style="height:3px;background:var(--border);border-radius:2px;overflow:hidden;width:60px;">
+            <div style="height:100%;width:${pct.toFixed(0)}%;background:${barColor};border-radius:2px;"></div>
+          </div>
+        </div>`;
       }
     }
 
-    // Wacht tussen ronden tenzij we klaar zijn
-    const nogSteeds = job.gevonden + opgeslagenDezeRun < job.target;
-    const tijdOver = (Date.now() - startTime) < TIJDSLIMIET - 60000;
-    if (nogSteeds && tijdOver) await wacht(10000);
+    const totalOmzet = totalIntersectOmzet + totalEigenOmzet;
+    const wonCount = linked.reduce((s,a)=>{
+      return s + (a.deals||[]).filter(d=>d.stage==='Gewonnen'||d.stage==='Gesloten'||d.stage==='Won').length;
+    }, 0);
+
+    return { c, linked, totalIntersectOmzet, totalEigenOmzet, totalOmzet, totalVergoeding, wonCount, looptijdHtml };
+  }).filter(r => r.linked.length > 0);
+
+  if(!rows.length){
+    wrap.innerHTML = '';
+    return;
   }
 
-  // Update job voortgang
-  const nieuwGevonden = job.gevonden + opgeslagenDezeRun;
-  const klaar = nieuwGevonden >= job.target;
-  await db.from('scraper_jobs').update({
-    gevonden: nieuwGevonden,
-    status: klaar ? 'klaar' : 'bezig',
-  }).eq('id', job.id);
+  // Totals
+  const grandOmzet      = rows.reduce((s,r)=>s+r.totalOmzet,0);
+  const grandVergoeding = rows.reduce((s,r)=>s+r.totalVergoeding,0);
+  const grandDeals      = rows.reduce((s,r)=>s+r.wonCount,0);
 
-  const duur = Math.round((Date.now() - startTime) / 1000);
-  console.log(`[Run klaar] ${opgeslagenDezeRun} leads in ${duur}s | Totaal: ${nieuwGevonden}/${job.target} | Status: ${klaar ? 'KLAAR' : 'bezig'}`);
+  wrap.innerHTML = `
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;">
+    <!-- Header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);background:var(--surface2);">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="display:block;width:3px;height:14px;background:var(--gold);border-radius:2px;flex-shrink:0;"></span>
+        <div>
+          <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--text);">Intersect Omzet — Alle opdrachtgevers</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:1px;">${rows.length} opdrachtgever${rows.length!==1?'s':''} · ${grandDeals} gewonnen deal${grandDeals!==1?'s':''}</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:16px;align-items:center;">
+        <div style="text-align:right;">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);">Totale omzet</div>
+          <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;color:var(--navy);">${fmt(grandOmzet)}</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);">Totale vergoeding</div>
+          <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;color:var(--gold);">${fmt(grandVergoeding)}</div>
+        </div>
+      </div>
+    </div>
 
-  return res.status(200).json({
-    success: true,
-    opgeslagen: opgeslagenDezeRun,
-    totaal: nieuwGevonden,
-    target: job.target,
-    klaar,
-    job_id: job.id,
-    duur_seconden: duur,
-  });
+    <!-- Tabel -->
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead>
+        <tr style="border-bottom:1px solid var(--border);">
+          <th style="text-align:left;padding:9px 18px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;background:var(--surface2);">Opdrachtgever</th>
+          <th style="padding:9px 14px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;background:var(--surface2);">Intersect leads</th>
+          <th style="padding:9px 14px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;background:var(--surface2);">Eigen leads</th>
+          <th style="padding:9px 14px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;background:var(--surface2);">Totale omzet</th>
+          <th style="padding:9px 14px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;background:var(--surface2);">Vergoeding</th>
+          <th style="padding:9px 14px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;background:var(--surface2);">Looptijd</th>
+          <th style="padding:9px 14px;background:var(--surface2);"></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map(r => {
+          const vPct = r.totalOmzet > 0 ? (r.totalVergoeding/r.totalOmzet*100).toFixed(1)+'%' : '—';
+          return `<tr style="border-top:1px solid var(--border);cursor:pointer;transition:background .1s;" onmouseover="this.style.background='var(--navy-fade)'" onmouseout="this.style.background=''">
+            <td style="padding:11px 18px;" onclick="setClient(${r.c.id})">
+              <div style="display:flex;align-items:center;gap:9px;">
+                <div style="width:10px;height:10px;border-radius:50%;background:${r.c.color};flex-shrink:0;"></div>
+                <div>
+                  <div style="font-weight:600;font-size:13px;">${r.c.name}</div>
+                  <div style="font-size:11px;color:var(--text3);">${r.linked.length} account${r.linked.length!==1?'s':''} · ${r.wonCount} deal${r.wonCount!==1?'s':''}</div>
+                </div>
+              </div>
+            </td>
+            <td style="padding:11px 14px;" onclick="setClient(${r.c.id})">
+              <div style="font-family:'Syne',sans-serif;font-weight:600;color:var(--navy);">${fmt(r.totalIntersectOmzet)}</div>
+            </td>
+            <td style="padding:11px 14px;" onclick="setClient(${r.c.id})">
+              <div style="font-size:13px;color:var(--text2);">${r.totalEigenOmzet>0?fmt(r.totalEigenOmzet):'—'}</div>
+            </td>
+            <td style="padding:11px 14px;" onclick="setClient(${r.c.id})">
+              <div style="font-family:'Syne',sans-serif;font-weight:700;">${fmt(r.totalOmzet)}</div>
+            </td>
+            <td style="padding:11px 14px;" onclick="setClient(${r.c.id})">
+              <div style="font-family:'Syne',sans-serif;font-weight:700;color:var(--gold);">${fmt(r.totalVergoeding)}</div>
+              <div style="font-size:10.5px;color:var(--text3);margin-top:1px;">${vPct} effectief</div>
+            </td>
+            <td style="padding:11px 14px;" onclick="setClient(${r.c.id})">${r.looptijdHtml}</td>
+            <td style="padding:11px 14px;text-align:right;">
+              <button onclick="event.stopPropagation();setClient(${r.c.id})" class="btn xs ghost">Dashboard →</button>
+            </td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+      <!-- Totaalrij -->
+      <tfoot>
+        <tr style="border-top:2px solid var(--border);background:var(--surface2);">
+          <td style="padding:10px 18px;font-weight:700;font-size:13px;">Totaal</td>
+          <td style="padding:10px 14px;font-family:'Syne',sans-serif;font-weight:700;color:var(--navy);">${fmt(rows.reduce((s,r)=>s+r.totalIntersectOmzet,0))}</td>
+          <td style="padding:10px 14px;font-size:13px;color:var(--text2);">${fmt(rows.reduce((s,r)=>s+r.totalEigenOmzet,0))}</td>
+          <td style="padding:10px 14px;font-family:'Syne',sans-serif;font-weight:700;">${fmt(grandOmzet)}</td>
+          <td style="padding:10px 14px;font-family:'Syne',sans-serif;font-weight:700;color:var(--gold);">${fmt(grandVergoeding)}</td>
+          <td colspan="2"></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>`;
 }
 
-async function handleSaveOpdrachtgever(req, res) {
-  const { opdrachtgever, info } = req.body || {};
-  if (!opdrachtgever) return res.status(400).json({ error: 'opdrachtgever verplicht' });
-  const db = getDb();
-  const { error } = await db.from('accounts')
-    .update({ note: info || '' }).eq('name', opdrachtgever).eq('status', 'klant');
-  if (error) return res.status(500).json({ error: error.message });
-  return res.status(200).json({ success: true });
+// ══════════════ OMZET HELPERS ══════════════
+
+function toggleDealEigenLead(accId, dealIndex){
+  const a = accs.find(x => x.id === accId);
+  if(!a || !a.deals || !a.deals[dealIndex]) return;
+  a.deals[dealIndex].isEigenLead = !a.deals[dealIndex].isEigenLead;
+  const idx = accs.findIndex(x => x.id === accId);
+  if(idx >= 0) accs[idx] = a;
+  ss('ix_accs', accs);
+  _saveAcc(a).catch(() => {});
+  renderTab('omzet');
 }
 
-async function handleStatus(req, res) {
-  const db = getDb();
-  const [{ count }, actieveJobs] = await Promise.all([
-    db.from('scraper_results').select('*', { count: 'exact', head: true }).eq('status', 'ter_beoordeling'),
-    db.from('scraper_jobs').select('*').eq('status', 'bezig').order('created_at', { ascending: false }).limit(10),
-  ]);
-  return res.status(200).json({
-    wachtend: count || 0,
-    jobs: actieveJobs?.data || [],
-  });
+function openOmzetInstellingen(accId){
+  const a = accs.find(x => x.id === accId);
+  if(!a) return;
+  const cfg = a.omzetCfg || {
+    vorm: 'staffel',
+    startDate: '',
+    durationMonths: 12,
+    eigenLeadPct: 10,
+    vasteFee: 0,
+    retainerPerMaand: 0,
+    achterafPct: 0,
+    staffelTiers:[
+      {max:50000,  rate:17.5, label:'0 – \u20ac50k'},
+      {max:100000, rate:20,   label:'\u20ac50k – \u20ac100k'},
+      {max:Infinity,rate:22.5,label:'> \u20ac100k'}
+    ]
+  };
+  document.getElementById('omzet-acc-id').value  = accId;
+  document.getElementById('omzet-vorm').value      = cfg.vorm || 'staffel';
+  document.getElementById('omzet-start').value     = cfg.startDate || '';
+  document.getElementById('omzet-maanden').value   = cfg.durationMonths || 12;
+  document.getElementById('omzet-eigen-pct').value = cfg.eigenLeadPct || 10;
+  document.getElementById('omzet-vaste-fee').value  = cfg.vasteFee || 0;
+  document.getElementById('omzet-retainer').value   = cfg.retainerPerMaand || 0;
+  document.getElementById('omzet-achteraf-pct').value = cfg.achterafPct || 0;
+  document.getElementById('omzet-t1-rate').value   = (cfg.staffelTiers&&cfg.staffelTiers[0])?cfg.staffelTiers[0].rate:17.5;
+  document.getElementById('omzet-t2-rate').value   = (cfg.staffelTiers&&cfg.staffelTiers[1])?cfg.staffelTiers[1].rate:20;
+  document.getElementById('omzet-t3-rate').value   = (cfg.staffelTiers&&cfg.staffelTiers[2])?cfg.staffelTiers[2].rate:22.5;
+  updateOmzetVormFields();
+  openM('m-omzet');
 }
 
-async function handleResults(req, res) {
-  const db = getDb();
-  if (req.method === 'GET') {
-    const { data, error } = await db.from('scraper_results')
-      .select('*').eq('status', 'ter_beoordeling').order('score', { ascending: false });
-    if (error) return res.status(500).json({ error: error.message });
-    return res.status(200).json({ success: true, leads: data || [] });
-  }
-  const { doorsturen, afwijzen } = req.body || {};
-  let opgeslagen = 0;
-  const fouten = [];
-  for (const lead of (doorsturen || [])) {
-    const id = await voegAccountToe({
-      ...lead,
-      contactpersoon: { naam: lead.contact_naam || '', titel: lead.contact_rol || '' },
-      contactTelefoon: lead.contact_telefoon || '',
-      email: lead.contact_email || '',
-    });
-    if (id) {
-      opgeslagen++;
-      await db.from('scraper_results').update({ status: 'doorgestuurd' }).eq('id', lead.id);
-    } else {
-      fouten.push(lead.organisatie);
+function updateOmzetVormFields(){
+  const v = document.getElementById('omzet-vorm').value;
+  document.getElementById('omzet-staffel-fields').style.display  = v==='staffel'?'':'none';
+  document.getElementById('omzet-vaste-fields').style.display    = v==='vaste_fee'?'':'none';
+  document.getElementById('omzet-retainer-fields').style.display = v==='retainer'?'':'none';
+  document.getElementById('omzet-achteraf-fields').style.display = v==='achteraf'?'':'none';
+}
+
+function saveOmzetInstellingen(){
+  const accId = parseInt(document.getElementById('omzet-acc-id').value);
+  const a = accs.find(x => x.id === accId);
+  if(!a) return;
+  const vorm = document.getElementById('omzet-vorm').value;
+  const t1   = parseFloat(document.getElementById('omzet-t1-rate').value) || 17.5;
+  const t2   = parseFloat(document.getElementById('omzet-t2-rate').value) || 20;
+  const t3   = parseFloat(document.getElementById('omzet-t3-rate').value) || 22.5;
+  a.omzetCfg = {
+    vorm:              vorm,
+    startDate:         document.getElementById('omzet-start').value.trim(),
+    durationMonths:    parseInt(document.getElementById('omzet-maanden').value)||12,
+    eigenLeadPct:      parseFloat(document.getElementById('omzet-eigen-pct').value)||10,
+    vasteFee:          parseFloat(document.getElementById('omzet-vaste-fee').value)||0,
+    retainerPerMaand:  parseFloat(document.getElementById('omzet-retainer').value)||0,
+    achterafPct:       parseFloat(document.getElementById('omzet-achteraf-pct').value)||0,
+    staffelTiers:[
+      {max:50000,   rate:t1, label:'0 \u2013 \u20ac50k'},
+      {max:100000,  rate:t2, label:'\u20ac50k \u2013 \u20ac100k'},
+      {max:Infinity,rate:t3, label:'> \u20ac100k'}
+    ]
+  };
+  const idx = accs.findIndex(x => x.id === accId);
+  if(idx >= 0) accs[idx] = a;
+  ss('ix_accs', accs);
+  _saveAcc(a).catch(() => {});
+  closeM('m-omzet');
+  renderTab('omzet');
+}
+
+// ══════════════ HASH ROUTER ══════════════
+function applyHash(){
+  const hash = window.location.hash.replace('#','');
+  if(!hash) return;
+  if(hash.startsWith('account/')){
+    const id = parseInt(hash.split('/')[1]);
+    if(!isNaN(id)){
+      const a = accs.find(x=>x.id===id);
+      if(a){ openDetail(id); return; }
     }
   }
-  for (const id of (afwijzen || [])) {
-    await db.from('scraper_results').update({ status: 'afgewezen' }).eq('id', id);
+  const pages=['dashboard','accounts','pipeline','contacts','todos','outreach','activity','agenda','workflows','rapport','scraper','instellingen','actiecenter'];
+  if(pages.includes(hash)){
+    nav(hash);
+    if(hash==='accounts') renderAccList();
+    if(hash==='agenda') renderAgenda();
+    if(hash==='contacts') renderContacts();
+    if(hash==='todos') renderTodos();
   }
-  return res.status(200).json({ success: true, opgeslagen, fouten: fouten.length });
+}
+window.addEventListener('popstate', applyHash);
+
+
+// ══════════════ SPELLINGSCHECK & AUTOCORRECT ══════════════
+(function(){
+  // Native browser spellcheck op alle textareas en text inputs
+  function activeerSpellcheck(){
+    document.querySelectorAll('textarea, input[type="text"]').forEach(el=>{
+      el.setAttribute('spellcheck','true');
+      el.setAttribute('lang','nl');
+    });
+  }
+
+  // Autocorrect: kleine schrijffouten automatisch aanpassen
+  // - Eerste letter na punt + spatie kapitaliseren
+  // - "ik" aan het begin van zin → "Ik"
+  // - Dubbele spaties verwijderen
+  const AUTOCORRECT_MAP = {
+    ' ik ': ' Ik ',
+    ' ik.': ' Ik.',
+    ' ik,': ' Ik,',
+    'intersect': 'Intersect',
+    'audio obscura': 'Audio Obscura',
+    'rotterdam': 'Rotterdam',
+    'amsterdam': 'Amsterdam',
+    'den haag': 'Den Haag',
+  };
+
+  function autocorrect(el){
+    if(!el||el.type==='password')return;
+    let val=el.value;
+    let changed=false;
+
+    // Dubbele spaties
+    const clean=val.replace(/  +/g,' ');
+    if(clean!==val){val=clean;changed=true;}
+
+    // Eerste letter van zin kapitaliseren (na '. ' of '! ' of '? ' of start)
+    const gecap=val.replace(/(^|[.!?]\s+)([a-z])/g,(m,p1,p2)=>p1+p2.toUpperCase());
+    if(gecap!==val){val=gecap;changed=true;}
+
+    // Autocorrect map (alleen exacte matches in lowercase context)
+    for(const [van,naar] of Object.entries(AUTOCORRECT_MAP)){
+      const regex=new RegExp(van.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'g');
+      const nieuw=val.replace(regex,naar);
+      if(nieuw!==val){val=nieuw;changed=true;}
+    }
+
+    if(changed){
+      const pos=el.selectionStart;
+      el.value=val;
+      try{el.setSelectionRange(pos,pos);}catch(e){}
+    }
+  }
+
+  // Activeer spellcheck op nieuwe elementen via MutationObserver
+  const obs=new MutationObserver(()=>activeerSpellcheck());
+  obs.observe(document.body,{childList:true,subtree:true});
+
+  // Autocorrect op blur (als je het veld verlaat)
+  document.addEventListener('focusout',e=>{
+    if(e.target.tagName==='TEXTAREA'||e.target.type==='text'){
+      autocorrect(e.target);
+    }
+  });
+
+  // Initieel activeren
+  setTimeout(activeerSpellcheck,500);
+})();
+
+
+// ══ ACTIVITEIT KLEUREN ══
+const ACT_STIJL = {
+  notitie:        { kleur:'#8a6200',  bg:'#fff8e6',  label:'Notitie' },
+  gesprek:        { kleur:'#14532d',  bg:'#dcfce7',  label:'Telefoongesprek' },
+  email:          { kleur:'#1a5fb4',  bg:'#eaf1fd',  label:'E-mail' },
+  whatsapp:       { kleur:'#1a7a3a',  bg:'#eaf7ef',  label:'WhatsApp' },
+  voicemail:      { kleur:'#6b21a8',  bg:'#f3e8ff',  label:'Voicemail' },
+  mailshot:       { kleur:'#c0392b',  bg:'#fdf0ee',  label:'Mailshot' },
+  opvolg_mailshot:{ kleur:'#c2410c',  bg:'#fff7ed',  label:'Opvolg Mailshot' },
+  linkshot:       { kleur:'#1a5fb4',  bg:'#eaf1fd',  label:'Linkshot' },
+  directe_mail:   { kleur:'#c0392b',  bg:'#fdf0ee',  label:'Directe mail' },
+  taak:           { kleur:'#1a1a1a',  bg:'#f8f8f8',  label:'Taak' },
+};
+
+function actStijl(type) {
+  return ACT_STIJL[type] || { kleur:'var(--text3)', bg:'var(--surface2)', label: type };
 }
 
-module.exports = async function handler(req, res) {
-  console.log('[Handler]', req.method, req.url);
-  const secret = process.env.CRON_SECRET;
-  const geldig = req.headers.authorization === `Bearer ${secret}`
-    || req.body?.secret === secret
-    || req.query?.secret === secret;
-  if (!geldig) return res.status(401).json({ error: 'Unauthorized' });
-  const action = req.query.action || req.body?.action;
-  if (action === 'start')              return handleStart(req, res);
-  if (action === 'status')             return handleStatus(req, res);
-  if (action === 'results')            return handleResults(req, res);
-  if (action === 'save_opdrachtgever') return handleSaveOpdrachtgever(req, res);
-  return res.status(400).json({ error: 'Geef action mee: start|status|results|save_opdrachtgever' });
-};
+function actBadge(type) {
+  const s = actStijl(type);
+  return `<span style="font-size:10px;font-weight:700;text-transform:uppercase;padding:2px 7px;border-radius:4px;background:${s.bg};color:${s.kleur};">${s.label}</span>`;
+}
+
+function renderActiviteitBalk(n, ingeklapt = true, toonBewerken = true) {
+  const s = actStijl(n.type);
+  const id = 'act-'+String(n.id).replace(/[^a-z0-9]/gi,'-');
+
+  // Contactpersoon klikbaar
+  const contactHtml = n.contact
+    ? `<span style="font-size:12px;color:var(--text3);">met</span>
+       <span style="font-size:12px;color:var(--blue);cursor:pointer;font-weight:500;text-decoration:underline;text-decoration-style:dotted;" onclick="event.stopPropagation();switchTab('contacts')">${n.contact}</span>`
+    : '';
+
+  // Tijdstip tonen
+  const tijdHtml = `<span style="font-size:11px;color:var(--text3);white-space:nowrap;">${n.time||''}</span>`;
+
+  // Avatar
+  const avHtml = `<div class="av ${(n.by||'').toLowerCase()} lg" style="flex-shrink:0;">${n.by||''}</div>`;
+
+  return `
+  <div style="border:1px solid ${s.kleur}30;border-left:4px solid ${s.kleur};border-radius:var(--r);margin-bottom:8px;overflow:hidden;background:${s.bg}18;">
+    <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;" onclick="toggleAct('${id}')">
+      <div style="flex:1;display:flex;align-items:center;gap:8px;min-width:0;">
+        <span style="font-size:12px;font-weight:700;color:${s.kleur};white-space:nowrap;padding:3px 9px;background:${s.bg};border-radius:20px;">${s.label}</span>
+        ${n.dur && n.type === 'gesprek' ? `<span style="font-size:11px;color:var(--text3);white-space:nowrap;">◷ ${n.dur} min</span>` : ''}
+        ${contactHtml}
+        ${ingeklapt && n.text ? `<span style="font-size:12px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px;">${n.text.substring(0,60)}${n.text.length>60?'…':''}</span>` : ''}
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+        ${tijdHtml}
+        ${avHtml}
+        <span style="font-size:10px;color:var(--text3);" id="${id}-chev">${ingeklapt?'▸':'▾'}</span>
+      </div>
+    </div>
+    <div id="${id}-body" style="display:${ingeklapt?'none':'block'};padding:12px 14px;border-top:1px solid ${s.kleur}20;background:var(--surface);">
+      <div style="font-size:13.5px;font-weight:500;color:${s.kleur};margin-bottom:8px;">${s.label}${n.contact?' · '+n.contact:''}${n.dur && n.type === 'gesprek' ? ' · ◷ '+n.dur+' min' : ''}</div>
+      ${n.chat && n.chat.length > 0 ? renderChatWeergave(n.chat, id) : `<div style="font-size:13px;color:var(--text);line-height:1.7;white-space:pre-wrap;">${n.text||''}</div>`}
+      ${toonBewerken ? `<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border);display:flex;gap:6px;">
+        <button class="btn xs ghost" onclick="event.stopPropagation();bewerkNote('${n.id}')">Bewerken</button>
+      </div>` : ''}
+    </div>
+  </div>`;
+}
+
+function renderChatWeergave(chat, id) {
+  const naamLabel = v => v==='MA'?'Mees':v==='JK'?'Julian':v;
+  const persoonStijl = v => {
+    if(v==='MA') return {bg:'#eaf1fd',kleur:'#1a5fb4',naam:'Mees'};
+    if(v==='JK') return {bg:'#eaf7ef',kleur:'#1a7a3a',naam:'Julian'};
+    return {bg:'#fff8e6',kleur:'#8a6200',naam:v};
+  };
+  const berichtHtml = berichten => berichten.map(b=>{
+    const st = persoonStijl(b.van);
+    return `
+    <div style="margin-bottom:8px;">
+      <span style="font-size:11px;font-weight:700;color:${st.kleur};padding:2px 8px;background:${st.bg};border-radius:10px;">${st.naam}</span>
+      <div style="font-size:13px;color:var(--text);line-height:1.6;margin-top:4px;padding:8px 12px;background:${st.bg};border-left:3px solid ${st.kleur};border-radius:0 var(--r) var(--r) 0;">${b.tekst}</div>
+    </div>`;
+  }).join('');
+  const eerste2 = chat.slice(0,2);
+  const rest = chat.slice(2);
+  return `
+    ${berichtHtml(eerste2)}
+    ${rest.length > 0 ? `
+      <div id="${id}-chat-rest" style="display:none;">${berichtHtml(rest)}</div>
+      <button class="btn xs ghost" style="margin-top:2px;" onclick="const el=document.getElementById('${id}-chat-rest');const open=el.style.display==='block';el.style.display=open?'none':'block';this.textContent=open?'Toon ${rest.length} meer bericht${rest.length>1?'en':''}':'Verberg berichten';">
+        Toon ${rest.length} meer bericht${rest.length>1?'en':''}
+      </button>` : ''}
+  `;
+}
+
+function toggleAct(id) {
+  const body = document.getElementById(id+'-body');
+  const chev = document.getElementById(id+'-chev');
+  if (!body) return;
+  const open = body.style.display === 'block';
+  body.style.display = open ? 'none' : 'block';
+  if (chev) chev.textContent = open ? '▸' : '▾';
+}
+
+function zoekContact(naam) {
+  if (!curAcc) return;
+  switchTab('contacts');
+}
+
+function bewerkNote(noteId) {
+  if (!curAcc) return;
+  const note = (curAcc.notes||[]).find(n => String(n.id) === String(noteId));
+  if (!note) return;
+
+  // Vul het note modal met bestaande data
+  vulContactDropdown();
+  document.getElementById('n-text').value = note.text || '';
+  document.getElementById('n-type').value = note.type || 'notitie';
+  document.getElementById('n-type-actual').value = note.type || 'notitie';
+  // Contact instellen
+  const sel = document.getElementById('n-contact-sel');
+  if(sel && note.contact) sel.value = note.contact;
+  document.getElementById('m-note-title').textContent = 'Activiteit bewerken';
+  document.getElementById('m-note-sub').textContent = curAcc.name;
+  // Toon juiste velden op basis van type
+  const isChatType = ['whatsapp','linkshot','gesprek'].includes(note.type);
+  document.getElementById('n-chat-wrap').style.display = isChatType ? '' : 'none';
+  document.getElementById('n-text-wrap').style.display = isChatType ? 'none' : '';
+  document.getElementById('n-type-row').style.display = ['notitie','gesprek','email','whatsapp','taak'].includes(note.type) && !isChatType ? '' : 'none';
+  document.getElementById('n-voicemail-row').style.display = note.type === 'voicemail' ? '' : 'none';
+  document.getElementById('n-dur-row').style.display = note.type === 'gesprek' && !isChatType ? '' : 'none';
+  // Chat berichten herstellen bij bewerken
+  if(isChatType && note.chat) {
+    chatBerichten = [...note.chat];
+    renderChatBerichten();
+  }
+
+  // Sla note id op zodat saveNote hem kan updaten
+  document.getElementById('m-note').dataset.editId = noteId;
+  document.getElementById('m-note').classList.add('on');
+}
+
+
+// ══════════════ ACTIE CENTER ══════════════
+
+function acDagenGeleden(isoOfStr) {
+  if (!isoOfStr) return 999;
+  // Probeer datum te parsen uit NL formaat of ISO
+  let d = new Date(isoOfStr);
+  if (isNaN(d)) {
+    // Probeer DD Mon YYYY HH:MM formaat
+    const parts = isoOfStr.match(/(\d+)\s+(\w+)\.?\s+(\d{4})/);
+    if (parts) {
+      const maanden = {jan:0,feb:1,mrt:2,apr:3,mei:4,jun:5,jul:6,aug:7,sep:8,okt:9,nov:10,dec:11};
+      d = new Date(parseInt(parts[3]), maanden[parts[2].toLowerCase().substring(0,3)] || 0, parseInt(parts[1]));
+    }
+  }
+  if (isNaN(d)) return 999;
+  return Math.floor((Date.now() - d.getTime()) / 86400000);
+}
+
+function acLaatsteActiviteit(a) {
+  if (!a.notes || !a.notes.length) return null;
+  return [...a.notes].sort((x, y) => y.id - x.id)[0];
+}
+
+function acContactWarmte(a) {
+  const ln = acLaatsteActiviteit(a);
+  if (!ln) return { label: 'Geen contact', kleur: '#8a94a6', score: 0 };
+  const dagen = acDagenGeleden(ln.time);
+  if (dagen <= 3)  return { label: 'Zeer warm', kleur: '#1a7a3a', score: 5 };
+  if (dagen <= 7)  return { label: 'Warm', kleur: '#2d9e5f', score: 4 };
+  if (dagen <= 14) return { label: 'Lauw', kleur: '#c2410c', score: 3 };
+  if (dagen <= 30) return { label: 'Koud', kleur: '#c0392b', score: 2 };
+  return { label: 'IJskoud', kleur: '#922b21', score: 1 };
+}
+
+function acPrioriteitScore(a) {
+  // Bereken een prioriteitsscore 0-100
+  // Hoog = meer urgentie in actie center
+  const ln = acLaatsteActiviteit(a);
+  const dagen = ln ? acDagenGeleden(ln.time) : 999;
+  const status = a.status || 'lead';
+  const warmte = acContactWarmte(a);
+  const aantalContact = (a.notes||[]).length;
+  const aantalGesprekken = (a.notes||[]).filter(n=>n.type==='gesprek').length;
+  const val = parseFloat(accClientVal(a))||0;
+  const pipe = accClientPipe(a)||'';
+
+  // Pipeline fase score
+  const faseScore = {
+    'Onderhandeling': 40, 'Voorstel verstuurd': 30, 'Kennismaking': 20,
+    'Contact gelegd': 15, 'Nieuw': 10, 'Gewonnen': 5, 'Verloren': 0
+  }[pipe] || 10;
+
+  // Waarde score (max 20 punten)
+  const waardeScore = Math.min(20, val / 5000);
+
+  // Warmte score (max 20 punten) — warm maar niet te recent
+  const warmteScore = warmte.score >= 4 ? 20 : warmte.score * 4;
+
+  // Contact intensiteit (max 10 punten)
+  const intensiteitScore = Math.min(10, aantalContact * 1.5);
+
+  // Gesprekken gevoerd bonus
+  const gesprekBonus = aantalGesprekken > 0 ? 10 : 0;
+
+  return Math.round(faseScore + waardeScore + warmteScore + intensiteitScore + gesprekBonus);
+}
+
+function acAnalyseerAccount(a) {
+  const ln = acLaatsteActiviteit(a);
+  const warmte = acContactWarmte(a);
+  const dagen = ln ? acDagenGeleden(ln.time) : 999;
+  const status = a.status || 'lead';
+  const aantalContact = (a.notes||[]).length;
+  const aantalMailshots = (a.notes||[]).filter(n=>n.type==='mailshot'||n.type==='opvolg_mailshot').length;
+  const aantalGesprekken = (a.notes||[]).filter(n=>n.type==='gesprek').length;
+  const heeftAfspraak = calEvents.some(e=>e.acc===a.id&&new Date(e.date)>=new Date());
+  const pipe = accClientPipe(a)||'';
+  const val = parseFloat(accClientVal(a))||0;
+  const prioriteit = acPrioriteitScore(a);
+  const categorie = (status==='opdrachtgever') ? 'accountmanagement' :
+                    (status==='klant') ? 'accountmanagement' : 'sales';
+  const suggesties = [];
+
+  // === SALES suggesties ===
+  if(categorie==='sales'){
+    if(aantalContact===0){
+      suggesties.push({prioriteit:60+prioriteit,tekst:'Nog geen contact gelegd',actie:'Stuur eerste mailshot',type:'mailshot',kleur:'#c0392b'});
+    }
+    if(aantalContact>0&&dagen>=7){
+      const actie = aantalMailshots>=3&&aantalGesprekken===0 ? 'Bel op' :
+                    aantalMailshots>=2 ? 'Probeer LinkedIn' : 'Stuur opvolg mailshot';
+      const type = aantalMailshots>=3&&aantalGesprekken===0 ? 'gesprek' :
+                   aantalMailshots>=2 ? 'linkshot' : 'opvolg_mailshot';
+      const dagenTekst = dagen<999 ? `${dagen} dagen geen contact` : 'Nog geen contact';
+      suggesties.push({prioriteit:50+prioriteit,tekst:`${dagenTekst} · ${pipe||'onbekende fase'}`,actie,type,kleur:'#c2410c'});
+    }
+    if(warmte.score>=4&&!heeftAfspraak&&aantalGesprekken>=1&&(pipe==='Voorstel verstuurd'||pipe==='Onderhandeling')){
+      suggesties.push({prioriteit:70+prioriteit,tekst:`Warm contact in ${pipe} — geen afspraak`,actie:'Plan afspraak in',type:'afspraak',kleur:'#1a5fb4'});
+    }
+    if(pipe==='Onderhandeling'&&dagen<=7){
+      suggesties.push({prioriteit:80+prioriteit,tekst:'In onderhandeling — actief houden',actie:'Check in of log update',type:'notitie',kleur:'#14532d'});
+    }
+    if(aantalMailshots>=3&&aantalGesprekken===0&&dagen<=30){
+      suggesties.push({prioriteit:55+prioriteit,tekst:`${aantalMailshots} mailshots, nog geen gesprek`,actie:'Bel direct op',type:'gesprek',kleur:'#6b21a8'});
+    }
+  }
+
+  // === ACCOUNT MANAGEMENT suggesties ===
+  if(categorie==='accountmanagement'){
+    if(status==='opdrachtgever'&&(dagen>=30||dagen===999)){
+      const dagenTekst = dagen<999 ? `${dagen} dagen` : '';
+      suggesties.push({prioriteit:20,tekst:`Opdrachtgever${dagenTekst?' — '+dagenTekst:''} geen gelogd contact`,actie:'Check in',type:'gesprek',kleur:'#14532d'});
+    }
+    if(status==='klant'&&(dagen>=21||dagen===999)){
+      const dagenTekst = dagen<999 ? `${dagen} dagen` : '';
+      suggesties.push({prioriteit:30,tekst:`Klant${dagenTekst?' — '+dagenTekst:''} geen contact`,actie:'Korte check-in',type:'gesprek',kleur:'#1a5fb4'});
+    }
+  }
+
+  return {warmte,dagen,aantalContact,suggesties,prioriteit,categorie};
+}
+
+function acOpenTaken(owner) {
+  return todos.filter(t => {
+    if (t.done) return false;
+    if (owner === 'BOTH') return true;
+    return t.owner === owner || !t.owner;
+  }).sort((a, b) => ({ hoog: 0, middel: 1, laag: 2 }[a.prio||'middel'] || 1) - ({ hoog: 0, middel: 1, laag: 2 }[b.prio||'middel'] || 1));
+}
+
+function renderActieTaak(t) {
+  const acc = t.acc ? accs.find(a => a.id === t.acc) : null;
+  const prioCls = { hoog: 'ph', middel: 'pm', laag: 'pl' };
+  const prioLabel = { hoog: 'Hoog', middel: 'Middel', laag: 'Laag' };
+  return `
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;margin-bottom:6px;display:flex;gap:10px;align-items:flex-start;">
+    <div class="chk${t.done?' done':''}" onclick="toggleTodo(${t.id});setTimeout(renderActieCenter,100);" style="margin-top:2px;flex-shrink:0;">${t.done?'✓':''}</div>
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:13px;font-weight:500;color:var(--text);${t.done?'text-decoration:line-through;color:var(--text3);':''}">${t.text}</div>
+      <div style="display:flex;gap:6px;align-items:center;margin-top:3px;flex-wrap:wrap;">
+        ${t.prio?`<span class="prio ${prioCls[t.prio]||''}">${prioLabel[t.prio]||t.prio}</span>`:''}
+        ${acc?`<span style="font-size:11px;color:var(--blue);cursor:pointer;" onclick="openDetail(${acc.id})">${acc.name}</span>`:''}
+        ${t.due?`<span style="font-size:11px;color:var(--text3);">${t.due}</span>`:''}
+      </div>
+    </div>
+  </div>`;
+}
+
+function acSnelActie(accId, type) {
+  const a = accs.find(x => x.id === accId);
+  if (!a) return;
+  curAcc = a;
+  if (type === 'afspraak') openAddEvent(accId);
+  else if (type === 'mailshot' || type === 'opvolg_mailshot') openMailCompose(type);
+  else openQuickNote(type);
+}
+
+// ══════════════ AGENDA REMINDERS ══════════════
+
+const _getoondReminders = new Set(); // bijhoudt welke reminders al getoond zijn
+
+function agendaReminderCheck() {
+  const nu = new Date();
+  const todayISO = `${nu.getFullYear()}-${String(nu.getMonth()+1).padStart(2,'0')}-${String(nu.getDate()).padStart(2,'0')}`;
+
+  calEvents.forEach(ev => {
+    if (!ev.date || !ev.time) return;
+    if (ev.date !== todayISO) return;
+    // Alleen eigen afspraken
+    if (ev.owner && ev.owner !== CU && ev.owner !== 'BOTH') return;
+
+    const [eh, em] = ev.time.split(':').map(Number);
+    const evMinuten = eh * 60 + em;
+    const nuMinuten = nu.getHours() * 60 + nu.getMinutes();
+    const reminders = ev.reminders || [5, 0];
+
+    reminders.forEach(minVoor => {
+      const triggerMinuten = evMinuten - minVoor;
+      const key = `${ev.id}_${minVoor}`;
+      if (_getoondReminders.has(key)) return;
+      // Trigger als we binnen 1 minuut van het trigger moment zitten
+      if (nuMinuten >= triggerMinuten && nuMinuten < triggerMinuten + 2) {
+        _getoondReminders.add(key);
+        toonAgendaNotificatie(ev, minVoor);
+      }
+    });
+  });
+}
+
+function toonAgendaNotificatie(ev, minVoor, sluimerLabel) {
+  const container = document.getElementById('agenda-notif-container');
+  if (!container) return;
+  const acc = ev.acc ? accs.find(a => a.id === ev.acc) : null;
+  const [bg, fg] = acc ? CLRS[acc.color % CLRS.length] : ['#eaf1fd', '#1a5fb4'];
+  const urgentie = minVoor === 0;
+  const label = sluimerLabel ? sluimerLabel : (minVoor === 0 ? 'Nu gestart' : `Over ${minVoor} min`);
+
+  const notif = document.createElement('div');
+  notif.id = `notif-${ev.id}-${minVoor}-${Date.now()}`;
+  notif.style.cssText = `
+    background:${urgentie ? 'var(--navy)' : 'var(--surface)'};
+    border:2px solid ${urgentie ? 'var(--gold)' : 'var(--navy)'};
+    border-radius:12px;
+    padding:14px 16px;
+    box-shadow:0 6px 28px rgba(13,31,60,.3);
+    pointer-events:all;
+    animation:notifSlideIn .3s ease;
+    position:relative;
+    max-width:320px;
+  `;
+  notif.innerHTML = `
+    <div style="display:flex;align-items:flex-start;gap:10px;">
+      <div style="width:36px;height:36px;border-radius:8px;background:${bg};color:${fg};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;font-family:'Syne',sans-serif;">${initials(ev.title)}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:11px;font-weight:700;color:${urgentie?'var(--gold)':'var(--navy)'};text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">${label}</div>
+        <div style="font-size:13.5px;font-weight:700;color:${urgentie?'#fff':'var(--text)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${ev.title}</div>
+        <div style="font-size:12px;color:${urgentie?'rgba(255,255,255,.65)':'var(--text3)'};margin-top:2px;">${ev.time}${ev.dur?' · '+ev.dur+' min':''}${acc?' · '+acc.name:''}</div>
+        ${ev.loc?`<div style="font-size:11.5px;color:${urgentie?'rgba(255,255,255,.5)':'var(--text3)'};margin-top:1px;">${ev.loc}</div>`:''}
+      </div>
+    </div>
+    <div style="display:flex;gap:6px;margin-top:10px;">
+      ${minVoor > 0 ? `<button onclick="toonAgendaNotificatieNu(${ev.id},${minVoor})" style="flex:1;padding:6px;font-size:12px;font-weight:600;border-radius:7px;border:none;background:var(--navy);color:#fff;cursor:pointer;font-family:'DM Sans',sans-serif;">Nu gestart</button>` : ''}
+      <button onclick="sluimerNotificatie('${notif.id}',${ev.id},${minVoor})" style="flex:1;padding:6px;font-size:12px;font-weight:600;border-radius:7px;border:1.5px solid ${urgentie?'rgba(255,255,255,.3)':'var(--border2)'};background:transparent;color:${urgentie?'rgba(255,255,255,.7)':'var(--text2)'};cursor:pointer;font-family:'DM Sans',sans-serif;">⏰ 10 min</button>
+      <button onclick="sluitAgendaNotificatie('${notif.id}')" style="flex:1;padding:6px;font-size:12px;font-weight:600;border-radius:7px;border:1.5px solid ${urgentie?'rgba(255,255,255,.3)':'var(--border2)'};background:transparent;color:${urgentie?'rgba(255,255,255,.7)':'var(--text2)'};cursor:pointer;font-family:'DM Sans',sans-serif;">Sluiten</button>
+      ${ev.acc?`<button onclick="openDetail(${ev.acc});sluitAgendaNotificatie('${notif.id}')" style="padding:6px 10px;font-size:12px;font-weight:600;border-radius:7px;border:1.5px solid ${urgentie?'var(--gold)':'var(--border2)'};background:transparent;color:${urgentie?'var(--gold)':'var(--text2)'};cursor:pointer;font-family:'DM Sans',sans-serif;">Account</button>`:''}
+    </div>
+  `;
+  container.appendChild(notif);
+}
+
+function sluimerNotificatie(notifId, evId, minVoor) {
+  sluitAgendaNotificatie(notifId);
+  setTimeout(() => {
+    const ev = calEvents.find(e => e.id === evId);
+    if (ev) toonAgendaNotificatie(ev, minVoor, '10 minuten geleden');
+  }, 10 * 60 * 1000);
+}
+
+function sluitAgendaNotificatie(id) {
+  const el = document.getElementById(id);
+  if (el) {
+    el.style.transition = 'opacity .2s, transform .2s';
+    el.style.opacity = '0';
+    el.style.transform = 'translateX(20px)';
+    setTimeout(() => el.remove(), 200);
+  }
+}
+
+function toonAgendaNotificatieNu(evId, minVoor) {
+  // Sluit de 5-min reminder en toon de "nu gestart" melding
+  sluitAgendaNotificatie(`notif-${evId}-${minVoor}`);
+  const ev = calEvents.find(e => e.id === evId);
+  if (ev) {
+    _getoondReminders.delete(`${evId}_0`); // Reset zodat hij opnieuw triggert
+    toonAgendaNotificatie(ev, 0);
+  }
+}
+
+function startReminderEngine() {
+  agendaReminderCheck();
+  setInterval(agendaReminderCheck, 30000); // Check elke 30 seconden
+}
+
+// ══════════════ LIJSTEN ══════════════
+
+let lijsten = [];
+
+async function _loadLijsten() {
+  try {
+    const data = await _sbGet('lists', '?select=*&order=created_at.asc');
+    lijsten = (data || []).map(l => ({
+      id: l.id,
+      naam: l.name,
+      beschrijving: l.description || '',
+      accounts: l.account_ids || [],
+    }));
+  } catch(e) {
+    console.warn('Lijsten laden mislukt:', e);
+    lijsten = [];
+  }
+}
+
+async function _saveLijst(lijst) {
+  const d = { name: lijst.naam, description: lijst.beschrijving || '', account_ids: lijst.accounts || [] };
+  if (lijst.id && typeof lijst.id === 'number' && lijst.id < 2000000000) {
+    await _sbPatch('lists', lijst.id, d);
+  } else {
+    const [r] = await _sbPost('lists', d);
+    lijst.id = r.id;
+  }
+}
+
+async function _deleteLijst(id) {
+  try {
+    await fetch(`${SB_URL}/rest/v1/lists?id=eq.${id}`, {
+      method: 'DELETE',
+      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY },
+    });
+  } catch(e) { console.warn('Delete lijst:', e); }
+}
+
+function saveLijsten() {
+  // Sla alle lijsten op naar Supabase
+  lijsten.forEach(l => _saveLijst(l).catch(e => console.warn('Save lijst:', e)));
+}
+
+function renderLijsten() {
+  const el = document.getElementById('p-lijsten');
+  if (!el) return;
+
+  const curLijstId = el.dataset.curLijst ? parseInt(el.dataset.curLijst) : null;
+  const curLijst = lijsten.find(l => l.id === curLijstId);
+
+  el.innerHTML = `
+  <div style="display:grid;grid-template-columns:240px 1fr;gap:16px;align-items:start;">
+
+    <!-- Links: Lijsten menu -->
+    <div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--navy);">Mijn lijsten</div>
+        <button class="btn sm pri" onclick="openNieuweLijst()">+ Nieuw</button>
+      </div>
+      ${lijsten.length===0?`<div style="font-size:12.5px;color:var(--text3);padding:8px 0;">Nog geen lijsten. Maak een nieuwe lijst aan.</div>`:
+      lijsten.map(l=>`
+        <div style="display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:var(--r);cursor:pointer;margin-bottom:4px;background:${l.id===curLijstId?'var(--navy)':'var(--surface)'};border:1px solid ${l.id===curLijstId?'var(--navy)':'var(--border)'};" onclick="selectLijst(${l.id})">
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:13px;font-weight:600;color:${l.id===curLijstId?'#fff':'var(--text)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${l.naam}</div>
+            <div style="font-size:11px;color:${l.id===curLijstId?'rgba(255,255,255,.6)':'var(--text3)'};">${(l.accounts||[]).length} accounts</div>
+          </div>
+          <button onclick="event.stopPropagation();verwijderLijst(${l.id})" style="background:none;border:none;cursor:pointer;color:${l.id===curLijstId?'rgba(255,255,255,.5)':'var(--text3)'};font-size:14px;padding:2px 4px;">✕</button>
+        </div>`).join('')}
+    </div>
+
+    <!-- Rechts: Lijst inhoud -->
+    <div>
+      ${!curLijst ? `
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:40px;text-align:center;">
+          <div style="font-size:13px;color:var(--text3);">Selecteer een lijst of maak een nieuwe aan</div>
+        </div>` : `
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <div>
+            <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;color:var(--navy);">${curLijst.naam}</div>
+            ${curLijst.beschrijving?`<div style="font-size:12px;color:var(--text3);margin-top:2px;">${curLijst.beschrijving}</div>`:''}
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn sm ghost" onclick="openLijstBewerken(${curLijst.id})">Bewerken</button>
+            <button class="btn sm" style="background:#eaf1fd;border-color:#1a5fb4;color:#1a5fb4;" onclick="openAccountsToevoegen(${curLijst.id})">+ Accounts toevoegen</button>
+            <button class="btn sm pri" onclick="openBulkMail(${curLijst.id})">✉ Bulk mail →</button>
+          </div>
+        </div>
+
+        ${(curLijst.accounts||[]).length===0?`
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:32px;text-align:center;">
+            <div style="font-size:13px;color:var(--text3);">Nog geen accounts in deze lijst. Voeg accounts toe.</div>
+          </div>` : `
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;">
+            <table style="width:100%;border-collapse:collapse;">
+              <thead>
+                <tr style="background:var(--surface2);border-bottom:2px solid var(--border);">
+                  <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;">Bedrijf</th>
+                  <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;">Contactpersoon</th>
+                  <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;">Telefoon</th>
+                  <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;">E-mail</th>
+                  <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;">Locatie</th>
+                  <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;">Status</th>
+                  <th style="width:32px;"></th>
+                </tr>
+              </thead>
+              <tbody>
+                ${curLijst.accounts.map(accId=>{
+                  const a = accs.find(x=>x.id===accId);
+                  if(!a) return '';
+                  const contact = [a.cf,a.cl].filter(Boolean).join(' ');
+                  return `<tr style="border-bottom:1px solid var(--border);cursor:pointer;" onmouseenter="this.style.background='var(--surface2)'" onmouseleave="this.style.background=''" onclick="openDetail(${a.id})">
+                    <td style="padding:10px 14px;">
+                      <div style="font-size:13px;font-weight:600;color:var(--navy);">${a.name}</div>
+                      ${a.sector?`<div style="font-size:11px;color:var(--text3);">${a.sector}</div>`:''}
+                    </td>
+                    <td style="padding:10px 14px;font-size:12.5px;color:var(--text);">${contact||'—'}</td>
+                    <td style="padding:10px 14px;font-size:12.5px;color:var(--text);">${a.cp||'—'}</td>
+                    <td style="padding:10px 14px;font-size:12.5px;color:var(--blue);">${a.ce?`<a href="mailto:${a.ce}" onclick="event.stopPropagation()" style="color:var(--blue);text-decoration:none;">${a.ce}</a>`:'—'}</td>
+                    <td style="padding:10px 14px;font-size:12.5px;">${a.addr?(a.addrUrl?`<a href="${a.addrUrl}" target="_blank" onclick="event.stopPropagation()" style="color:var(--blue);text-decoration:none;">${a.addr}</a>`:`<span style="color:var(--text2);">${a.addr}</span>`):'—'}</td>
+                    <td style="padding:10px 14px;"><span class="badge ${a.status}">${slbl(a.status)}</span></td>
+                    <td style="padding:10px 14px;" onclick="event.stopPropagation();verwijderUitLijst(${curLijst.id},${a.id})"><span style="color:var(--text3);cursor:pointer;font-size:13px;">✕</span></td>
+                  </tr>`;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>`}
+      `}
+    </div>
+  </div>
+
+  <!-- Nieuwe lijst modal -->
+  <div id="m-lijst-nieuw" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:500;display:none;align-items:center;justify-content:center;">
+    <div style="background:var(--surface);border-radius:var(--r-lg);padding:24px;width:400px;box-shadow:0 8px 32px rgba(0,0,0,.2);">
+      <div style="font-size:15px;font-weight:700;color:var(--navy);margin-bottom:16px;" id="m-lijst-title">Nieuwe lijst</div>
+      <div class="fg" style="margin-bottom:12px;"><label class="fl">Naam *</label><input type="text" id="lijst-naam" placeholder="bijv. Bel-lijst week 15, Mailshot Q2…"></div>
+      <div class="fg" style="margin-bottom:16px;"><label class="fl">Beschrijving</label><input type="text" id="lijst-beschrijving" placeholder="Optionele omschrijving…"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button class="btn ghost" onclick="sluitLijstModal()">Annuleren</button>
+        <button class="btn pri" onclick="slaLijstOp()">Opslaan</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Accounts toevoegen modal -->
+  <div id="m-lijst-accounts" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:500;align-items:center;justify-content:center;">
+    <div style="background:var(--surface);border-radius:var(--r-lg);padding:24px;width:500px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,.2);">
+      <div style="font-size:15px;font-weight:700;color:var(--navy);margin-bottom:12px;">Accounts toevoegen aan lijst</div>
+      <input type="text" id="lijst-acc-zoek" placeholder="Zoek op naam, sector…" oninput="filterLijstAccounts(this.value)" style="margin-bottom:10px;">
+      <div id="lijst-acc-results" style="flex:1;overflow-y:auto;max-height:400px;border:1px solid var(--border);border-radius:var(--r);"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
+        <button class="btn ghost" onclick="sluitLijstAccountsModal()">Sluiten</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function selectLijst(id) {
+  const el = document.getElementById('p-lijsten');
+  if (el) { el.dataset.curLijst = id; renderLijsten(); }
+}
+
+function openNieuweLijst() {
+  document.getElementById('lijst-naam').value = '';
+  document.getElementById('lijst-beschrijving').value = '';
+  document.getElementById('m-lijst-title').textContent = 'Nieuwe lijst';
+  document.getElementById('m-lijst-nieuw').dataset.editId = '';
+  document.getElementById('m-lijst-nieuw').style.display = 'flex';
+}
+
+function openLijstBewerken(id) {
+  const l = lijsten.find(x => x.id === id);
+  if (!l) return;
+  document.getElementById('lijst-naam').value = l.naam;
+  document.getElementById('lijst-beschrijving').value = l.beschrijving || '';
+  document.getElementById('m-lijst-title').textContent = 'Lijst bewerken';
+  document.getElementById('m-lijst-nieuw').dataset.editId = id;
+  document.getElementById('m-lijst-nieuw').style.display = 'flex';
+}
+
+function sluitLijstModal() {
+  document.getElementById('m-lijst-nieuw').style.display = 'none';
+}
+
+function slaLijstOp() {
+  const naam = document.getElementById('lijst-naam').value.trim();
+  if (!naam) { alert('Geef de lijst een naam.'); return; }
+  const beschrijving = document.getElementById('lijst-beschrijving').value.trim();
+  const editId = parseInt(document.getElementById('m-lijst-nieuw').dataset.editId) || null;
+  if (editId) {
+    const idx = lijsten.findIndex(l => l.id === editId);
+    if (idx >= 0) {
+      lijsten[idx].naam = naam;
+      lijsten[idx].beschrijving = beschrijving;
+      _saveLijst(lijsten[idx]).catch(e => console.warn('Save lijst:', e));
+    }
+  } else {
+    const nieuw = { id: Date.now(), naam, beschrijving, accounts: [] };
+    lijsten.push(nieuw);
+    _saveLijst(nieuw).catch(e => console.warn('Save lijst:', e));
+  }
+  sluitLijstModal();
+  renderLijsten();
+}
+
+function verwijderLijst(id) {
+  if (!confirm('Lijst verwijderen?')) return;
+  lijsten = lijsten.filter(l => l.id !== id);
+  _deleteLijst(id).catch(e => console.warn('Delete lijst:', e));
+  const el = document.getElementById('p-lijsten');
+  if (el && parseInt(el.dataset.curLijst) === id) el.dataset.curLijst = '';
+  renderLijsten();
+}
+
+let _curLijstAccId = null;
+
+function openAccountsToevoegen(lijstId) {
+  _curLijstAccId = lijstId;
+  document.getElementById('lijst-acc-zoek').value = '';
+  document.getElementById('m-lijst-accounts').style.display = 'flex';
+  filterLijstAccounts('');
+}
+
+function sluitLijstAccountsModal() {
+  document.getElementById('m-lijst-accounts').style.display = 'none';
+  renderLijsten();
+}
+
+function filterLijstAccounts(q) {
+  const lijst = lijsten.find(l => l.id === _curLijstAccId);
+  if (!lijst) return;
+  const zoek = q.toLowerCase();
+  const gefilterd = accs.filter(a =>
+    a.name.toLowerCase().includes(zoek) ||
+    (a.sector||'').toLowerCase().includes(zoek) ||
+    ([a.cf,a.cl].filter(Boolean).join(' ')).toLowerCase().includes(zoek)
+  );
+  const container = document.getElementById('lijst-acc-results');
+  container.innerHTML = gefilterd.map(a => {
+    const inLijst = (lijst.accounts||[]).includes(a.id);
+    return `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--border);cursor:pointer;" onclick="toggleLijstAccount(${lijst.id},${a.id})">
+      <input type="checkbox" ${inLijst?'checked':''} onclick="event.stopPropagation();toggleLijstAccount(${lijst.id},${a.id})" style="flex-shrink:0;">
+      <div style="flex:1;">
+        <div style="font-size:13px;font-weight:600;color:var(--text);">${a.name}</div>
+        <div style="font-size:11px;color:var(--text3);">${[a.sector,[a.cf,a.cl].filter(Boolean).join(' ')].filter(Boolean).join(' · ')}</div>
+      </div>
+      <span class="badge ${a.status}">${slbl(a.status)}</span>
+    </div>`;
+  }).join('') || '<div style="padding:16px;font-size:13px;color:var(--text3);">Geen accounts gevonden</div>';
+}
+
+function toggleLijstAccount(lijstId, accId) {
+  const lijst = lijsten.find(l => l.id === lijstId);
+  if (!lijst) return;
+  if (!lijst.accounts) lijst.accounts = [];
+  const idx = lijst.accounts.indexOf(accId);
+  if (idx >= 0) lijst.accounts.splice(idx, 1);
+  else lijst.accounts.push(accId);
+  _saveLijst(lijst).catch(e => console.warn('Save lijst:', e));
+  filterLijstAccounts(document.getElementById('lijst-acc-zoek')?.value || '');
+}
+
+async function verwijderContact(cId) {
+  if (!curAcc || !confirm('Contactpersoon verwijderen?')) return;
+  const ct = curAcc.contacts.find(c => c.id === cId);
+  if (!ct) return;
+  curAcc.contacts = curAcc.contacts.filter(c => c.id !== cId);
+  const idx = accs.findIndex(a => a.id === curAcc.id);
+  if (idx >= 0) accs[idx] = curAcc;
+  ss('ix_accs', accs);
+  if (ct.id && typeof ct.id === 'number' && ct.id < 2000000000) {
+    await fetch(`${SB_URL}/rest/v1/contacts?id=eq.${ct.id}`, { method: 'DELETE', headers: _sbH }).catch(e => console.warn('Delete contact:', e));
+  }
+  renderTab('contacts');
+}
+
+async function maakContactPrimair(cId) {
+  if (!curAcc) return;
+  const ct = curAcc.contacts.find(c => c.id === cId);
+  if (!ct) return;
+  // Huidige primaire opslaan als extra contact
+  const oudPrimair = { id: Date.now(), first: curAcc.cf, last: curAcc.cl, role: curAcc.cr, dept: '', email: curAcc.ce, email2: curAcc.ce2||'', phone: curAcc.cp, phone2: curAcc.cp2||'', li: curAcc.cli||'', connections: '', note: '' };
+  // Nieuwe primaire instellen
+  curAcc.cf = ct.first; curAcc.cl = ct.last; curAcc.cr = ct.role||'';
+  curAcc.cp = ct.phone||''; curAcc.cp2 = ct.phone2||'';
+  curAcc.ce = ct.email||''; curAcc.ce2 = ct.email2||'';
+  curAcc.cli = ct.li||'';
+  // Pas contacts array aan
+  curAcc.contacts = curAcc.contacts.filter(c => c.id !== cId);
+  if (oudPrimair.first || oudPrimair.last) curAcc.contacts.push(oudPrimair);
+  const idx = accs.findIndex(a => a.id === curAcc.id);
+  if (idx >= 0) accs[idx] = curAcc;
+  ss('ix_accs', accs);
+  await _saveAcc(curAcc);
+  if (oudPrimair.first || oudPrimair.last) await _saveContact(curAcc.id, oudPrimair).catch(() => {});
+  if (ct.id && typeof ct.id === 'number' && ct.id < 2000000000) {
+    await fetch(`${SB_URL}/rest/v1/contacts?id=eq.${ct.id}`, { method: 'DELETE', headers: _sbH }).catch(() => {});
+  }
+  renderTab('contacts');
+}
+
+function verwijderUitLijst(lijstId, accId) {
+  const lijst = lijsten.find(l => l.id === lijstId);
+  if (!lijst) return;
+  lijst.accounts = (lijst.accounts||[]).filter(id => id !== accId);
+  _saveLijst(lijst).catch(e => console.warn('Save lijst:', e));
+  renderLijsten();
+}
+
+function openLijstenPopup(accId) {
+  // Verwijder bestaande popup
+  document.getElementById('lijsten-popup')?.remove();
+
+  const a = accs.find(x => x.id === accId);
+  if (!a) return;
+
+  const popup = document.createElement('div');
+  popup.id = 'lijsten-popup';
+  popup.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:600;display:flex;align-items:center;justify-content:center;';
+
+  const renderPopupLijsten = (zoek = '') => {
+    const gefilterd = lijsten.filter(l => !zoek || l.naam.toLowerCase().includes(zoek.toLowerCase()));
+    return gefilterd.map(l => {
+      const inLijst = (l.accounts||[]).includes(accId);
+      return `<div style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--border);cursor:pointer;" onclick="lijstToggleAccount(${l.id},${accId},this)">
+        <div style="width:18px;height:18px;border-radius:4px;border:2px solid ${inLijst?'var(--navy)':'var(--border)'};background:${inLijst?'var(--navy)':'transparent'};display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          ${inLijst?'<span style="color:#fff;font-size:11px;">✓</span>':''}
+        </div>
+        <div style="flex:1;">
+          <div style="font-size:13px;font-weight:500;color:var(--text);">${l.naam}</div>
+          <div style="font-size:11px;color:var(--text3);">${(l.accounts||[]).length} accounts</div>
+        </div>
+      </div>`;
+    }).join('') || '<div style="padding:16px;text-align:center;font-size:13px;color:var(--text3);">Geen lijsten gevonden</div>';
+  };
+
+  popup.innerHTML = `
+    <div style="background:var(--surface);border-radius:var(--r-lg);width:380px;max-height:500px;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,.2);overflow:hidden;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border);">
+        <div>
+          <div style="font-size:14px;font-weight:700;color:var(--navy);">Lijsten — ${a.name}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px;">Klik om toe te voegen of te verwijderen</div>
+        </div>
+        <button onclick="document.getElementById('lijsten-popup').remove()" style="background:none;border:none;cursor:pointer;font-size:18px;color:var(--text3);">✕</button>
+      </div>
+      <div style="padding:12px 14px;border-bottom:1px solid var(--border);">
+        <input type="text" id="lijsten-popup-zoek" placeholder="Zoek lijst…" oninput="document.getElementById('lijsten-popup-list').innerHTML=window._lijstenPopupRender(this.value)" style="width:100%;font-size:13px;padding:7px 10px;">
+      </div>
+      <div id="lijsten-popup-list" style="overflow-y:auto;flex:1;">${renderPopupLijsten()}</div>
+      <div style="padding:12px 14px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;">
+        <button class="btn pri" onclick="document.getElementById('lijsten-popup').remove()">Gereed</button>
+      </div>
+    </div>`;
+
+  window._lijstenPopupRender = renderPopupLijsten;
+  popup.addEventListener('click', e => { if(e.target === popup) popup.remove(); });
+  document.body.appendChild(popup);
+}
+
+function lijstToggleAccount(lijstId, accId, el) {
+  const lijst = lijsten.find(l => l.id === lijstId);
+  if (!lijst) return;
+  if (!lijst.accounts) lijst.accounts = [];
+  const idx = lijst.accounts.indexOf(accId);
+  if (idx >= 0) {
+    lijst.accounts.splice(idx, 1);
+  } else {
+    lijst.accounts.push(accId);
+  }
+  _saveLijst(lijst).catch(e => console.warn('Save lijst:', e));
+  // Update UI in popup
+  const inLijst = lijst.accounts.includes(accId);
+  const box = el.querySelector('div');
+  if (box) {
+    box.style.borderColor = inLijst ? 'var(--navy)' : 'var(--border)';
+    box.style.background = inLijst ? 'var(--navy)' : 'transparent';
+    box.innerHTML = inLijst ? '<span style="color:#fff;font-size:11px;">✓</span>' : '';
+  }
+  el.nextElementSibling?.querySelector?.('.text-xs')?.remove?.();
+}
+
+// Lijsten veld in account modal
+function renderLijstenCheckboxes(accId) {
+  const container = document.getElementById('f-lijsten-wrap');
+  if (!container) return;
+  if (lijsten.length === 0) {
+    container.innerHTML = '<div style="font-size:12px;color:var(--text3);">Nog geen lijsten aangemaakt. Ga naar Lijsten om een lijst te maken.</div>';
+    return;
+  }
+  container.innerHTML = lijsten.map(l => {
+    const inLijst = (l.accounts||[]).includes(accId);
+    return `<label style="display:flex;align-items:center;gap:7px;font-size:12.5px;cursor:pointer;padding:3px 0;">
+      <input type="checkbox" data-lijst-id="${l.id}" ${inLijst?'checked':''}>
+      ${l.naam} <span style="font-size:11px;color:var(--text3);">(${(l.accounts||[]).length})</span>
+    </label>`;
+  }).join('');
+}
+
+function updateLijstenVoorAccount(accId) {
+  const checkboxes = document.querySelectorAll('#f-lijsten-wrap input[type=checkbox]');
+  checkboxes.forEach(cb => {
+    const lijstId = parseInt(cb.dataset.lijstId);
+    const lijst = lijsten.find(l => l.id === lijstId);
+    if (!lijst) return;
+    if (!lijst.accounts) lijst.accounts = [];
+    const idx = lijst.accounts.indexOf(accId);
+    if (cb.checked && idx < 0) lijst.accounts.push(accId);
+    if (!cb.checked && idx >= 0) lijst.accounts.splice(idx, 1);
+    _saveLijst(lijst).catch(e => console.warn('Save lijst:', e));
+  });
+}
+
+function updateActieBadge() {
+  const mijnAccs = clientAccs().filter(a => a.status !== 'inactief' && (a.owner === CU || a.owner === 'BOTH'));
+  const analyses = mijnAccs.filter(a => acAnalyseerAccount(a).suggesties.length > 0);
+  const urgent = acOpenTaken(CU).filter(t => t.prio === 'hoog');
+  const badge = document.getElementById('actie-badge');
+  if (badge) { const totaal = analyses.length + urgent.length; badge.textContent = totaal; badge.style.display = totaal > 0 ? '' : 'none'; }
+}
+
+function renderActieCenter() {
+  const el = document.getElementById('p-actiecenter');
+  if (!el) return;
+  const mijnAccs = clientAccs().filter(a => a.status !== 'inactief' && (a.owner === CU || a.owner === 'BOTH'));
+  const alleAnalyses = mijnAccs.map(a => ({ acc: a, ...acAnalyseerAccount(a) })).filter(x => x.suggesties.length > 0);
+
+  // Splits in Sales en Account Management, sorteer op prioriteitsscore
+  const salesAccs = alleAnalyses.filter(x => x.categorie === 'sales')
+    .sort((a,b) => Math.max(...b.suggesties.map(s=>s.prioriteit)) - Math.max(...a.suggesties.map(s=>s.prioriteit)));
+  const amAccs = alleAnalyses.filter(x => x.categorie === 'accountmanagement')
+    .sort((a,b) => Math.max(...b.suggesties.map(s=>s.prioriteit)) - Math.max(...a.suggesties.map(s=>s.prioriteit)));
+
+  const openTaken = acOpenTaken(CU);
+  const urgent = openTaken.filter(t => t.prio === 'hoog');
+  const normaal = openTaken.filter(t => t.prio !== 'hoog');
+  updateActieBadge();
+
+  const renderAccKaart = x => {
+    const top = [...x.suggesties].sort((a,b)=>b.prioriteit-a.prioriteit)[0];
+    const [bg,fg] = CLRS[x.acc.color%CLRS.length];
+    return `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;margin-bottom:8px;" onmouseenter="this.style.borderColor='var(--navy)'" onmouseleave="this.style.borderColor='var(--border)'">
+      <div style="display:flex;align-items:flex-start;gap:10px;">
+        <div style="width:32px;height:32px;border-radius:7px;background:${bg};color:${fg};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;font-family:'Syne',sans-serif;">${initials(x.acc.name)}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:wrap;">
+            <span style="font-size:13.5px;font-weight:600;color:var(--navy);cursor:pointer;" onclick="openDetail(${x.acc.id})">${x.acc.name}</span>
+            <span class="badge ${x.acc.status}">${slbl(x.acc.status)}</span>
+            <span style="font-size:11px;padding:2px 7px;border-radius:10px;background:${x.warmte.kleur}18;color:${x.warmte.kleur};font-weight:600;">${x.warmte.label}</span>
+            ${accClientPipe(x.acc)?`<span style="font-size:11px;color:var(--text3);">${accClientPipe(x.acc)}</span>`:''}
+          </div>
+          <div style="font-size:12px;color:var(--text2);margin-bottom:8px;">${top.tekst}</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+            <button class="btn sm" style="background:${top.kleur}12;border-color:${top.kleur}50;color:${top.kleur};font-size:12px;padding:4px 10px;" onclick="event.stopPropagation();acSnelActie(${x.acc.id},'${top.type}')">${top.actie} →</button>
+            <button class="btn sm ghost" style="font-size:12px;padding:4px 10px;" onclick="event.stopPropagation();openDetail(${x.acc.id})">Bekijken</button>
+          </div>
+        </div>
+        ${x.dagen < 999 ? `<div style="text-align:right;flex-shrink:0;"><div style="font-size:10px;color:var(--text3);">Laatste contact</div><div style="font-size:12px;font-weight:600;color:var(--text);">${x.dagen===0?'vandaag':x.dagen+'d'}</div></div>` : ''}
+      </div>
+    </div>`;
+  };
+
+  el.innerHTML = `
+  <div style="display:grid;grid-template-columns:1fr 340px;gap:16px;align-items:start;">
+
+    <!-- Links: Sales + AM -->
+    <div>
+
+      <!-- Sales sectie -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--navy);display:flex;align-items:center;gap:7px;"><span style="display:block;width:3px;height:13px;background:var(--gold);border-radius:2px;"></span>Sales</div>
+        <span style="font-size:11px;color:var(--text3);">${salesAccs.length} accounts</span>
+      </div>
+      ${salesAccs.length===0 ? `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px;text-align:center;margin-bottom:16px;"><div style="font-size:13px;color:var(--text3);">Geen sales accounts die aandacht nodig hebben</div></div>` : salesAccs.map(renderAccKaart).join('')}
+
+      <!-- Account Management sectie -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:16px 0 10px;">
+        <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--navy);display:flex;align-items:center;gap:7px;"><span style="display:block;width:3px;height:13px;background:var(--teal);border-radius:2px;"></span>Account Management</div>
+        <span style="font-size:11px;color:var(--text3);">${amAccs.length} accounts</span>
+      </div>
+      ${amAccs.length===0 ? `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px;text-align:center;"><div style="font-size:13px;color:var(--text3);">Alle klanten en opdrachtgevers zijn up-to-date</div></div>` : amAccs.map(renderAccKaart).join('')}
+
+    </div>
+
+    <!-- Rechts: Taken -->
+    <div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--navy);display:flex;align-items:center;gap:7px;"><span style="display:block;width:3px;height:13px;background:var(--navy);border-radius:2px;"></span>Open taken</div>
+        <button class="btn sm ghost" onclick="nav('todos')">Alle →</button>
+      </div>
+      ${urgent.length>0?`
+        <div style="font-size:10px;font-weight:700;color:var(--red-t);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;">Urgent</div>
+        ${urgent.slice(0,5).map(t=>renderActieTaak(t)).join('')}
+        <div style="height:1px;background:var(--border);margin:10px 0;"></div>`:''}
+      ${normaal.slice(0,6).map(t=>renderActieTaak(t)).join('')}
+      ${normaal.length===0&&urgent.length===0?`<div style="font-size:13px;color:var(--text3);padding:8px 0;">Geen open taken</div>`:''}
+      <div style="margin-top:12px;"><button class="btn pri sm" style="width:100%;justify-content:center;" onclick="openAddTodo()">+ Nieuwe taak</button></div>
+    </div>
+  </div>`;
+}
+
+
+const SCRAPER_KEY='ix_scraper_settings';
+const SCRAPER_SECRET='intersect2025!';
+const SCRAPER_BASE='https://intersect-crm.vercel.app/api/scraper';
+
+function scraperGetSettings(){try{return JSON.parse(localStorage.getItem(SCRAPER_KEY)||'{}');}catch(e){return{};}}
+function scraperSaveSettings(s){localStorage.setItem(SCRAPER_KEY,JSON.stringify(s));}
+
+let _scraperBezig = false;
+let _scraperPollInterval = null;
+let _scraperJobId = null;
+let _scraperTarget = 0;
+let _scraperTotaal = 0;
+
+function scraperStartPoll(){
+  if(_scraperPollInterval) clearInterval(_scraperPollInterval);
+  _scraperPollInterval = setInterval(async()=>{
+    try{
+      const r = await fetch(`${SCRAPER_BASE}/index?action=status&secret=${SCRAPER_SECRET}`);
+      const d = await r.json();
+      const badge = document.getElementById('scraper-badge');
+      if(d.wachtend > 0){
+        if(badge){badge.style.display='';badge.textContent=d.wachtend;}
+      } else {
+        if(badge) badge.style.display='none';
+      }
+      // Filter job voor huidige gebruiker
+      const mijnJob = (d.jobs||[]).find(j => j.gebruiker === CU);
+      // Als er een actieve job is en wij niet bezig zijn — herstart automatisch
+      if(mijnJob && mijnJob.status === 'bezig' && !_scraperBezig){
+        console.log(`[Poll] Job hervat: ${mijnJob.gevonden}/${mijnJob.target}`);
+        _scraperBezig = true;
+        _scraperJobId = mijnJob.id;
+        _scraperTarget = mijnJob.target;
+        _scraperTotaal = mijnJob.gevonden;
+        renderScraper();
+        scraperHervat(mijnJob);
+        return;
+      }
+      // Voortgang tonen in bezig-banner
+      if(_scraperBezig && mijnJob){
+        _scraperTotaal = mijnJob.gevonden;
+        const banner = document.getElementById('sc-voortgang');
+        if(banner) banner.textContent = `${mijnJob.gevonden}/${mijnJob.target} gevonden...`;
+      }
+      // Klaar melding
+      if(_scraperBezig && (!mijnJob || mijnJob.status === 'klaar')){
+        _scraperBezig = false;
+        toonScraperNotificatie(d.wachtend, _scraperTotaal, _scraperTarget);
+        renderScraper();
+      }
+    }catch(e){}
+  }, 15000);
+}
+
+async function scraperHervat(job){
+  try {
+    const r = await fetch(`${SCRAPER_BASE}/index?action=start&secret=${SCRAPER_SECRET}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        secret: SCRAPER_SECRET,
+        opdrachtgever: job.opdrachtgever,
+        focusgebied: job.focusgebied,
+        limit: job.target,
+        job_id: job.id,
+        gebruiker: job.gebruiker || CU,
+      }),
+    });
+    const d = await r.json();
+    _scraperTotaal = d.totaal || _scraperTotaal;
+    if(d.klaar){
+      _scraperBezig = false;
+      toonScraperNotificatie(d.totaal, d.totaal, d.target);
+      renderScraper();
+    }
+  } catch(e) {
+    console.warn('[Herstart] Fout:', e.message);
+  }
+}
+
+function toonScraperNotificatie(wachtend, totaal, target){
+  const container = document.getElementById('agenda-notif-container');
+  if(!container) return;
+  const n = document.createElement('div');
+  n.style.cssText='background:var(--navy);color:#fff;border-radius:var(--r-lg);padding:14px 18px;box-shadow:0 4px 20px rgba(0,0,0,.2);pointer-events:all;cursor:pointer;font-size:13px;max-width:300px;';
+  const klaar = !target || totaal >= target;
+  n.innerHTML=`<div style="font-weight:700;margin-bottom:4px;">${klaar ? '✓ Scraper klaar!' : '⟳ Scraper bezig...'}</div><div style="opacity:.8;">${klaar ? `${wachtend} leads wachten op beoordeling` : `${totaal}/${target} leads gevonden`}</div>`;
+  n.onclick=()=>{ nav('scraper'); n.remove(); };
+  container.appendChild(n);
+  setTimeout(()=>n.remove(), 10000);
+}
+
+async function scraperStarten(){
+  const s = scraperGetSettings();
+  const opdrachtgever = document.getElementById('sc-partner')?.value;
+  const focusgebied = document.getElementById('sc-focus')?.value?.trim();
+  const limit = parseInt(document.getElementById('sc-limit')?.value) || 20;
+
+  if(!focusgebied){ alert('Vul een focusgebied in.'); return; }
+
+  scraperSaveSettings({...s, partner: opdrachtgever, focusgebied, limit});
+
+  _scraperBezig = true;
+  _scraperTarget = limit;
+  _scraperTotaal = 0;
+  _scraperJobId = null;
+  renderScraper();
+
+  setTimeout(()=>{
+    const container = document.getElementById('agenda-notif-container');
+    if(!container) return;
+    const n = document.createElement('div');
+    n.style.cssText='background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:var(--r-lg);padding:14px 18px;box-shadow:0 4px 20px rgba(0,0,0,.15);pointer-events:all;font-size:13px;max-width:300px;';
+    n.innerHTML=`<div style="font-weight:700;margin-bottom:4px;">⟳ Scraper gestart</div><div style="color:var(--text2);font-size:12px;">Claude zoekt ${limit} leads voor ${opdrachtgever}. Je krijgt een melding als hij klaar is.</div>`;
+    container.appendChild(n);
+    setTimeout(()=>n.remove(), 5000);
+  }, 500);
+
+  fetch(`${SCRAPER_BASE}/index?action=start&secret=${SCRAPER_SECRET}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ secret: SCRAPER_SECRET, opdrachtgever, focusgebied, limit, gebruiker: CU }),
+  }).then(async r => {
+    const d = await r.json();
+    _scraperTotaal = d.totaal || 0;
+    if(d.klaar){
+      _scraperBezig = false;
+      toonScraperNotificatie(d.totaal, d.totaal, d.target);
+      const badge = document.getElementById('scraper-badge');
+      if(badge && d.totaal > 0){ badge.style.display=''; badge.textContent=d.totaal; }
+      renderScraper();
+    }
+  }).catch(e => {
+    if(e.name !== 'AbortError') console.warn('Scraper:', e.message);
+  });
+}
+
+async function scraperHaalResultatenOp(){
+  try{
+    const r = await fetch(`${SCRAPER_BASE}/index?action=results&secret=${SCRAPER_SECRET}`);
+    const d = await r.json();
+    return d.leads || [];
+  }catch(e){ return []; }
+}
+
+async function scraperDoorsturen(doorsturen, afwijzen){
+  const r = await fetch(`${SCRAPER_BASE}/index?action=results`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ secret: SCRAPER_SECRET, doorsturen, afwijzen }),
+  });
+  return r.json();
+}
+
+function renderScraper(){
+  const el=document.getElementById('p-scraper');if(!el)return;
+  const s=scraperGetSettings();
+  const clients=accs.filter(a=>a.status==='klant');
+  const geselecteerdeNaam = s.partner || clients[0]?.name || 'Audio Obscura';
+  const geselecteerdeKlant = clients.find(c=>c.name===geselecteerdeNaam);
+
+  el.innerHTML=`<div style="max-width:760px;">
+    <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:700;color:var(--navy);margin-bottom:16px;">Lead Scraper</div>
+
+    ${_scraperBezig ? `
+    <div style="background:var(--navy);color:#fff;border-radius:var(--r-lg);padding:18px 20px;margin-bottom:12px;display:flex;align-items:center;gap:12px;">
+      <div style="width:20px;height:20px;border:3px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite;flex-shrink:0;"></div>
+      <div>
+        <div style="font-weight:600;margin-bottom:2px;">Scraper is bezig... <span id="sc-voortgang" style="font-weight:400;opacity:.8;">${_scraperTotaal > 0 ? _scraperTotaal + '/' + _scraperTarget + ' gevonden' : 'Claude zoekt...'}</span></div>
+        <div style="font-size:12px;opacity:.7;">Je krijgt een melding als hij klaar is. Je kunt gewoon verder werken.</div>
+      </div>
+    </div>` : ''}
+
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:18px 20px;margin-bottom:12px;">
+      <div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:14px;display:flex;align-items:center;gap:6px;"><span style="display:block;width:3px;height:12px;background:var(--gold);border-radius:2px;"></span>Instellingen</div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+        <div>
+          <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px;">Opdrachtgever</label>
+          <select id="sc-partner" style="width:100%;font-size:13px;padding:7px 10px;" onchange="scraperLaadOpdrachtgeverInfo()">
+            ${clients.map(c=>`<option ${c.name===geselecteerdeNaam?'selected':''}>${c.name}</option>`).join('')}
+            ${!clients.find(c=>c.name===geselecteerdeNaam)?`<option selected>${geselecteerdeNaam}</option>`:''}
+          </select>
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px;">Aantal leads ophalen</label>
+          <input type="number" id="sc-limit" value="${s.limit||20}" min="5" max="100" style="width:100%;font-size:13px;padding:7px 10px;">
+        </div>
+      </div>
+
+      <div style="margin-bottom:12px;">
+        <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px;">Wat verkoopt/biedt deze opdrachtgever? <span style="font-weight:400;color:var(--text3);">— Claude gebruikt dit als context bij het zoeken</span></label>
+        <textarea id="sc-opdrachtgever-info" rows="3" placeholder="Bijv: Audio Obscura organiseert premium events op bijzondere locaties. Intersect verkoopt Curated Business Experiences — bedrijven kunnen klanten, relaties of medewerkers hosten in een exclusieve setting bij een rave in de Van Nellefabriek." style="width:100%;font-size:13px;padding:9px 12px;resize:vertical;">${geselecteerdeKlant?.note||''}</textarea>
+        <button onclick="scraperSlaOpdrachtgeverInfo()" style="margin-top:6px;font-size:12px;padding:5px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;color:var(--text2);">Opslaan</button>
+      </div>
+
+      <div>
+        <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px;">Focusgebied <span style="font-weight:400;color:var(--text3);">— de doelgroep die je wil bereiken</span></label>
+        <textarea id="sc-focus" rows="3" placeholder="Bijv: Commerciële bedrijven in de Randstad met 50+ medewerkers, actief salesteam of relatiebeheer budget, B2B" style="width:100%;font-size:13px;padding:9px 12px;resize:vertical;">${s.focusgebied||''}</textarea>
+      </div>
+    </div>
+
+    <button class="btn pri" style="width:100%;justify-content:center;padding:11px;font-size:14px;margin-bottom:16px;${_scraperBezig?'opacity:.5;cursor:not-allowed;':''}" onclick="if(!_scraperBezig)scraperStarten()" ${_scraperBezig?'disabled':''}>
+      ${_scraperBezig ? '⟳ Bezig...' : 'Scraper starten →'}
+    </button>
+
+    <!-- Apollo Verrijking -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:18px 20px;margin-bottom:12px;margin-top:12px;">
+      <div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:14px;display:flex;align-items:center;gap:6px;"><span style="display:block;width:3px;height:12px;background:#f5a623;border-radius:2px;"></span>Apollo — Contacten opzoeken</div>
+      <div style="margin-bottom:10px;">
+        <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px;">Bedrijven <span style="font-weight:400;color:var(--text3);">— één per regel (of selecteer accounts in de accountslijst)</span></label>
+        <textarea id="apollo-bedrijven" rows="5" placeholder="Looije Properties&#10;The CORE Group&#10;Battolyser Systems" style="width:100%;font-size:13px;padding:9px 12px;resize:vertical;"></textarea>
+      </div>
+      <button class="btn pri" style="width:100%;justify-content:center;" onclick="apolloZoeken()">Zoeken in Apollo →</button>
+      <div id="apollo-resultaten" style="margin-top:14px;"></div>
+    </div>
+
+    <div id="sc-review-sectie"></div>
+  </div>`;
+
+  const focusEl = document.getElementById('sc-focus');
+  if(focusEl) focusEl.addEventListener('input', ()=>{
+    const st=scraperGetSettings(); st.focusgebied=focusEl.value; scraperSaveSettings(st);
+  });
+
+  scraperHaalResultatenOp().then(leads => {
+    const sec = document.getElementById('sc-review-sectie');
+    if(!sec) return;
+    if(!leads.length){
+      sec.innerHTML='<div style="text-align:center;padding:20px;color:var(--text3);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);">Geen leads wachtend op beoordeling</div>';
+      return;
+    }
+    renderScraperReview(leads, sec);
+  });
+}
+
+function scraperLaadOpdrachtgeverInfo(){
+  const naam = document.getElementById('sc-partner')?.value;
+  const klant = accs.find(a=>a.name===naam && a.status==='klant');
+  const el = document.getElementById('sc-opdrachtgever-info');
+  if(el) el.value = klant?.note || '';
+  const s = scraperGetSettings();
+  scraperSaveSettings({...s, partner: naam});
+}
+
+async function scraperSlaOpdrachtgeverInfo(){
+  const opdrachtgever = document.getElementById('sc-partner')?.value;
+  const info = document.getElementById('sc-opdrachtgever-info')?.value || '';
+  if(!opdrachtgever) return;
+  try {
+    const r = await fetch(`${SCRAPER_BASE}/index?action=save_opdrachtgever&secret=${SCRAPER_SECRET}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ secret: SCRAPER_SECRET, opdrachtgever, info }),
+    });
+    const d = await r.json();
+    if(d.success){
+      const klant = accs.find(a=>a.name===opdrachtgever);
+      if(klant) klant.note = info;
+      alert('✓ Opgeslagen');
+    }
+  } catch(e) { alert('Fout bij opslaan: ' + e.message); }
+}
+
+function renderScraperReview(leads, container){
+  const scoreKleur = s => s >= 9 ? '#1a7a3a' : s >= 7 ? '#1a5fb4' : '#8a6200';
+  const scoreBg = s => s >= 9 ? '#eaf7ef' : s >= 7 ? '#eaf1fd' : '#fff8e6';
+
+  let leadsHtml = '';
+  leads.forEach(function(l, i) {
+    const alInCRM = accs.some(function(a){ return a.name.toLowerCase().trim() === cleanCompanyName(l.organisatie||'').toLowerCase().trim(); });
+    const border = alInCRM ? '#2d8a4e' : 'var(--border)';
+    const crmBadge = alInCRM ? '<span style="font-size:11px;padding:2px 8px;border-radius:10px;background:#eaf7ef;color:#1a7a3a;font-weight:600;">&#10003; al in CRM</span>' : '';
+    const segBadge = l.segment ? '<span style="font-size:11px;padding:2px 7px;border-radius:10px;background:var(--surface2);color:var(--text2);">' + l.segment + '</span>' : '';
+    const regio = l.regio ? '<span>&#128205; ' + l.regio + '</span>' : '';
+    const adres = l.adres ? '<span>&#127968; ' + l.adres + '</span>' : '';
+    const sector = l.sector ? '<span>&#127970; ' + l.sector + '</span>' : '';
+    const tel = l.telefoon ? '<span>&#128222; ' + l.telefoon + '</span>' : '';
+    const webHref = l.website ? (l.website.startsWith('http') ? l.website : 'https://' + l.website) : '';
+    const web = webHref ? '<a href="' + webHref + '" target="_blank" style="color:var(--blue-t);text-decoration:none;">&#127760; Website &#8599;</a>' : '';
+    const liHref = l.linkedin ? (l.linkedin.startsWith('http') ? l.linkedin : 'https://' + l.linkedin) : '';
+    const li = liHref ? '<a href="' + liHref + '" target="_blank" style="color:var(--blue-t);text-decoration:none;">&#128188; LinkedIn &#8599;</a>' : '';
+    const haakje = l.haakje ? '<div style="font-size:12.5px;color:var(--navy);background:var(--navy-fade);border-left:3px solid var(--navy);padding:6px 10px;border-radius:0 var(--r) var(--r) 0;margin-top:4px;">"' + l.haakje + '"</div>' : '';
+
+    leadsHtml += '<div style="border:1px solid ' + border + ';border-radius:var(--r);margin-bottom:8px;padding:12px 14px;background:var(--surface);">'
+      + '<div style="display:flex;align-items:flex-start;gap:10px;">'
+      + '<input type="checkbox" id="sc-lead-' + i + '" data-id="' + l.id + '" ' + (alInCRM ? '' : 'checked') + ' style="margin-top:3px;width:16px;height:16px;cursor:pointer;flex-shrink:0;">'
+      + '<div style="flex:1;min-width:0;">'
+      + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap;">'
+      + '<span style="font-size:14px;font-weight:600;color:var(--text);">' + (l.organisatie||'') + '</span>'
+      + '<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;background:' + scoreBg(l.score) + ';color:' + scoreKleur(l.score) + ';">Score ' + l.score + '/10</span>'
+      + crmBadge + segBadge
+      + '</div>'
+      + '<div style="display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--text3);margin-bottom:4px;">' + regio + adres + sector + tel + web + li + '</div>'
+      + haakje
+      + '<div style="font-size:11.5px;color:var(--text3);margin-top:4px;">' + (l.reden||'') + '</div>'
+      + '</div>'
+      + '<button onclick="scraperVerwijderLead(' + i + ')" style="flex-shrink:0;background:none;border:none;cursor:pointer;color:var(--text3);font-size:18px;padding:2px 6px;line-height:1;" title="Verwijder">&#x2715;</button>'
+      + '</div></div>';
+  });
+
+  container.innerHTML = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:18px 20px;">'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">'
+    + '<div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;display:flex;align-items:center;gap:6px;">'
+    + '<span style="display:block;width:3px;height:12px;background:var(--gold);border-radius:2px;"></span>'
+    + leads.length + ' leads wachten op beoordeling</div>'
+    + '<div style="display:flex;gap:6px;">'
+    + '<button class="btn xs ghost" onclick="scraperAllesSelecteren(true)">Alles selecteren</button>'
+    + '<button class="btn xs ghost" onclick="scraperAllesSelecteren(false)">Deselecteren</button>'
+    + '</div></div>'
+    + leadsHtml
+    + '<div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">'
+    + '<button class="btn pri" style="padding:10px 20px;" onclick="scraperBevestigen()">Doorsturen naar CRM &#8594;</button>'
+    + '<button class="btn" style="padding:10px 20px;background:#fff8ed;border:1.5px solid #f5a623;color:#92610a;font-weight:600;" onclick="scraperNaarApollo()">Doorsturen naar Apollo &#8594;</button>'
+    + '<span style="font-size:12px;color:var(--text3);" id="sc-sel-count">' + leads.length + ' geselecteerd</span>'
+    + '</div></div>';
+
+  // Teller bijhouden
+  container.querySelectorAll('input[type=checkbox]').forEach(function(cb) {
+    cb.addEventListener('change', function() {
+      const n = container.querySelectorAll('input[type=checkbox]:checked').length;
+      const el = document.getElementById('sc-sel-count');
+      if(el) el.textContent = n + ' geselecteerd';
+    });
+  });
+
+  // Sla leads op voor gebruik bij doorsturen
+  window._scraperReviewLeads = leads;
+}
+
+async function scraperVerwijderLead(index) {
+  const leads = window._scraperReviewLeads || [];
+  const lead = leads[index];
+  if (!lead) return;
+  // Markeer als afgewezen in Supabase
+  if (lead.id) {
+    await fetch(`${SCRAPER_BASE}/index?action=results&secret=${SCRAPER_SECRET}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ doorsturen: [], afwijzen: [lead.id] })
+    }).catch(e => console.warn('Afwijzen fout:', e));
+  }
+  leads.splice(index, 1);
+  window._scraperReviewLeads = leads;
+  const sec = document.getElementById('sc-review-sectie');
+  if(sec) renderScraperReview(leads, sec);
+}
+
+function scraperAllesSelecteren(select){
+  document.querySelectorAll('#sc-review-sectie input[type=checkbox]').forEach(cb => cb.checked = select);
+  const n = select ? (window._scraperReviewLeads||[]).length : 0;
+  const el = document.getElementById('sc-sel-count');
+  if(el) el.textContent = n + ' geselecteerd';
+}
+
+async function scraperBevestigen(){
+  const checkboxes = document.querySelectorAll('#sc-review-sectie input[type=checkbox]');
+  const allLeads = window._scraperReviewLeads || [];
+  const doorsturen = [];
+  const afwijzen = [];
+
+  checkboxes.forEach((cb, i) => {
+    const lead = allLeads[i];
+    if(!lead) return;
+    if(cb.checked) doorsturen.push(lead);
+    else afwijzen.push(lead.id);
+  });
+
+  if(!doorsturen.length){ alert('Selecteer minimaal 1 lead.'); return; }
+  if(!confirm(`${doorsturen.length} leads doorsturen naar CRM?`)) return;
+
+  const btn = document.querySelector('#sc-review-sectie .btn.pri');
+  if(btn){ btn.disabled=true; btn.textContent='Bezig...'; }
+
+  try{
+    const r = await scraperDoorsturen(doorsturen, afwijzen);
+    if(r.success){
+      await _loadFromSupabase();
+      alert(`✓ ${r.opgeslagen} leads toegevoegd aan CRM!`);
+      window._scraperReviewLeads = [];
+      renderScraper();
+      const badge = document.getElementById('scraper-badge');
+      const status = await fetch(`${SCRAPER_BASE}/index?action=status&secret=${SCRAPER_SECRET}`).then(x=>x.json()).catch(()=>({wachtend:0}));
+      if(badge){ if(status.wachtend > 0){ badge.style.display=''; badge.textContent=status.wachtend; } else badge.style.display='none'; }
+    }
+  }catch(e){
+    alert('Fout: ' + e.message);
+    if(btn){ btn.disabled=false; btn.textContent='Doorsturen naar CRM →'; }
+  }
+}
+
+// ══════════════ MAIL COMPOSE ══════════════
+let mcType = 'mailshot';
+let mcBijlages = []; // { naam, base64, mimeType }
+
+function mcSetType(type) {
+  mcType = type;
+  document.querySelectorAll('.mc-type-btn').forEach(b => {
+    b.classList.toggle('on', b.dataset.type === type);
+    b.style.background = b.dataset.type === type ? 'var(--navy)' : '';
+    b.style.color = b.dataset.type === type ? '#fff' : '';
+    b.style.borderColor = b.dataset.type === type ? 'var(--navy)' : '';
+  });
+}
+
+function mcFormat(cmd) {
+  document.execCommand(cmd, false, null);
+  document.getElementById('mc-body').focus();
+}
+
+function mcVulVerzendaccounts() {
+  const sel = document.getElementById('mc-from');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— kies e-mailaccount —</option>';
+  const data = instGetData();
+  ['MA', 'JK'].forEach(user => {
+    const emails = data[`ms_email_${user}`] || [];
+    const naam = user === 'MA' ? 'Mees' : 'Julian';
+    emails.forEach((email, i) => {
+      const opt = document.createElement('option');
+      opt.value = email;
+      opt.textContent = `${email} (${naam}${i === 0 ? ' · primair' : ''})`;
+      sel.appendChild(opt);
+    });
+  });
+  // Zet huidig ingelogde gebruiker als default
+  const curEmails = data[`ms_email_${CU}`] || [];
+  if (curEmails.length) sel.value = curEmails[0];
+}
+
+function openMailCompose(type, prefillAan, prefillOnderwerp) {
+  mcType = type || 'mailshot';
+  mcBijlages = [];
+  document.getElementById('mc-file-list').innerHTML = '';
+  document.getElementById('mc-body').innerHTML = '';
+  // Laad eerst tokens dan vul accounts
+  instLaadMicrosoftTokens().then(() => mcVulVerzendaccounts());
+  document.getElementById('mc-ai-input').value = '';
+  document.getElementById('mc-to').value = prefillAan || (curAcc ? curAcc.ce || '' : '');
+  document.getElementById('mc-cc').value = '';
+  document.getElementById('mc-subject').value = prefillOnderwerp || '';
+
+  const typeLabels = { mailshot: 'Mailshot versturen', opvolg_mailshot: 'Opvolg Mailshot versturen', directe_mail: 'Directe mail versturen' };
+  document.getElementById('mc-title').textContent = typeLabels[mcType] || 'Mail versturen';
+  document.getElementById('mc-sub').textContent = curAcc ? curAcc.name : '';
+
+  mcSetType(mcType);
+  instLaadMicrosoftTokens().then(() => mcVulVerzendaccounts());
+
+  // Vul contactpersoon dropdown
+  const mcCont = document.getElementById('mc-contact');
+  if (mcCont) {
+    mcCont.innerHTML = '<option value="">— kies contactpersoon —</option>';
+    const primairNaam = [curAcc.cf, curAcc.cl].filter(Boolean).join(' ');
+    if (primairNaam) mcCont.innerHTML += `<option value="${curAcc.ce||''}" data-naam="${curAcc.cf||primairNaam}" selected>${primairNaam}${curAcc.cr?' ('+curAcc.cr+')':''}</option>`;
+    (curAcc.contacts||[]).forEach(ct => {
+      const naam = [ct.first, ct.last].filter(Boolean).join(' ');
+      if (naam) mcCont.innerHTML += `<option value="${ct.email||''}" data-naam="${ct.first||naam}">${naam}${ct.role?' ('+ct.role+')':''}</option>`;
+    });
+    // Als contactpersoon wijzigt: update Aan-veld automatisch
+    mcCont.onchange = function() {
+      const email = this.value;
+      const naam = this.selectedOptions[0]?.dataset.naam || '';
+      if (email) document.getElementById('mc-to').value = email;
+    };
+  }
+  document.getElementById('m-mail-compose').classList.add('on');
+  setTimeout(() => document.getElementById('mc-body').focus(), 100);
+}
+
+function mcVoegBijlageToe(input) {
+  const files = Array.from(input.files);
+  const lijst = document.getElementById('mc-file-list');
+
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const base64 = e.target.result.split(',')[1];
+      mcBijlages.push({ naam: file.name, base64, mimeType: file.type, grootte: file.size });
+
+      const item = document.createElement('div');
+      item.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);font-size:12.5px;';
+      item.innerHTML = `<span>📄</span><span style="flex:1;">${file.name}</span><span style="color:var(--text3);">${(file.size/1024).toFixed(0)} KB</span><button class="btn xs ghost" onclick="mcVerwijderBijlage('${file.name}',this.parentElement)" style="color:var(--red);">✕</button>`;
+      lijst.appendChild(item);
+    };
+    reader.readAsDataURL(file);
+  });
+
+  input.value = '';
+}
+
+function mcVerwijderBijlage(naam, el) {
+  mcBijlages = mcBijlages.filter(b => b.naam !== naam);
+  el.remove();
+}
+
+let mcSuggestieOnderwerp = '';
+let mcSuggestieInhoud = '';
+
+async function mcGenereerSuggestie() {
+  if (!curAcc) return;
+  const btn = document.getElementById('mc-suggest-btn');
+  const toelichting = document.getElementById('mc-suggest-toelichting');
+  btn.textContent = '✦ Bezig…';
+  btn.disabled = true;
+
+  try {
+    // Stuur volledige account context mee inclusief alle logs
+    const accountContext = {
+      ...curAcc,
+      notes: (curAcc.notes || []).map(n => ({
+        id: n.id,
+        type: n.type,
+        text: n.text || '',
+        by: n.by,
+        time: n.time,
+        contact: n.contact,
+        dur: n.dur,
+        chat: n.chat || null,
+      })),
+      contacts: curAcc.contacts || [],
+      deals: curAcc.deals || [],
+      proposals: curAcc.proposals || [],
+    };
+
+    const aiInput = document.getElementById('mc-ai-input')?.value?.trim() || '';
+
+    const res = await fetch('/api/mail-suggest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        account: accountContext,
+        mailType: mcType,
+        user: CU,
+        aiInput,
+      }),
+    });
+
+    if (!res.ok) throw new Error(await res.text());
+    const { suggestie } = await res.json();
+
+    document.getElementById('mc-subject').value = suggestie.onderwerp;
+    mcSuggestieOnderwerp = suggestie.onderwerp;
+
+    const html = suggestie.inhoud.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>');
+    document.getElementById('mc-body').innerHTML = `<p>${html}</p>`;
+    mcSuggestieInhoud = suggestie.inhoud;
+
+    if (suggestie.toelichting) {
+      toelichting.textContent = '✦ ' + suggestie.toelichting;
+      toelichting.style.display = 'block';
+    }
+
+  } catch (err) {
+    alert('Fout bij genereren suggestie: ' + err.message);
+  } finally {
+    btn.textContent = '✦ Nieuwe suggestie';
+    btn.disabled = false;
+  }
+}
+
+async function mcVerstuur() {
+  const van = document.getElementById('mc-from').value.trim();
+  const contact = document.getElementById('mc-contact').value.trim();
+  const aan = document.getElementById('mc-to').value.trim();
+  const cc = document.getElementById('mc-cc').value.trim();
+  let onderwerp = document.getElementById('mc-subject').value.trim();
+  const inhoudEl = document.getElementById('mc-body');
+  let inhoud = inhoudEl.innerHTML.trim();
+
+  if (!contact) { alert('Kies een contactpersoon.'); return; }
+  if (!van) { alert('Kies een verzendaccount.'); return; }
+  if (!aan) { alert('Vul een ontvanger in.'); return; }
+  if (!onderwerp) { alert('Vul een onderwerp in.'); return; }
+  if (!inhoud) { alert('Schrijf een bericht.'); return; }
+
+  // Vervang [naam] (voornaam van geselecteerde contactpersoon) en [bedrijf]
+  const mcContEl = document.getElementById('mc-contact');
+  const geselecteerdeVoornaam = mcContEl?.selectedOptions[0]?.dataset.naam || curAcc?.cf || '';
+  const contactVoornaam = geselecteerdeVoornaam || (curAcc ? curAcc.name : '');
+  const bedrijfNaam = curAcc ? curAcc.name : '';
+  onderwerp = onderwerp.replace(/\[naam\]/gi, contactVoornaam || '[naam]').replace(/\[bedrijf\]/gi, bedrijfNaam || '[bedrijf]');
+  inhoud = inhoud.replace(/\[naam\]/gi, contactVoornaam || '[naam]');
+  inhoud = inhoud.replace(/\[bedrijf\]/gi, bedrijfNaam || '[bedrijf]');
+
+  const btn = document.getElementById('mc-send-btn');
+  btn.textContent = 'Versturen…';
+  btn.disabled = true;
+
+  try {
+    const MAX_DIRECT = 3 * 1024 * 1024; // 3MB
+    const kleineBijlages = mcBijlages.filter(b => b.grootte < MAX_DIRECT);
+    const groteBijlages = mcBijlages.filter(b => b.grootte >= MAX_DIRECT);
+
+    if (groteBijlages.length === 0) {
+      // Geen grote bijlages — gewoon direct versturen
+      const body = {
+        aan, cc: cc ? [cc] : [], onderwerp, inhoud,
+        log_acc_id: curAcc ? curAcc.id : null,
+        mail_type: mcType,
+        bijlages: kleineBijlages,
+      };
+      const res = await fetch('/api/mail', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-email': van },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || await res.text());
+    } else {
+      // Grote bijlages — upload direct naar Microsoft
+      btn.textContent = 'Draft aanmaken…';
+
+      // Stap 1: maak draft aan
+      const draftRes = await fetch('/api/mail-upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-email': van },
+        body: JSON.stringify({ action: 'create-draft', aan, cc: cc ? [cc] : [], onderwerp, inhoud }),
+      });
+      if (!draftRes.ok) throw new Error('Draft aanmaken mislukt');
+      const { messageId } = await draftRes.json();
+
+      // Stap 2: voeg kleine bijlages toe via normale mail API
+      if (kleineBijlages.length > 0) {
+        await fetch('/api/mail', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-user-email': van },
+          body: JSON.stringify({ aan, cc: cc ? [cc] : [], onderwerp, inhoud, bijlages: kleineBijlages, _messageId: messageId }),
+        });
+      }
+
+      // Stap 3: upload grote bijlages direct naar Microsoft
+      for (let i = 0; i < groteBijlages.length; i++) {
+        const b = groteBijlages[i];
+        btn.textContent = `Uploaden ${i+1}/${groteBijlages.length}…`;
+
+        // Vraag upload session URL op
+        const sessionRes = await fetch('/api/mail-upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-user-email': van },
+          body: JSON.stringify({ action: 'create-upload-session', messageId, fileName: b.naam, fileSize: b.grootte, mimeType: b.mimeType }),
+        });
+        if (!sessionRes.ok) throw new Error('Upload session mislukt');
+        const { uploadUrl } = await sessionRes.json();
+
+        // Upload het bestand in chunks direct naar Microsoft
+        const fileBytes = Uint8Array.from(atob(b.base64), c => c.charCodeAt(0));
+        const chunkSize = 4 * 1024 * 1024;
+        for (let offset = 0; offset < fileBytes.length; offset += chunkSize) {
+          const chunk = fileBytes.slice(offset, Math.min(offset + chunkSize, fileBytes.length));
+          await fetch(uploadUrl, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/octet-stream',
+              'Content-Range': `bytes ${offset}-${offset + chunk.length - 1}/${fileBytes.length}`,
+            },
+            body: chunk,
+          });
+        }
+      }
+
+      // Stap 4: verstuur de draft
+      btn.textContent = 'Versturen…';
+      const sendRes = await fetch('/api/mail-upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-email': van },
+        body: JSON.stringify({ action: 'send-draft', messageId }),
+      });
+      if (!sendRes.ok) throw new Error('Versturen mislukt');
+    }
+
+    // Log als notitie bij account met volledige inhoud
+    if (curAcc) {
+      const typeLabels = { mailshot: 'Mailshot', opvolg_mailshot: 'Opvolg Mailshot', directe_mail: 'Directe mail' };
+      const inhoudTekst = inhoudEl.innerText || inhoudEl.textContent || '';
+      const noteText = `${typeLabels[mcType] || 'Mail'} verstuurd\nVan: ${van} → Aan: ${aan}${mcBijlages.length ? ` · ${mcBijlages.length} bijlage(s)` : ''}\nOnderwerp: ${onderwerp}\n\n${inhoudTekst}`;
+      const note = {
+        type: mcType,
+        text: noteText,
+        by: CU,
+        contact: contact,
+        time: new Date().toLocaleString('nl-NL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }),
+        id: Date.now(),
+      };
+      curAcc.notes = curAcc.notes || [];
+      curAcc.notes.push(note);
+      const idx = accs.findIndex(a => a.id === curAcc.id);
+      if (idx >= 0) accs[idx] = curAcc;
+      ss('ix_accs', accs);
+      _saveNote(curAcc.id, note).then(()=>{
+        addActivity(`<strong>${CU==='MA'?'Mees':'Julian'}</strong> stuurde ${typeLabels[mcType]||'mail'} naar <strong>${curAcc.name}</strong>`,'✉','#e8f0fb');
+      }).catch(e => console.error('Mail note save fout:', e.message));
+    }
+
+    closeM('m-mail-compose');
+    if (curAcc && document.getElementById('p-detail').classList.contains('on')) renderTab(curTab);
+
+    // Leerdata opslaan als er een suggestie was
+    if (mcSuggestieInhoud) {
+      fetch('/api/mail-learn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          account_id: curAcc ? curAcc.id : null,
+          account_naam: curAcc ? curAcc.name : null,
+          mail_type: mcType,
+          user_id: CU,
+          suggestie_onderwerp: mcSuggestieOnderwerp,
+          suggestie_inhoud: mcSuggestieInhoud,
+          verstuurd_onderwerp: onderwerp,
+          verstuurd_inhoud: inhoudEl.innerText,
+        }),
+      }).catch(() => {});
+      mcSuggestieOnderwerp = '';
+      mcSuggestieInhoud = '';
+    }
+
+    // Succesmelding
+    const t = document.createElement('div');
+    t.style.cssText = 'position:fixed;top:16px;right:16px;background:var(--green-bg);color:var(--green-t);border:1px solid rgba(26,122,58,.2);border-radius:10px;padding:10px 16px;font-size:13px;font-weight:500;z-index:9999;';
+    t.textContent = `✓ Mail verstuurd via ${van}`;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 4000);
+
+  } catch (err) {
+    alert('Fout bij versturen: ' + err.message);
+  } finally {
+    btn.textContent = 'Versturen via Outlook →';
+    btn.disabled = false;
+  }
+}
+
+// ══════════════ INSTELLINGEN ══════════════
+const INST_KEY = 'ix_instellingen';
+
+function instGetData() {
+  try { return JSON.parse(localStorage.getItem(INST_KEY) || '{}'); }
+  catch(e) { return {}; }
+}
+
+function instSave(data) {
+  localStorage.setItem(INST_KEY, JSON.stringify(data));
+}
+
+async function instLaadMicrosoftTokens() {
+  try {
+    const data = await _sbGet('microsoft_tokens', '?select=user_id,user_email,user_name');
+    if (!data || !data.length) return;
+    const instData = instGetData();
+    data.forEach(row => {
+      if (!row.user_email) return;
+      // Gebruik user_id als die beschikbaar is, anders bepaal op naam
+      let user = row.user_id || '';
+      if (!user || (user !== 'MA' && user !== 'JK')) {
+        user = row.user_name && row.user_name.toLowerCase().includes('julian') ? 'JK' : 'MA';
+      }
+      instData[`ms_gekoppeld_${user}`] = true;
+      instData[`ms_email_${user}`] = instData[`ms_email_${user}`] || [];
+      if (!instData[`ms_email_${user}`].includes(row.user_email)) {
+        instData[`ms_email_${user}`].push(row.user_email);
+      }
+    });
+    instSave(instData);
+  } catch(e) {
+    console.warn('Microsoft tokens laden:', e);
+  }
+}
+
+function instKoppelMicrosoft(user) {
+  window.open(`/api/auth/login?user=${user}`, '_blank');
+}
+
+function instMarkeerGekoppeld(user, email) {
+  const data = instGetData();
+  data[`ms_gekoppeld_${user}`] = true;
+  data[`ms_email_${user}`] = data[`ms_email_${user}`] || [];
+  if (email && !data[`ms_email_${user}`].includes(email)) {
+    data[`ms_email_${user}`].push(email);
+  }
+  instSave(data);
+}
+
+function instVerwijderEmail(user, email) {
+  const data = instGetData();
+  data[`ms_email_${user}`] = (data[`ms_email_${user}`] || []).filter(e => e !== email);
+  instSave(data);
+  renderInstellingen();
+}
+
+function instVoegEmailToe(user) {
+  instKoppelMicrosoft(user);
+  // Na 3 seconden tokens ophalen uit Supabase en tonen
+  setTimeout(async () => {
+    await instLaadMicrosoftTokens();
+    renderInstellingen();
+  }, 3000);
+}
+
+function renderInstellingen() {
+  const el = document.getElementById('p-instellingen');
+  if (!el) return;
+  // Laad eerst tokens uit Supabase dan render
+  instLaadMicrosoftTokens().then(() => _renderInstellingenUI());
+}
+
+function _renderInstellingenUI() {
+  const el = document.getElementById('p-instellingen');
+  if (!el) return;
+  const data = instGetData();
+
+  const gebruikers = [
+    { id: 'MA', naam: 'Mees Arentsen', rol: 'Founder' },
+    { id: 'JK', naam: 'Julian Kanhai', rol: 'Partner' },
+  ];
+
+  const gebruikerCards = gebruikers.map(u => {
+    const emails = data[`ms_email_${u.id}`] || [];
+    const gekoppeld = emails.length > 0;
+    return `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:18px 20px;margin-bottom:12px;">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+        <div class="av ${u.id.toLowerCase()}" style="width:40px;height:40px;font-size:14px;">${u.id}</div>
+        <div>
+          <div style="font-size:14px;font-weight:600;color:var(--text);">${u.naam}</div>
+          <div style="font-size:12px;color:var(--text3);">${u.rol}</div>
+        </div>
+        <div style="margin-left:auto;">
+          <span style="padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600;${gekoppeld ? 'background:var(--green-bg);color:var(--green-t);' : 'background:var(--surface2);color:var(--text3);border:1px solid var(--border);'}">${gekoppeld ? '✓ Gekoppeld' : 'Niet gekoppeld'}</span>
+        </div>
+      </div>
+
+      <div style="border-top:1px solid var(--border);padding-top:14px;">
+        <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;">E-mailaccounts</div>
+        ${emails.length ? emails.map((email, i) => `
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);margin-bottom:6px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:13px;">✉</span>
+              <span style="font-size:13px;color:var(--text);">${email}</span>
+              ${i === 0 ? '<span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px;background:var(--navy-fade);color:var(--navy);">Primair</span>' : ''}
+            </div>
+            <button class="btn xs ghost" onclick="instVerwijderEmail('${u.id}','${email}')" style="color:var(--red);">Verwijderen</button>
+          </div>
+        `).join('') : `<div style="font-size:13px;color:var(--text3);padding:8px 0;">Nog geen e-mailaccount gekoppeld</div>`}
+        <button class="btn sm" style="margin-top:8px;${gekoppeld ? '' : 'background:var(--navy);color:#fff;border-color:var(--navy);'}" onclick="instVoegEmailToe('${u.id}')">
+          + E-mailaccount koppelen
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `
+  <div style="max-width:720px;">
+
+    <!-- Profiel & accounts -->
+    <div style="margin-bottom:20px;">
+      <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:7px;margin-bottom:12px;">
+        <span style="display:block;width:3px;height:14px;background:var(--gold);border-radius:2px;"></span>
+        Gebruikers & e-mailaccounts
+      </div>
+      <div style="font-size:13px;color:var(--text3);margin-bottom:14px;">Koppel één of meerdere Microsoft/Outlook accounts per gebruiker. Bij het versturen van een mail kies je vanuit welk account je stuurt.</div>
+      ${gebruikerCards}
+    </div>
+
+    <!-- Integraties status -->
+    <div style="margin-bottom:20px;">
+      <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:7px;margin-bottom:12px;">
+        <span style="display:block;width:3px;height:14px;background:var(--gold);border-radius:2px;"></span>
+        Integraties
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;">
+        ${[
+          { naam: 'Microsoft Graph (Mail & Agenda)', sleutel: 'MICROSOFT_CLIENT_ID', status: true, beschrijving: 'OAuth koppeling voor Outlook mail en agenda' },
+          { naam: 'Anthropic Claude API', sleutel: 'ANTHROPIC_API_KEY', status: true, beschrijving: 'AI voor haakjes, samenvattingen en personalisatie' },
+          { naam: 'Supabase', sleutel: 'SUPABASE_URL', status: true, beschrijving: 'Database backend voor alle CRM data' },
+          { naam: 'KvK Handelsregister API', sleutel: 'KVK_API_KEY', status: false, beschrijving: 'Bedrijfsdata voor de lead scraper' },
+        ].map((int, i, arr) => `
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;${i < arr.length-1 ? 'border-bottom:1px solid var(--border);' : ''}">
+            <div style="flex:1;">
+              <div style="font-size:13px;font-weight:500;color:var(--text);">${int.naam}</div>
+              <div style="font-size:11.5px;color:var(--text3);margin-top:2px;">${int.beschrijving}</div>
+            </div>
+            <span style="padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600;white-space:nowrap;${int.status ? 'background:var(--green-bg);color:var(--green-t);' : 'background:var(--amber-bg);color:var(--amber-t);'}">${int.status ? '✓ Actief' : '⚠ Niet ingesteld'}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+
+    <!-- Scraper instellingen shortcut -->
+    <div style="margin-bottom:20px;">
+      <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:7px;margin-bottom:12px;">
+        <span style="display:block;width:3px;height:14px;background:var(--gold);border-radius:2px;"></span>
+        Scraper
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <div style="font-size:13px;font-weight:500;">Lead Scraper instellingen</div>
+          <div style="font-size:11.5px;color:var(--text3);margin-top:2px;">Partner, regio, schema en handmatig starten</div>
+        </div>
+        <button class="btn sm" onclick="nav('scraper')">Ga naar scraper →</button>
+      </div>
+    </div>
+
+  </div>`;
+}
+
+// Check na login of auth_success in URL staat
+(function(){
+  if(window.location.search.includes('auth_success=1')){
+    history.replaceState(null,'',window.location.pathname+window.location.hash);
+    // Laad tokens en ga naar instellingen
+    setTimeout(async ()=>{
+      await instLaadMicrosoftTokens();
+      nav('instellingen');
+      const t=document.createElement('div');
+      t.style.cssText='position:fixed;top:16px;right:16px;background:var(--green-bg);color:var(--green-t);border:1px solid rgba(26,122,58,.2);border-radius:10px;padding:10px 16px;font-size:13px;font-weight:500;z-index:9999;';
+      t.textContent='✓ Microsoft account succesvol gekoppeld!';
+      document.body.appendChild(t);
+      setTimeout(()=>t.remove(),4000);
+    },800);
+  }
+})();
+
+
+// ══════════════ INIT ══════════════
+// ── ASYNC INIT WITH AUTH CHECK ──
+(async()=>{
+  // Check if user has valid session
+  if(!_checkAuth()){
+    showLoginScreen();
+    return; // Don't load app until logged in
+  }
+
+  // Update UI with logged-in user
+  const av=document.getElementById('cur-av');
+  const nm=document.getElementById('cur-name');
+  if(av){av.textContent=CU;av.className='av '+CU.toLowerCase();}
+  if(nm)nm.textContent=CU==='MA'?'Mees Arentsen':'Julian Kanhai';
+
+  // Disable the user switcher - use logout instead
+  const sw=document.getElementById('cur-sw-btn');
+  if(sw)sw.style.display='none';
+
+  calPerson=CU;
+  const loaded=await _loadFromSupabase();
+  if(!loaded){console.warn('Using localStorage fallback');}
+  renderDash();
+  updateBadge();
+  renderClientBar();
+  setTimeout(()=>{runWorkflowEngine(false);updateWfBadge();renderWatNu();setTimeout(updateActieBadge,200);setTimeout(startReminderEngine,500);},600);
+  setTimeout(applyHash, 150);
+})();
+
+// ══════════════ APOLLO INTEGRATIE ══════════════
+const APOLLO_PROXY = 'https://intersect-crm.vercel.app/api/apollo';
+
+async function apolloZoeken() {
+  const bedrijvenRaw = document.getElementById('apollo-bedrijven')?.value || '';
+  const companyNames = bedrijvenRaw.split('\n').map(s => s.trim()).filter(Boolean);
+  if (!companyNames.length) { alert('Vul minimaal één bedrijfsnaam in.'); return; }
+
+  const res = document.getElementById('apollo-resultaten');
+  res.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:10px 0;">Bezig met zoeken in Apollo...</div>';
+
+  try {
+    const r = await fetch(APOLLO_PROXY, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ companyNames })
+    });
+    const data = await r.json();
+    apolloToonResultaten(data.results || []);
+  } catch(e) {
+    res.innerHTML = `<div style="color:var(--red);font-size:13px;padding:10px 0;">Fout: \${e.message}</div>`;
+  }
+}
+
+function apolloToonResultaten(results) {
+  const res = document.getElementById('apollo-resultaten');
+  if (!results.length) { res.innerHTML = '<div style="color:var(--text3);font-size:13px;">Geen resultaten.</div>'; return; }
+
+  let gevonden = 0;
+  let html = '';
+  results.forEach((r, ri) => {
+    if (!r.people?.length) {
+      html += `<div style="padding:10px 0;border-bottom:1px solid var(--border);font-size:13px;color:var(--text3);">${r.company} — geen resultaat gevonden</div>`;
+      return;
+    }
+    r.people.forEach((p, pi) => {
+      gevonden++;
+      html += `
+        <div style="display:flex;align-items:flex-start;gap:10px;padding:12px 0;border-bottom:1px solid var(--border);">
+          <input type="checkbox" class="ap-select" data-ri="${ri}" data-pi="${pi}" checked style="margin-top:3px;width:16px;height:16px;accent-color:var(--navy);flex-shrink:0;">
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:13px;font-weight:600;color:var(--text);">${p.name} <span style="font-weight:400;color:var(--text3);font-size:12px;">— ${p.title}</span></div>
+            <div style="font-size:12px;color:var(--navy);margin-top:2px;">${r.company}</div>
+            <div style="font-size:12px;color:var(--text3);margin-top:2px;">${p.email || '—'}</div>
+          </div>
+        </div>`;
+    });
+  });
+
+  res.innerHTML = `
+    <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px;">${gevonden} contacten gevonden</div>
+    <div>${html}</div>
+    <button class="btn pri" style="width:100%;justify-content:center;margin-top:14px;" onclick="apolloImporteren(${JSON.stringify(results).replace(/"/g,'&quot;')})">Geselecteerde importeren →</button>`;
+}
+
+function apolloImporteren(results) {
+  const geselecteerd = [...document.querySelectorAll('.ap-select:checked')].map(el => ({
+    ri: parseInt(el.dataset.ri), pi: parseInt(el.dataset.pi)
+  }));
+
+  if (!geselecteerd.length) { alert('Vink eerst contacten aan.'); return; }
+
+  const nieuweAccs = [];
+  geselecteerd.forEach(({ ri, pi }) => {
+    const r = results[ri];
+    const p = r.people[pi];
+    if (!p) return;
+    const naamDelen = (p.name || '').split(' ');
+    const naam = cleanCompanyName(r.company);
+    if (accs.find(a => a.name.toLowerCase().trim() === naam.toLowerCase().trim())) return; // dedup
+    const a = {
+      id: Date.now() + Math.floor(Math.random() * 9999),
+      name: naam, status: 'lead', sector: p.sector || '', seg: '', web: p.website || '',
+      li: '', phone: p.phone || '', kvk: '', addr: '', addrUrl: '', pipe: 'Nieuw',
+      val: '', cf: naamDelen[0] || '', cl: naamDelen.slice(1).join(' ') || '',
+      cr: p.title || '', cp: '', ce: p.email || '', cli: p.linkedin || '',
+      ce2: '', cp2: '', note: '', owner: CU, added: localISO(),
+      color: accs.length % CLRS.length, contacts: [], deals: [], proposals: [], notes: [], docs: [], clientLinks: {}
+    };
+    accs.push(a);
+    nieuweAccs.push(a);
+  });
+
+  if (!nieuweAccs.length) { alert('Alle geselecteerde bedrijven bestaan al in het CRM.'); return; }
+
+  localStorage.setItem('ix_accs', JSON.stringify(accs));
+  nieuweAccs.forEach(a => _saveAcc(a).catch(e => console.warn('Apollo import:', e)));
+  addActivity(`<strong>${CU === 'MA' ? 'Mees' : 'Julian'}</strong> importeerde ${nieuweAccs.length} accounts via Apollo`, '◈', '#e8f0fb');
+  alert(`✓ ${nieuweAccs.length} accounts geïmporteerd!`);
+  nav('accounts');
+}
+
+
+// ══ ACCOUNTS → APOLLO SELECTIE ══
+function accChkChange() {
+  const checked = [...document.querySelectorAll('.acc-apollo-cb:checked')];
+  const btn = document.getElementById('apollo-btn');
+  const cnt = document.getElementById('apollo-sel-count');
+  const delBtn = document.getElementById('delete-sel-btn');
+  const delCnt = document.getElementById('delete-sel-count');
+  if (btn) btn.style.display = checked.length ? 'inline-flex' : 'none';
+  if (cnt) cnt.textContent = checked.length;
+  if (delBtn) delBtn.style.display = checked.length ? 'inline-flex' : 'none';
+  if (delCnt) delCnt.textContent = checked.length;
+  const allCb = document.getElementById('acc-check-all');
+  const allBoxes = document.querySelectorAll('.acc-apollo-cb');
+  if (allCb) allCb.checked = allBoxes.length > 0 && checked.length === allBoxes.length;
+  const lijstBtn = document.getElementById('lijst-sel-btn');
+  if (lijstBtn) lijstBtn.style.display = checked.length ? 'inline-flex' : 'none';
+}
+
+function accToggleAll(checked) {
+  document.querySelectorAll('.acc-apollo-cb').forEach(cb => { cb.checked = checked; });
+  accChkChange();
+}
+
+async function stuurNaarApollo() {
+  const geselecteerd = [...document.querySelectorAll('.acc-apollo-cb:checked')];
+  const namen = geselecteerd.map(cb => cb.dataset.name);
+  if (!namen.length) { alert('Selecteer eerst accounts.'); return; }
+
+  // Open modal meteen met loading state
+  document.getElementById('m-apollo').classList.add('on');
+  document.getElementById('apollo-modal-resultaten').innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3);">Bezig met zoeken in Apollo voor ' + namen.length + ' bedrijven...</div>';
+  document.getElementById('apollo-modal-import-btn').style.display = 'none';
+
+  try {
+    const r = await fetch(APOLLO_PROXY, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ companyNames: namen })
+    });
+    const data = await r.json();
+    apolloModalToonResultaten(data.results || []);
+  } catch(e) {
+    document.getElementById('apollo-modal-resultaten').innerHTML = '<div style="color:var(--red);font-size:13px;padding:10px;">Fout: ' + e.message + '</div>';
+  }
+}
+
+function apolloModalToonResultaten(results, scraperLeads) {
+  window._apolloResults = results;
+  const el = document.getElementById('apollo-modal-resultaten');
+  let gevonden = 0;
+  let html = '';
+  const gezieneEmails = new Set();
+  const gezieneNamen = new Set();
+
+  results.forEach((r, ri) => {
+    if (!r.people?.length) {
+      const dbg = r._debug ? ` (status: ${r._debug.status}, error: ${r._debug.error||r._debug.message||'-'})` : '';
+      html += `<div style="padding:10px 0;border-bottom:1px solid var(--border);font-size:12px;color:var(--text3);">${r.company} — geen resultaat<span style="font-size:11px;color:#c0392b;">${dbg}</span></div>`;
+      return;
+    }
+    r.people.forEach((p, pi) => {
+      // Dedupliceer op email of naam
+      const dedupKey = p.email || p.name;
+      if(dedupKey && (gezieneEmails.has(p.email) || gezieneNamen.has(p.name))) return;
+      if(p.email) gezieneEmails.add(p.email);
+      if(p.name) gezieneNamen.add(p.name);
+      gevonden++;
+      const bestaatAl = accs.some(a => a.name.toLowerCase().trim() === cleanCompanyName(r.company).toLowerCase().trim() && a.ce === p.email);
+      html += `
+        <div style="display:flex;align-items:flex-start;gap:10px;padding:11px 0;border-bottom:1px solid var(--border);">
+          <input type="checkbox" class="ap-modal-cb" data-ri="${ri}" data-pi="${pi}" ${bestaatAl ? 'disabled title="Staat al in CRM"' : 'checked'} style="margin-top:3px;width:16px;height:16px;accent-color:var(--navy);flex-shrink:0;">
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:13px;font-weight:600;color:var(--text);">${p.name} <span style="font-weight:400;color:var(--text3);font-size:12px;">— ${p.title}</span>${bestaatAl ? ' <span style="font-size:11px;color:var(--green-t);">✓ al in CRM</span>' : ''}</div>
+            <div style="font-size:12px;color:var(--navy);margin-top:1px;">${cleanCompanyName(r.company)}</div>
+            <div style="font-size:12px;color:var(--text3);margin-top:1px;">${p.email || '—'}</div>
+          </div>
+        </div>`;
+    });
+  });
+
+  const geenMatch = results.filter(r => !r.people?.length).map(r => r.company);
+  const heeftResultaten = results.filter(r => r.people?.length).length;
+  const geenMatchHtml = geenMatch.length ? `<div style="margin-top:14px;padding:12px;background:#fff8ed;border:1px solid #f5a623;border-radius:8px;font-size:12px;color:#92610a;"><strong>Geen contactpersoon gevonden voor:</strong> ${geenMatch.join(', ')}<br><span style="opacity:.8;">Klik "← Terug & andere titels" om opnieuw te proberen.</span></div>` : '';
+  el.innerHTML = `<div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px;">${gevonden} contacten gevonden voor ${heeftResultaten} van ${results.length} bedrijven</div>${html}${geenMatchHtml}`;
+  // Toon juiste knoppen
+  const partialBtn = document.getElementById('apollo-partial-btn');
+  const importBtn = document.getElementById('apollo-modal-import-btn');
+  if (geenMatch.length && heeftResultaten) {
+    if(partialBtn) partialBtn.style.display = 'inline-flex';
+    if(importBtn) importBtn.style.display = 'none';
+  } else if (heeftResultaten) {
+    if(partialBtn) partialBtn.style.display = 'none';
+    if(importBtn) importBtn.style.display = 'inline-flex';
+  }
+  document.getElementById('apollo-modal-import-btn').style.display = gevonden ? 'inline-flex' : 'none';
+}
+
+async function apolloModalImporteren(keepOpen) {
+  const results = window._apolloResults || [];
+  const geselecteerd = [...document.querySelectorAll('.ap-modal-cb:checked')].map(el => ({
+    ri: parseInt(el.dataset.ri), pi: parseInt(el.dataset.pi)
+  }));
+  if (!geselecteerd.length) { alert('Vink eerst contacten aan.'); return; }
+
+  // Verzamel Apollo IDs voor enrichment
+  const teEnrichen = geselecteerd.map(({ ri, pi }) => ({
+    ri, pi, apolloId: results[ri]?.people?.[pi]?.apolloId
+  })).filter(x => x.apolloId);
+
+  // Enrich bij Apollo (kost credits) om e-mail + achternaam te krijgen
+  let enrichMap = {};
+  if (teEnrichen.length) {
+    try {
+      const r = await fetch(APOLLO_PROXY, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enrich: true, personIds: teEnrichen.map(x => x.apolloId) })
+      });
+      const data = await r.json();
+      (data.enriched || []).forEach(e => { enrichMap[e.id] = e; });
+    } catch(e) { console.warn('Enrich fout:', e); }
+  }
+
+  let added = 0; let overgeslagen = [];
+  geselecteerd.forEach(({ ri, pi }) => {
+    const r = results[ri];
+    const p = r?.people?.[pi];
+    if (!p) return;
+    const naam = cleanCompanyName(r.company);
+    const enriched = enrichMap[p.apolloId] || {};
+    const volledigeNaam = enriched.name || p.name || '';
+    const email = enriched.email || p.email || '';
+    const naamDelen = volledigeNaam.split(' ');
+
+    const bestaand = accs.find(a => a.name.toLowerCase().trim() === naam.toLowerCase().trim());
+    if (bestaand) {
+      if (!bestaand.ce && email) {
+        bestaand.cf = naamDelen[0] || '';
+        bestaand.cl = naamDelen.slice(1).join(' ') || '';
+        bestaand.cr = p.title || '';
+        bestaand.ce = email;
+        _saveAcc(bestaand).catch(e => console.warn(e));
+        added++;
+      } else {
+        overgeslagen.push(naam);
+      }
+      return;
+    }
+    const scraperLead = (window._scraperDoorsturen || []).find(l => cleanCompanyName(l.organisatie||l.name||l.bedrijf||l.company||'').toLowerCase() === naam.toLowerCase());
+    const a = {
+      id: Date.now() + Math.floor(Math.random() * 9999) + added,
+      name: naam, status: 'lead',
+      sector: p.sector || scraperLead?.sector || '',
+      seg: '', web: p.website || scraperLead?.website || '',
+      li: enriched.linkedin || p.linkedin || '', phone: enriched.phone || p.phone || scraperLead?.phone || '',
+      kvk: scraperLead?.kvk || '', addr: scraperLead?.address || '', addrUrl: '', pipe: 'Nieuw',
+      val: '', cf: naamDelen[0] || '', cl: naamDelen.slice(1).join(' ') || '',
+      cr: p.title || '', cp: '', ce: email, cli: enriched.linkedin || p.linkedin || '',
+      ce2: '', cp2: '', note: scraperLead?.haakje || '', owner: CU, added: localISO(),
+      color: accs.length % CLRS.length, contacts: [], deals: [], proposals: [], notes: [], docs: [], clientLinks: {}
+    };
+    accs.push(a);
+    _saveAcc(a).catch(e => console.warn(e));
+    added++;
+  });
+
+  ss('ix_accs', accs);
+  window._scraperDoorsturen = [];
+  window._scraperReviewLeads = [];
+  addActivity(`<strong>${CU === 'MA' ? 'Mees' : 'Julian'}</strong> importeerde ${added} accounts via Apollo`, '◈', '#e8f0fb');
+  if (!keepOpen) { closeM('m-apollo'); renderScraper(); nav('accounts'); }
+  let msg = `✓ ${added} account(s) geïmporteerd!`;
+  if (overgeslagen.length) msg += `\n\nAl aanwezig in CRM (overgeslagen):\n${overgeslagen.join(', ')}`;
+  alert(msg);
+}
+
+
+function scraperNaarApollo() {
+  const checkboxes = document.querySelectorAll('#sc-review-sectie input[type=checkbox]');
+  const allLeads = window._scraperReviewLeads || [];
+  const doorsturen = [];
+  checkboxes.forEach((cb, i) => { if(cb.checked && allLeads[i]) doorsturen.push(allLeads[i]); });
+  if(!doorsturen.length){ alert('Selecteer minimaal 1 lead.'); return; }
+  window._scraperDoorsturen = doorsturen;
+  // Open Apollo modal in filter-stap
+  // Reset volgorde en initialiseer pre-checked titels
+  _apolloTitelVolgorde = [...document.querySelectorAll('.ap-title:checked')].map(el => el.value);
+  document.querySelectorAll('.ap-title:checked').forEach((box, i) => { const p = box.parentElement.querySelector('.ap-prio'); if(p) p.textContent = (i+1)+'.'; });
+  document.getElementById('apollo-filter-stap').style.display = 'block';
+  document.getElementById('apollo-resultaat-stap').style.display = 'none';
+  document.getElementById('apollo-modal-import-btn').style.display = 'none';
+  document.getElementById('m-apollo').classList.add('on');
+}
+
+async function apolloZoekenVanuitModal() {
+  const doorsturen = window._scraperDoorsturen || [];
+  const namen = doorsturen.map(l => cleanCompanyName(l.organisatie || l.name || l.bedrijf || l.company || ''));
+  const titles = apolloGetTitelsInVolgorde();
+  if(!titles.length){ alert('Selecteer minimaal één functietitel.'); return; }
+
+  document.getElementById('apollo-filter-stap').style.display = 'none';
+  document.getElementById('apollo-resultaat-stap').style.display = 'block';
+  document.getElementById('apollo-zoek-btn').style.display = 'none';
+  document.getElementById('apollo-terug-btn').style.display = 'inline-flex';
+  document.getElementById('apollo-modal-resultaten').innerHTML = `<div style="text-align:center;padding:30px;color:var(--text3);">Bezig met zoeken in Apollo voor ${namen.length} bedrijven...</div>`;
+  document.getElementById('apollo-modal-import-btn').style.display = 'none';
+
+  try {
+    const r = await fetch(APOLLO_PROXY, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ companyNames: namen, titles, strictTitles: titles.length > 0 })
+    });
+    const data = await r.json();
+    apolloModalToonResultaten(data.results || [], doorsturen);
+  } catch(e) {
+    document.getElementById('apollo-modal-resultaten').innerHTML = `<div style="color:var(--red);font-size:13px;padding:10px;">Fout: ${e.message}</div>`;
+  }
+}
+
+
+// ══ APOLLO TITEL PRIORITEIT ══
+function apolloFilterTitels(zoek) {
+  const q = zoek.toLowerCase();
+  document.querySelectorAll('.ap-title-label').forEach(label => {
+    const titel = label.dataset.title.toLowerCase();
+    label.style.display = titel.includes(q) ? 'flex' : 'none';
+  });
+}
+
+let _apolloTitelVolgorde = [];
+
+function apolloTitelVolgorde(cb) {
+  if (cb.checked) {
+    if (!_apolloTitelVolgorde.includes(cb.value)) {
+      _apolloTitelVolgorde.push(cb.value);
+    }
+  } else {
+    _apolloTitelVolgorde = _apolloTitelVolgorde.filter(v => v !== cb.value);
+  }
+  // Toon nummers op basis van klik-volgorde
+  document.querySelectorAll('.ap-title').forEach(box => {
+    const prio = box.parentElement.querySelector('.ap-prio');
+    if (!prio) return;
+    const idx = _apolloTitelVolgorde.indexOf(box.value);
+    prio.textContent = idx >= 0 ? (idx + 1) + '.' : '';
+  });
+}
+
+function apolloGetTitelsInVolgorde() {
+  // Gebruik bijgehouden volgorde, aangevuld met nog aangevinkte die niet in volgorde staan
+  const checked = [...document.querySelectorAll('.ap-title:checked')].map(el => el.value);
+  const inVolgorde = _apolloTitelVolgorde.filter(v => checked.includes(v));
+  const rest = checked.filter(v => !inVolgorde.includes(v));
+  return [...inVolgorde, ...rest];
+}
+
+
+function apolloImporterenEnBewaar() {
+  // Importeer alleen de aangevinkte resultaten
+  apolloModalImporteren(true);
+  // Bewaar de bedrijven zonder match voor een nieuwe zoekopdracht
+  const results = window._apolloResults || [];
+  const geenMatch = results.filter(r => !r.people?.length).map(r => r.company);
+  if (geenMatch.length) {
+    // Zet terug naar filterstap met de niet-gevonden bedrijven
+    window._scraperDoorsturen = (window._scraperDoorsturen || []).filter(l =>
+      geenMatch.some(naam => cleanCompanyName(l.organisatie||l.name||'').toLowerCase() === naam.toLowerCase())
+    );
+    document.getElementById('apollo-filter-stap').style.display = 'block';
+    document.getElementById('apollo-resultaat-stap').style.display = 'none';
+    document.getElementById('apollo-terug-btn').style.display = 'none';
+    document.getElementById('apollo-zoek-btn').style.display = 'inline-flex';
+    document.getElementById('apollo-partial-btn').style.display = 'none';
+    document.getElementById('apollo-modal-import-btn').style.display = 'none';
+    // Toon melding
+    const info = document.createElement('div');
+    info.style.cssText = 'margin-bottom:10px;padding:8px 12px;background:#eaf7ef;border:1px solid #2d8a4e;border-radius:6px;font-size:12px;color:#1a5c34;';
+    info.textContent = `✓ Gevonden contacten geïmporteerd. Pas de filters aan om voor ${geenMatch.length} bedrijven opnieuw te zoeken: ${geenMatch.join(', ')}`;
+    const filterStap = document.getElementById('apollo-filter-stap');
+    filterStap.insertBefore(info, filterStap.firstChild);
+  }
+}
+
+
+async function verwijderGeselecteerde() {
+  const ids = [...document.querySelectorAll('.acc-apollo-cb:checked')].map(cb => parseInt(cb.dataset.id));
+  if (!ids.length) return;
+  if (!confirm(`Weet je zeker dat je ${ids.length} account(s) wil verwijderen? Dit kan niet ongedaan worden.`)) return;
+  let ok = 0;
+  for (const id of ids) {
+    try {
+      await fetch(`${SB_URL}/rest/v1/accounts?id=eq.${id}`, { method: 'DELETE', headers: _sbH });
+      accs = accs.filter(a => a.id !== id);
+      ok++;
+    } catch(e) { console.warn('Delete fout:', id, e); }
+  }
+  ss('ix_accs', accs);
+  addActivity(`<strong>${CU === 'MA' ? 'Mees' : 'Julian'}</strong> verwijderde ${ok} accounts`, '🗑', '#ffe0e0');
+  renderAccList();
+  alert(`✓ ${ok} account(s) verwijderd.`);
+}
+
+
+function voegToeAanLijst() {
+  const ids = [...document.querySelectorAll('.acc-apollo-cb:checked')].map(cb => parseInt(cb.dataset.id));
+  if (!ids.length) return;
+  window._lijstSelIds = ids;
+
+  // Toon bestaande lijsten
+  const el = document.getElementById('lijst-sel-opties');
+  if (!lijsten.length) {
+    el.innerHTML = '<div style="font-size:12px;color:var(--text3);">Nog geen lijsten aangemaakt.</div>';
+  } else {
+    el.innerHTML = lijsten.map(l => `
+      <button onclick="voegToeAanBestaandeLijst(${l.id})" style="text-align:left;padding:8px 12px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif;" onmouseover="this.style.borderColor='var(--navy)'" onmouseout="this.style.borderColor='var(--border)'">
+        <strong>${l.naam}</strong> <span style="font-size:11px;color:var(--text3);">${l.accounts?.length || 0} accounts</span>
+      </button>`).join('');
+  }
+  document.getElementById('nieuwe-lijst-naam').value = '';
+  document.getElementById('m-lijst-sel').classList.add('on');
+}
+
+async function voegToeAanBestaandeLijst(lijstId) {
+  const ids = window._lijstSelIds || [];
+  const lijst = lijsten.find(l => l.id === lijstId);
+  if (!lijst) return;
+  const bestaand = new Set(lijst.accounts || []);
+  ids.forEach(id => bestaand.add(id));
+  lijst.accounts = [...bestaand];
+  await _saveLijst(lijst).catch(e => console.warn(e));
+  closeM('m-lijst-sel');
+  alert(`✓ ${ids.length} account(s) toegevoegd aan "${lijst.naam}"`);
+}
+
+async function maakNieuweLijstEnVoegToe() {
+  const naam = document.getElementById('nieuwe-lijst-naam')?.value.trim();
+  if (!naam) { alert('Vul een naam in.'); return; }
+  const ids = window._lijstSelIds || [];
+  const nieuw = { id: Date.now(), naam, beschrijving: '', accounts: ids };
+  lijsten.push(nieuw);
+  await _saveLijst(nieuw).catch(e => console.warn(e));
+  closeM('m-lijst-sel');
+  alert(`✓ Lijst "${naam}" aangemaakt met ${ids.length} account(s)`);
+}
+
+</script>
+
+<!-- ══ OMZET INSTELLINGEN MODAL ══ -->
+<!-- ══ MAIL COMPOSE MODAL ══ -->
+<div class="modal-bg" id="m-mail-compose">
+  <div class="modal wide" style="max-width:640px;">
+    <div class="mh">
+      <div>
+        <div class="mt" id="mc-title">Mailshot versturen</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px;" id="mc-sub"></div>
+      </div>
+      <button class="btn sm ghost" onclick="closeM('m-mail-compose')">✕</button>
+    </div>
+    <div class="mb" style="gap:10px;">
+
+      <!-- Mail type badge -->
+      <div style="display:flex;gap:6px;" id="mc-type-row">
+        <button class="btn xs mc-type-btn on" data-type="mailshot" onclick="mcSetType('mailshot')">Mailshot</button>
+        <button class="btn xs mc-type-btn" data-type="opvolg_mailshot" onclick="mcSetType('opvolg_mailshot')">Opvolg Mailshot</button>
+        <button class="btn xs mc-type-btn" data-type="directe_mail" onclick="mcSetType('directe_mail')">Directe mail</button>
+      </div>
+
+      <!-- Contactpersoon -->
+      <div class="fg">
+        <label class="fl">Contactpersoon <span style="color:var(--red);">*</span></label>
+        <select id="mc-contact" style="font-size:13px;">
+          <option value="">— kies contactpersoon —</option>
+        </select>
+      </div>
+
+      <!-- Van (verzendaccount kiezen) -->
+      <div class="fg">
+        <label class="fl">Versturen vanuit</label>
+        <select id="mc-from" style="font-size:13px;">
+          <option value="">— kies e-mailaccount —</option>
+        </select>
+      </div>
+
+      <!-- Aan -->
+      <div class="fg">
+        <label class="fl">Aan</label>
+        <input type="email" id="mc-to" placeholder="naam@bedrijf.nl">
+      </div>
+
+      <!-- CC -->
+      <div class="fg">
+        <label class="fl">CC <span style="font-weight:400;color:var(--text3);">(optioneel)</span></label>
+        <input type="email" id="mc-cc" placeholder="cc@bedrijf.nl">
+      </div>
+
+      <!-- Onderwerp -->
+      <div class="fg">
+        <label class="fl">Onderwerp</label>
+        <input type="text" id="mc-subject" placeholder="Onderwerp van je mail…">
+      </div>
+
+      <!-- Inhoud -->
+      <div class="fg">
+        <label class="fl" style="display:flex;align-items:center;justify-content:space-between;">
+          <span>Inhoud</span>
+          <button type="button" class="btn xs" id="mc-suggest-btn" onclick="mcGenereerSuggestie()" style="background:var(--gold);border-color:var(--gold);color:var(--navy);font-weight:600;">✦ Genereer suggestie</button>
+        </label>
+        <!-- AI instructies -->
+        <div style="margin-bottom:8px;">
+          <textarea id="mc-ai-input" style="min-height:52px;font-size:12px;border:1px solid var(--border);border-radius:var(--r);padding:8px 10px;width:100%;resize:vertical;color:var(--text);background:var(--surface2);" placeholder="Geef de AI instructies mee: bijv. 'Vermeld call to action voor een belafspraak, niet te formeel, benadruk dat we beperkte plekken hebben'…"></textarea>
+        </div>
+        <div id="mc-suggest-toelichting" style="display:none;background:var(--gold-pale);border:1px solid rgba(201,168,76,.25);border-radius:var(--r);padding:8px 12px;font-size:12px;color:var(--amber-t);margin-bottom:6px;"></div>
+        <div style="border:1px solid var(--border2);border-radius:var(--r);overflow:hidden;">
+          <!-- Mini toolbar -->
+          <div style="display:flex;gap:2px;padding:6px 8px;border-bottom:1px solid var(--border);background:var(--surface2);">
+            <button type="button" class="btn xs ghost" onclick="mcFormat('bold')" title="Vet"><strong>B</strong></button>
+            <button type="button" class="btn xs ghost" onclick="mcFormat('italic')" title="Cursief"><em>I</em></button>
+            <button type="button" class="btn xs ghost" onclick="mcFormat('insertUnorderedList')" title="Lijst">≡</button>
+            <div style="width:1px;background:var(--border);margin:0 4px;"></div>
+            <span style="font-size:11px;color:var(--text3);padding:4px 6px;">[naam] en [bedrijf] worden automatisch ingevuld</span>
+          </div>
+          <div id="mc-body" contenteditable="true" style="min-height:160px;padding:12px 14px;font-size:13px;line-height:1.7;outline:none;color:var(--text);" placeholder="Schrijf hier je mail…"></div>
+        </div>
+      </div>
+
+      <!-- Bijlages -->
+      <div class="fg">
+        <label class="fl">Bijlage <span style="font-weight:400;color:var(--text3);">(optioneel)</span></label>
+        <div id="mc-attachments" style="display:flex;flex-direction:column;gap:6px;">
+          <label style="display:inline-flex;align-items:center;gap:7px;cursor:pointer;padding:7px 12px;border:1px dashed var(--border2);border-radius:var(--r);font-size:13px;color:var(--text2);width:fit-content;">
+            <span>📎</span> Bestand kiezen
+            <input type="file" id="mc-file-input" multiple style="display:none;" onchange="mcVoegBijlageToe(this)">
+          </label>
+          <div id="mc-file-list"></div>
+        </div>
+      </div>
+
+    </div>
+    <div class="mf" style="justify-content:space-between;">
+      <div style="font-size:12px;color:var(--text3);display:flex;align-items:center;gap:5px;">
+        <span>📋</span> Wordt gelogd als activiteit bij het account
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn ghost" onclick="closeM('m-mail-compose')">Annuleren</button>
+        <button class="btn gold" onclick="mcVerstuur()" id="mc-send-btn">Versturen via Outlook →</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal-bg" id="m-omzet">
+  <div class="modal" style="max-width:500px;">
+    <div class="mh">
+      <div>
+        <div class="mt">Intersect Omzet instellingen</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:2px;">Samenwerkingsvorm &amp; looptijd per account</div>
+      </div>
+      <button class="btn sm ghost" onclick="closeM('m-omzet')">&#x2715;</button>
+    </div>
+    <div class="mb">
+      <input type="hidden" id="omzet-acc-id">
+
+      <!-- Samenwerkingsvorm -->
+      <div class="fg">
+        <label class="fl">Samenwerkingsvorm</label>
+        <select id="omzet-vorm" onchange="updateOmzetVormFields()" style="font-size:13px;">
+          <option value="staffel">Staffel (% over omzet per schijf)</option>
+          <option value="vaste_fee">Vaste fee (eenmalig bedrag)</option>
+          <option value="retainer">Retainer (maandelijks)</option>
+          <option value="achteraf">Achteraf % (% over totale omzet)</option>
+        </select>
+      </div>
+
+      <!-- Looptijd -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="fg">
+          <label class="fl">Startdatum partnership</label>
+          <input type="date" id="omzet-start">
+        </div>
+        <div class="fg">
+          <label class="fl">Looptijd (maanden)</label>
+          <input type="number" id="omzet-maanden" min="1" max="120" placeholder="12">
+          <div style="font-size:11px;color:var(--text3);margin-top:3px;">Bij verlopen &#8594; automatisch inactief</div>
+        </div>
+      </div>
+
+      <!-- STAFFEL fields -->
+      <div id="omzet-staffel-fields">
+        <div style="font-size:12px;font-weight:600;color:var(--text);margin:10px 0 6px;">Staffel tarieven (Intersect leads)</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">
+          <div class="fg" style="margin:0;">
+            <label class="fl" style="font-size:10.5px;">0 &#8211; &#8364;50k (%)</label>
+            <input type="number" id="omzet-t1-rate" step="0.5" min="0" max="100" placeholder="17.5">
+          </div>
+          <div class="fg" style="margin:0;">
+            <label class="fl" style="font-size:10.5px;">&#8364;50k &#8211; &#8364;100k (%)</label>
+            <input type="number" id="omzet-t2-rate" step="0.5" min="0" max="100" placeholder="20">
+          </div>
+          <div class="fg" style="margin:0;">
+            <label class="fl" style="font-size:10.5px;">&gt; &#8364;100k (%)</label>
+            <input type="number" id="omzet-t3-rate" step="0.5" min="0" max="100" placeholder="22.5">
+          </div>
+        </div>
+        <div class="fg">
+          <label class="fl">Tarief eigen leads opdrachtgever (%)</label>
+          <input type="number" id="omzet-eigen-pct" step="0.5" min="0" max="100" placeholder="10">
+          <div style="font-size:11px;color:var(--text3);margin-top:3px;">Eigen leads aanvinken per deal in het omzet-overzicht</div>
+        </div>
+      </div>
+
+      <!-- VASTE FEE fields -->
+      <div id="omzet-vaste-fields" style="display:none;">
+        <div class="fg">
+          <label class="fl">Vaste fee (&#8364;)</label>
+          <input type="number" id="omzet-vaste-fee" min="0" placeholder="0">
+        </div>
+      </div>
+
+      <!-- RETAINER fields -->
+      <div id="omzet-retainer-fields" style="display:none;">
+        <div class="fg">
+          <label class="fl">Retainer per maand (&#8364;)</label>
+          <input type="number" id="omzet-retainer" min="0" placeholder="0">
+        </div>
+      </div>
+
+      <!-- ACHTERAF fields -->
+      <div id="omzet-achteraf-fields" style="display:none;">
+        <div class="fg">
+          <label class="fl">Percentage achteraf (%)</label>
+          <input type="number" id="omzet-achteraf-pct" step="0.5" min="0" max="100" placeholder="0">
+        </div>
+      </div>
+    </div>
+    <div class="mf">
+      <button class="btn ghost" onclick="closeM('m-omzet')">Annuleren</button>
+      <button class="btn gold" onclick="saveOmzetInstellingen()">Opslaan</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
