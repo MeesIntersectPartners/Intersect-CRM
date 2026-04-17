@@ -75,7 +75,7 @@ Focusgebied: "${focusgebied}"
 ${voorbeeldTekst}
 ${bekendeNamenTekst}
 
-Doe meerdere gerichte web searches. Varieer: sector + regio, vacatures, groeilijsten, nieuws, LinkedIn, etc.
+Doe maximaal 3 gerichte web searches. Focus op de meest relevante zoekopdracht: sector + regio + type bedrijf.
 Zoek ook naar adres, telefoonnummer en LinkedIn URL van elk bedrijf.
 Beschrijf per bedrijf: naam, website, adres, telefoonnummer, LinkedIn URL, stad, sector, en waarom het een goede prospect is.
 Wees streng: alleen bedrijven die echt passen bij het focusgebied.`;
@@ -83,7 +83,7 @@ Wees streng: alleen bedrijven die echt passen bij het focusgebied.`;
   const zoekResponse = await apiCallMetRetry(() => anthropic.messages.create({
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 8000,
-    tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+    tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 }],
     messages: [{ role: 'user', content: zoekPrompt }],
   }));
 
