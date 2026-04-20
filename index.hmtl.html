@@ -1678,9 +1678,9 @@ function _getStoredSession(){
     const s = localStorage.getItem(AUTH_KEY);
     if(!s) return null;
     const session = JSON.parse(s);
-    // Check if session is still valid (6 hours)
+    // Check if session is still valid (4 hours)
     const age = (Date.now() - session.loginTime) / 1000 / 3600;
-    if(age > 6){ localStorage.removeItem(AUTH_KEY); return null; }
+    if(age > 4){ localStorage.removeItem(AUTH_KEY); return null; }
     return session;
   }catch(e){ return null; }
 }
@@ -4066,6 +4066,24 @@ function renderActivity(){
 }
 
 // ══════════════ SAVE FUNCTIONS ══════════════
+
+// Fuzzy duplicate check — geeft match terug als naam significant overlapt
+function zoekDuplicaat(naam) {
+  const n = naam.toLowerCase().trim().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+  const woorden = n.split(' ').filter(w => w.length > 2); // filter korte woorden
+  for (const acc of accs) {
+    const bestaand = (acc.name||'').toLowerCase().trim().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+    // Exacte match
+    if (bestaand === n) return acc;
+    // Check of alle unieke woorden (>2 tekens) van de nieuwe naam in de bestaande naam zitten
+    if (woorden.length > 0 && woorden.every(w => bestaand.includes(w))) return acc;
+    // Check andersom: bestaande naam woorden zitten in nieuwe naam
+    const bestaandWoorden = bestaand.split(' ').filter(w => w.length > 2);
+    if (bestaandWoorden.length > 0 && bestaandWoorden.every(w => n.includes(w))) return acc;
+  }
+  return null;
+}
+
 function saveAcc(){
   const name=document.getElementById('f-name').value.trim();
   if(!name){alert('Vul een bedrijfsnaam in.');return;}
@@ -4084,6 +4102,14 @@ function saveAcc(){
     accs[idx]=a;
     addActivity(`<strong>${user}</strong> heeft <strong>${name}</strong> bijgewerkt`,'◻','#e8f0fb');
   }else{
+    // Fuzzy duplicate check
+    const dupCheck = zoekDuplicaat(name);
+    if(dupCheck){
+      const doorgaan = confirm(`⚠️ Mogelijk duplicaat gevonden: "${dupCheck.name}"
+
+Wil je toch doorgaan met toevoegen?`);
+      if(!doorgaan) return;
+    }
     a.id=Date.now();a.color=accs.length%CLRS.length;a.contacts=[];a.deals=[];a.proposals=[];a.notes=[];a.docs=[];
     a.clientLinks={};
     selectedClientIds.forEach(cid=>{a.clientLinks[cid]={status:a.status,pipe:a.pipe,val:a.val,note:''};});
@@ -4800,6 +4826,7 @@ async function doImport(){
   csvRows.forEach(r=>{
     const name=cleanCompanyName(r['naam']||r['name']||r['bedrijf']||r['company']||Object.values(r)[0]);
     if(!name)return;
+    if(zoekDuplicaat(name)){ dupSkipped.push(name); return; } // fuzzy dedup
     if(bestaandeNamen.has(name.toLowerCase().trim())){return;}// sla over als al bestaat
     bestaandeNamen.add(name.toLowerCase().trim());
     const contactNaam=(r['contactpersoon']||r['contact']||'').trim();
@@ -8291,7 +8318,8 @@ async function apolloModalImporteren(keepOpen) {
   addActivity(`<strong>${CU === 'MA' ? 'Mees' : 'Julian'}</strong> importeerde ${added} accounts via Apollo`, '◈', '#e8f0fb');
   if (!keepOpen) { closeM('m-apollo'); renderScraper(); nav('accounts'); }
   let msg = `✓ ${added} account(s) geïmporteerd!`;
-  if (overgeslagen.length) msg += `\n\nAl aanwezig in CRM (overgeslagen):\n${overgeslagen.join(', ')}`;
+  if (overgeslagen.length) msg += `\n\nAl aanwezig (overgeslagen):\n${overgeslagen.join(', ')}`;
+  if (dupSkipped.length) msg += `\n\nMogelijke duplicaten overgeslagen:\n${dupSkipped.join(', ')}`;
   alert(msg);
 }
 
