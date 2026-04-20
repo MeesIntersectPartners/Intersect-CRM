@@ -1208,13 +1208,13 @@ textarea{resize:vertical;min-height:75px;}
 <!-- ADD TEMPLATE MODAL -->
 <div class="modal-bg" id="m-tpl">
   <div class="modal">
-    <div class="mh"><span class="mt">E-mail template</span><button class="btn sm ghost" onclick="closeM('m-tpl')">✕</button></div>
+    <div class="mh"><span class="mt" id="m-tpl-titel">E-mail template</span><button class="btn sm ghost" onclick="closeM('m-tpl')">✕</button></div>
     <div class="mb">
       <div class="fg"><label class="fl">Naam template *</label><input type="text" id="tpl-name" placeholder="bijv. Koude outreach intro"></div>
       <div class="fg"><label class="fl">Onderwerp</label><input type="text" id="tpl-subj" placeholder="bijv. Kennismaking Intersect x [bedrijf]"></div>
       <div class="fg"><label class="fl">Inhoud</label><textarea id="tpl-body" style="min-height:140px;" placeholder="Gebruik [naam] en [bedrijf] als variabelen…"></textarea></div>
     </div>
-    <div class="mf"><button class="btn ghost" onclick="closeM('m-tpl')">Annuleren</button><button class="btn pri" onclick="saveTemplate()">Opslaan</button></div>
+    <div class="mf"><button class="btn ghost" onclick="closeM('m-tpl')">Annuleren</button><button class="btn danger" id="tpl-delete-btn" onclick="deleteTemplate()" style="display:none;">Verwijderen</button><button class="btn pri" onclick="saveTemplate()">Opslaan</button></div>
   </div>
 </div>
 
@@ -3797,9 +3797,12 @@ function renderOutreach(){
   // templates lijst rechts
   const tl=document.getElementById('templates-list');
   if(tl) tl.innerHTML=templates.length?templates.map(t=>`
-    <div class="template-card" onclick="applyTemplate(${t.id})">
-      <div class="template-name">${t.name}</div>
-      <div class="template-preview">${t.subj}</div>
+    <div class="template-card" style="display:flex;align-items:center;justify-content:space-between;">
+      <div style="flex:1;min-width:0;cursor:pointer;" onclick="applyTemplate(${t.id})">
+        <div class="template-name">${t.name}</div>
+        <div class="template-preview">${t.subj}</div>
+      </div>
+      <button class="btn xs ghost" style="flex-shrink:0;margin-left:8px;" onclick="openEditTemplate(${t.id})">✏</button>
     </div>`).join(''):`<div class="empty"><p>Nog geen templates</p></div>`;
 }
 
@@ -4259,6 +4262,16 @@ function saveProposal(){
 
 function saveTemplate(){
   const name=document.getElementById('tpl-name').value.trim();
+  const editId = document.getElementById('m-tpl').dataset.editId;
+  if(editId){
+    const idx=templates.findIndex(t=>String(t.id)===String(editId));
+    if(idx>=0){
+      templates[idx]={...templates[idx],name,subj:document.getElementById('tpl-subj').value.trim(),body:document.getElementById('tpl-body').value.trim()};
+      _saveTemplate(templates[idx]).catch(e=>console.warn('tpl:',e));
+      closeM('m-tpl');renderOutreach();return;
+    }
+  }
+  const name2=name;
   if(!name)return;
   const _nt={id:Date.now(),name,subj:document.getElementById('tpl-subj').value.trim(),body:document.getElementById('tpl-body').value.trim()};templates.push(_nt);
   ss('ix_tpl',templates);
@@ -4625,7 +4638,7 @@ function openEditPrimaryContact(){
 }
 function openAddDeal(){['d-name','d-val','d-prob','d-close','d-note'].forEach(id=>document.getElementById(id).value='');document.getElementById('d-stage').value='Verkenning';document.getElementById('m-deal').classList.add('on');}
 function openAddProposal(){['p-title','p-val','p-date','p-exp','p-desc'].forEach(id=>document.getElementById(id).value='');document.getElementById('p-stat').value='concept';document.getElementById('m-prop').classList.add('on');}
-function openAddTemplate(){['tpl-name','tpl-subj','tpl-body'].forEach(id=>document.getElementById(id).value='');document.getElementById('m-tpl').classList.add('on');}
+function openAddTemplate(){['tpl-name','tpl-subj','tpl-body'].forEach(id=>document.getElementById(id).value='');document.getElementById('m-tpl').dataset.editId='';const t=document.getElementById('m-tpl-titel');if(t)t.textContent='Template toevoegen';const d=document.getElementById('tpl-delete-btn');if(d)d.style.display='none';document.getElementById('m-tpl').classList.add('on');}
 function openImport(){document.getElementById('import-preview').style.display='none';document.getElementById('import-btn').style.display='none';document.getElementById('m-import').classList.add('on');}
 
 function openDedup(){
@@ -8450,6 +8463,33 @@ async function maakNieuweLijstEnVoegToe() {
   await _saveLijst(nieuw).catch(e => console.warn(e));
   closeM('m-lijst-sel');
   alert(`✓ Lijst "${naam}" aangemaakt met ${ids.length} account(s)`);
+}
+
+
+function openEditTemplate(id){
+  const t=templates.find(x=>x.id===id||String(x.id)===String(id));
+  if(!t)return;
+  document.getElementById('tpl-name').value=t.name||'';
+  document.getElementById('tpl-subj').value=t.subj||'';
+  document.getElementById('tpl-body').value=t.body||'';
+  document.getElementById('m-tpl').dataset.editId=id;
+  const titel=document.getElementById('m-tpl-titel');
+  if(titel)titel.textContent='Template bewerken';
+  const delBtn=document.getElementById('tpl-delete-btn');
+  if(delBtn)delBtn.style.display='inline-flex';
+  document.getElementById('m-tpl').classList.add('on');
+}
+
+async function deleteTemplate(){
+  const editId=document.getElementById('m-tpl').dataset.editId;
+  if(!editId||!confirm('Template verwijderen?'))return;
+  const idx=templates.findIndex(t=>String(t.id)===String(editId));
+  if(idx<0)return;
+  const tpl=templates[idx];
+  templates.splice(idx,1);
+  try{await fetch(`${SB_URL}/rest/v1/email_templates?id=eq.${tpl.id}`,{method:'DELETE',headers:_sbH});}catch(e){console.warn(e);}
+  closeM('m-tpl');
+  renderOutreach();
 }
 
 </script>
