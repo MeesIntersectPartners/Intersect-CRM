@@ -4819,7 +4819,7 @@ function handleCSV(input){
   reader.readAsText(file);
 }
 async function doImport(){
-  let added=0;let fouten=[];
+  let added=0;let fouten=[]; let dupSkipped=[];
   const nieuweAccs=[];
   const secundaireContacten=[];
   const bestaandeNamen=new Set(accs.map(a=>a.name.toLowerCase().trim()));
@@ -4862,11 +4862,10 @@ async function doImport(){
   ss('ix_accs',accs);
   addActivity(`<strong>${CU==='MA'?'Mees':'Julian'}</strong> importeerde ${added} accounts via CSV`,'↑','#e8f0fb');
   closeM('m-import');nav('accounts');
-  if(fouten.length){
-    alert(`⚠️ ${added-fouten.length} van ${added} geïmporteerd.\n\nFouten:\n${fouten.slice(0,5).join('\n')}`);
-  } else {
-    alert(`✓ ${added} accounts geïmporteerd!`);
-  }
+  let msg = `✓ ${added} account(s) geïmporteerd!`;
+  if(dupSkipped.length) msg += `\n\nMogelijke duplicaten overgeslagen:\n${dupSkipped.slice(0,10).join(', ')}`;
+  if(fouten.length) msg += `\n\nFouten:\n${fouten.slice(0,5).join('\n')}`;
+  alert(msg);
 }
 
 // ══════════════ HELPERS ══════════════
