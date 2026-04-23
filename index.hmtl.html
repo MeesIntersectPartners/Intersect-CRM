@@ -4019,9 +4019,11 @@ async function bulkVerstuur(){
       .join('</p><p>') + '</p>';
     // Voeg handtekening HTML toe als die geselecteerd is
     const handtekeningHtml = document.getElementById('bulk-body')?.dataset.handtekeningHtml || '';
-    const bodyHtml = handtekeningHtml
+    const innerHtml = handtekeningHtml
       ? bodyTekstHtml + '<br><br>' + handtekeningHtml
       : bodyTekstHtml;
+    // Wrap de volledige mail in Calibri 11pt zodat Outlook dit consistent rendert
+    const bodyHtml = `<div style="font-family:Calibri,Arial,sans-serif;font-size:11pt;">${innerHtml}</div>`;
     btn.textContent = `Versturen ${verstuurd+1}/${teVersturen.length}…`;
 
     try {
