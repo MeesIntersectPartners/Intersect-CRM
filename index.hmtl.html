@@ -836,6 +836,18 @@ textarea{resize:vertical;min-height:75px;}
               </div>
             </div>
 
+            <!-- Bijlages -->
+            <div style="margin-top:12px;">
+              <label style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px;">Bijlage <span style="font-weight:400;text-transform:none;letter-spacing:0;">(optioneel — wordt bij iedere ontvanger meegestuurd)</span></label>
+              <div style="display:flex;flex-direction:column;gap:6px;">
+                <label style="display:inline-flex;align-items:center;gap:7px;cursor:pointer;padding:7px 12px;border:1px dashed var(--border2);border-radius:var(--r);font-size:13px;color:var(--text2);width:fit-content;">
+                  <span>📎</span> Bestand kiezen
+                  <input type="file" id="bulk-file-input" multiple style="display:none;" onchange="bulkVoegBijlageToe(this)">
+                </label>
+                <div id="bulk-file-list"></div>
+              </div>
+            </div>
+
             <!-- Ontbrekende emails waarschuwing -->
             <div id="bulk-warning" style="display:none;margin-top:10px;"></div>
 
@@ -3997,7 +4009,18 @@ async function bulkVerstuur(){
   }
 
   if(!teVersturen.length){ alert('Geen accounts met e-mailadres in de selectie.'); return; }
-  if(!confirm(`${teVersturen.length} mails versturen via ${van}?`)) return;
+
+  // Bijlages check — de bulk flow gebruikt de directe send (niet de chunked upload),
+  // dus totale payload moet onder de ~3MB Graph limiet blijven.
+  const MAX_BULK_BIJLAGES = 3 * 1024 * 1024; // 3MB totaal
+  const totaalBijlageGrootte = bulkBijlages.reduce((s,b)=>s+b.grootte, 0);
+  if(totaalBijlageGrootte > MAX_BULK_BIJLAGES){
+    alert(`Bijlages zijn samen ${(totaalBijlageGrootte/1024/1024).toFixed(1)} MB — te groot voor bulk (max 3 MB). Verwijder een bestand of gebruik een downloadlink in de mail.`);
+    return;
+  }
+
+  const bijlageInfo = bulkBijlages.length ? ` met ${bulkBijlages.length} bijlage(s)` : '';
+  if(!confirm(`${teVersturen.length} mails versturen via ${van}${bijlageInfo}?`)) return;
 
   const btn = document.getElementById('bulk-send-btn');
   btn.disabled = true;
@@ -4030,13 +4053,14 @@ async function bulkVerstuur(){
       const res = await fetch('/api/mail', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-user-email': van },
-        body: JSON.stringify({ aan: a.ce, cc: [], onderwerp: onderwerpV, inhoud: bodyHtml, log_acc_id: a.id, mail_type: mailType, bijlages: [] }),
+        body: JSON.stringify({ aan: a.ce, cc: [], onderwerp: onderwerpV, inhoud: bodyHtml, log_acc_id: a.id, mail_type: mailType, bijlages: bulkBijlages }),
       });
       if(!res.ok) throw new Error(await res.text());
 
       // Log als notitie
       const contact = [a.cf,a.cl].filter(Boolean).join(' ');
-      const noteText = `${mailType==='mailshot'?'Mailshot':'Opvolg Mailshot'} verstuurd${opdrachtgever?' voor '+opdrachtgever.name:''}\nVan: ${van} → Aan: ${a.ce}\nOnderwerp: ${onderwerpV}\n\n${bodyV}`;
+      const bijlageLabel = bulkBijlages.length ? ` · ${bulkBijlages.length} bijlage(s): ${bulkBijlages.map(b=>b.naam).join(', ')}` : '';
+      const noteText = `${mailType==='mailshot'?'Mailshot':'Opvolg Mailshot'} verstuurd${opdrachtgever?' voor '+opdrachtgever.name:''}\nVan: ${van} → Aan: ${a.ce}${bijlageLabel}\nOnderwerp: ${onderwerpV}\n\n${bodyV}`;
       const note = { type: mailType, text: noteText, by: CU, contact, id: Date.now()+verstuurd };
       a.notes = a.notes || [];
       a.notes.push(note);
@@ -4057,6 +4081,8 @@ async function bulkVerstuur(){
     ? `✓ ${verstuurd} mails verstuurd. ${fouten.length} mislukt: ${fouten.join(', ')}`
     : `✓ ${verstuurd} mails verstuurd!`;
   alert(msg);
+  // Alleen opschonen als alles goed is gegaan, zodat je bij fouten kunt herproberen
+  if(!fouten.length) bulkResetBijlages();
   bulkDeselectAll();
 }
 
@@ -4392,6 +4418,38 @@ function bulkVoegHandtekeningToe(){
   // Visuele bevestiging
   const btn = document.querySelector('[onclick="bulkVoegHandtekeningToe()"]');
   if(btn){ btn.textContent = '✓ Toegevoegd'; setTimeout(()=>btn.textContent='Toevoegen',2000); }
+}
+
+function bulkVoegBijlageToe(input){
+  const files = Array.from(input.files);
+  const lijst = document.getElementById('bulk-file-list');
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const base64 = e.target.result.split(',')[1];
+      bulkBijlages.push({ naam: file.name, base64, mimeType: file.type, grootte: file.size });
+      const item = document.createElement('div');
+      item.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);font-size:12.5px;';
+      const grootteLabel = file.size >= 1024*1024
+        ? (file.size/1024/1024).toFixed(1) + ' MB'
+        : (file.size/1024).toFixed(0) + ' KB';
+      item.innerHTML = `<span>📄</span><span style="flex:1;">${file.name}</span><span style="color:var(--text3);">${grootteLabel}</span><button class="btn xs ghost" onclick="bulkVerwijderBijlage('${file.name.replace(/'/g,"\\'")}',this.parentElement)" style="color:var(--red);">✕</button>`;
+      lijst.appendChild(item);
+    };
+    reader.readAsDataURL(file);
+  });
+  input.value = '';
+}
+
+function bulkVerwijderBijlage(naam, el){
+  bulkBijlages = bulkBijlages.filter(b => b.naam !== naam);
+  el.remove();
+}
+
+function bulkResetBijlages(){
+  bulkBijlages = [];
+  const lijst = document.getElementById('bulk-file-list');
+  if(lijst) lijst.innerHTML = '';
 }
 
 // ══════════════ OPEN MODALS ══════════════
@@ -7497,6 +7555,7 @@ async function scraperBevestigen(){
 // ══════════════ MAIL COMPOSE ══════════════
 let mcType = 'mailshot';
 let mcBijlages = []; // { naam, base64, mimeType }
+let bulkBijlages = []; // bijlages voor bulk mail { naam, base64, mimeType, grootte }
 
 function mcSetType(type) {
   mcType = type;
