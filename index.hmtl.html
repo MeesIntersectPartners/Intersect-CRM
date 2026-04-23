@@ -4010,17 +4010,22 @@ async function bulkVerstuur(){
 
   if(!teVersturen.length){ alert('Geen accounts met e-mailadres in de selectie.'); return; }
 
-  // Bijlages check — de bulk flow gebruikt de directe send (niet de chunked upload),
-  // dus totale payload moet onder de ~3MB Graph limiet blijven.
-  const MAX_BULK_BIJLAGES = 3 * 1024 * 1024; // 3MB totaal
-  const totaalBijlageGrootte = bulkBijlages.reduce((s,b)=>s+b.grootte, 0);
-  if(totaalBijlageGrootte > MAX_BULK_BIJLAGES){
-    alert(`Bijlages zijn samen ${(totaalBijlageGrootte/1024/1024).toFixed(1)} MB — te groot voor bulk (max 3 MB). Verwijder een bestand of gebruik een downloadlink in de mail.`);
-    return;
-  }
+  // Bijlages splitsen: <3MB gaat direct mee in /api/mail, >=3MB moet via de draft + chunked upload flow (per ontvanger).
+  const MAX_DIRECT = 3 * 1024 * 1024; // 3MB
+  const kleineBijlages = bulkBijlages.filter(b => b.grootte < MAX_DIRECT);
+  const groteBijlages = bulkBijlages.filter(b => b.grootte >= MAX_DIRECT);
+  const heeftGroteBijlages = groteBijlages.length > 0;
+  const totaalBijlageMB = (bulkBijlages.reduce((s,b)=>s+b.grootte, 0) / 1024 / 1024).toFixed(1);
 
-  const bijlageInfo = bulkBijlages.length ? ` met ${bulkBijlages.length} bijlage(s)` : '';
-  if(!confirm(`${teVersturen.length} mails versturen via ${van}${bijlageInfo}?`)) return;
+  let confirmMsg;
+  if(heeftGroteBijlages){
+    confirmMsg = `${teVersturen.length} mails versturen via ${van} met ${bulkBijlages.length} bijlage(s) (${totaalBijlageMB} MB per ontvanger).\n\nLet op: ${groteBijlages.length} bestand${groteBijlages.length>1?'en zijn':' is'} groter dan 3 MB — die worden per ontvanger naar Microsoft geüpload, dus dit kan even duren. Doorgaan?`;
+  } else if(bulkBijlages.length){
+    confirmMsg = `${teVersturen.length} mails versturen via ${van} met ${bulkBijlages.length} bijlage(s)?`;
+  } else {
+    confirmMsg = `${teVersturen.length} mails versturen via ${van}?`;
+  }
+  if(!confirm(confirmMsg)) return;
 
   const btn = document.getElementById('bulk-send-btn');
   btn.disabled = true;
@@ -4050,12 +4055,72 @@ async function bulkVerstuur(){
     btn.textContent = `Versturen ${verstuurd+1}/${teVersturen.length}…`;
 
     try {
-      const res = await fetch('/api/mail', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-user-email': van },
-        body: JSON.stringify({ aan: a.ce, cc: [], onderwerp: onderwerpV, inhoud: bodyHtml, log_acc_id: a.id, mail_type: mailType, bijlages: bulkBijlages }),
-      });
-      if(!res.ok) throw new Error(await res.text());
+      if(!heeftGroteBijlages){
+        // Snelle directe send — alles past in één /api/mail call
+        const res = await fetch('/api/mail', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-user-email': van },
+          body: JSON.stringify({ aan: a.ce, cc: [], onderwerp: onderwerpV, inhoud: bodyHtml, log_acc_id: a.id, mail_type: mailType, bijlages: kleineBijlages }),
+        });
+        if(!res.ok) throw new Error(await res.text());
+      } else {
+        // Draft-flow: eerst draft aanmaken, dan (kleine) bijlages toevoegen, dan grote uploaden, dan versturen
+        btn.textContent = `Draft aanmaken ${verstuurd+1}/${teVersturen.length}…`;
+        const draftRes = await fetch('/api/mail-upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-user-email': van },
+          body: JSON.stringify({ action: 'create-draft', aan: a.ce, cc: [], onderwerp: onderwerpV, inhoud: bodyHtml }),
+        });
+        if(!draftRes.ok) throw new Error('Draft aanmaken mislukt');
+        const { messageId } = await draftRes.json();
+
+        // Kleine bijlages direct toevoegen aan de draft
+        if(kleineBijlages.length > 0){
+          const smallRes = await fetch('/api/mail', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-user-email': van },
+            body: JSON.stringify({ aan: a.ce, cc: [], onderwerp: onderwerpV, inhoud: bodyHtml, bijlages: kleineBijlages, _messageId: messageId }),
+          });
+          if(!smallRes.ok) throw new Error('Kleine bijlages toevoegen mislukt');
+        }
+
+        // Grote bijlages: upload session aanmaken en in 4MB chunks naar Microsoft sturen
+        for(let i = 0; i < groteBijlages.length; i++){
+          const b = groteBijlages[i];
+          btn.textContent = `Bijlage ${i+1}/${groteBijlages.length} — ontvanger ${verstuurd+1}/${teVersturen.length}…`;
+
+          const sessionRes = await fetch('/api/mail-upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-user-email': van },
+            body: JSON.stringify({ action: 'create-upload-session', messageId, fileName: b.naam, fileSize: b.grootte, mimeType: b.mimeType }),
+          });
+          if(!sessionRes.ok) throw new Error('Upload session mislukt');
+          const { uploadUrl } = await sessionRes.json();
+
+          const fileBytes = Uint8Array.from(atob(b.base64), c => c.charCodeAt(0));
+          const chunkSize = 4 * 1024 * 1024;
+          for(let offset = 0; offset < fileBytes.length; offset += chunkSize){
+            const chunk = fileBytes.slice(offset, Math.min(offset + chunkSize, fileBytes.length));
+            await fetch(uploadUrl, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/octet-stream',
+                'Content-Range': `bytes ${offset}-${offset + chunk.length - 1}/${fileBytes.length}`,
+              },
+              body: chunk,
+            });
+          }
+        }
+
+        // Draft versturen
+        btn.textContent = `Versturen ${verstuurd+1}/${teVersturen.length}…`;
+        const sendRes = await fetch('/api/mail-upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-user-email': van },
+          body: JSON.stringify({ action: 'send-draft', messageId }),
+        });
+        if(!sendRes.ok) throw new Error('Versturen mislukt');
+      }
 
       // Log als notitie
       const contact = [a.cf,a.cl].filter(Boolean).join(' ');
