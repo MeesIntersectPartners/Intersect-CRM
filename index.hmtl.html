@@ -1870,6 +1870,17 @@ async function _sbGet(t,q=''){
   if(!r.ok)throw new Error(`GET ${t}: ${await r.text()}`);
   return r.json();
 }
+async function _sbGetAll(t,q=''){
+  let all=[];let offset=0;const ps=1000;
+  while(true){
+    const sep=q.includes('?')?'&':'?';
+    const page=await _sbGet(t,q+sep+'limit='+ps+'&offset='+offset);
+    all=all.concat(page);
+    if(page.length<ps)break;
+    offset+=ps;
+  }
+  return all;
+}
 async function _sbPost(t,d){
   const r=await fetch(`${SB_URL}/rest/v1/${t}`,{method:'POST',headers:_sbHR,body:JSON.stringify(d)});
   if(!r.ok)throw new Error(`POST ${t}: ${await r.text()}`);
@@ -1929,7 +1940,7 @@ async function _loadFromSupabase(){
   try{
     _showLoad('Data laden…');
     const [accR,todoR,evR,clientR,tplR,actR,noteR,conR,dealR,propR,linkR]=await Promise.all([
-      _sbGet('accounts','?select=*&order=created_at.desc&limit=5000'),
+      _sbGetAll('accounts','?select=*&order=created_at.desc'),
       _sbGet('todos','?select=*&order=created_at.desc'),
       _sbGet('events','?select=*&order=event_date.asc'),
       _sbGet('clients','?select=*&order=id.asc'),
