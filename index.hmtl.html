@@ -1929,7 +1929,7 @@ async function _loadFromSupabase(){
   try{
     _showLoad('Data laden…');
     const [accR,todoR,evR,clientR,tplR,actR,noteR,conR,dealR,propR,linkR]=await Promise.all([
-      _sbGet('accounts','?select=*&order=created_at.desc'),
+      _sbGet('accounts','?select=*&order=created_at.desc&limit=5000'),
       _sbGet('todos','?select=*&order=created_at.desc'),
       _sbGet('events','?select=*&order=event_date.asc'),
       _sbGet('clients','?select=*&order=id.asc'),
